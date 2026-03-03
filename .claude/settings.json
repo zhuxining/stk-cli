@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ruff check --fix && uv run ty check",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {},
+  "permissions": {
+    "allow": [
+      "Bash(git)",
+      "Bash(cd)",
+      "Bash(ls)",
+      "Bash(cat)",
+      "Bash(uv)"
+    ]
+  }
+}
