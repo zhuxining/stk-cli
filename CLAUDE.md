@@ -72,8 +72,10 @@ src/stk/
 ├── models/             # Pydantic models (data contracts, JSON schema for agents)
 │   ├── common.py       # Envelope, ErrorDetail
 │   └── ...             # One file per domain
-└── store/              # Local JSON file storage (~/.stk/)
-    └── file_store.py   # Atomic JSON read/write
+├── store/              # Local JSON file storage (~/.stk/)
+│   └── file_store.py   # Atomic JSON read/write
+└── utils/              # Utility functions
+    └── price.py        # Price formatting
 ```
 
 ### Key conventions
