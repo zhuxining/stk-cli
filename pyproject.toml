@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-stk = "app.cli:app"
+stk = "main:main"
 
 [dependency-groups]
 dev = [
@@ -60,9 +60,9 @@ select = [
 ]
 ignore = [
     "E501",   # line too long
-    "RUF029", # functions declared async that do not await 
-    # "F401",   # imported but unused
-    # "F841",   # local variable assigned but never used
+    "B008",   # function call in default arg (typer pattern)
+    "RUF029", # functions declared async that do not await
+    "SIM108", # ternary operator (readability preference)
 ]
 allowed-confusables = ["，", "。", "：", "；", "！", "？", "（", "）", "“", "”"]
 unfixable = []
