@@ -2,8 +2,8 @@
 
 import typer
 
-from app import output
-from app.models.common import TargetType
+from stk import output
+from stk.models.common import TargetType
 
 app = typer.Typer(help="Historical K-line data", no_args_is_help=True)
 
@@ -16,7 +16,7 @@ def get(
     count: int = typer.Option(30, "--count", "-c", help="Number of candlesticks"),
 ) -> None:
     """Get historical candlestick data."""
-    from app.services.history import get_history
+    from stk.services.history import get_history
 
     result = get_history(symbol, target_type=type, period=period, count=count)
     output.render(result, meta={"count": len(result)})

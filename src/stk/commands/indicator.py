@@ -2,8 +2,8 @@
 
 import typer
 
-from app import output
-from app.models.common import TargetType
+from stk import output
+from stk.models.common import TargetType
 
 app = typer.Typer(help="Technical indicators (ta-lib)", no_args_is_help=True)
 
@@ -17,7 +17,7 @@ def get(
     count: int = typer.Option(60, "--count", "-c", help="Number of data points"),
 ) -> None:
     """Calculate a technical indicator."""
-    from app.services.indicator import calc_indicator
+    from stk.services.indicator import calc_indicator
 
     result = calc_indicator(symbol, name, target_type=type, period=period, count=count)
     output.render(result)

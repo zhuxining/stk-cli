@@ -1,9 +1,13 @@
 """Root Typer app — registers all subcommand groups."""
 
+import sys
+
 from loguru import logger
 import typer
 
-from app.config import settings
+from stk import output
+from stk.config import settings
+from stk.errors import StkError
 
 app = typer.Typer(
     name="stk",
@@ -15,20 +19,17 @@ app = typer.Typer(
 
 def _setup_logging() -> None:
     logger.remove()
-    logger.add(
-        sink=lambda msg: print(msg, end="", file=__import__("sys").stderr),
-        level=settings.log_level,
-    )
+    logger.add(sink=sys.stderr, level=settings.log_level)
 
 
 @app.callback()
-def main() -> None:
+def _callback() -> None:
     """stk — Stock Query CLI for Agents."""
     _setup_logging()
 
 
 # Register subcommand groups
-from app.commands import (  # noqa: E402
+from stk.commands import (  # noqa: E402
     chip,
     flow,
     fundamental,
@@ -49,3 +50,13 @@ app.add_typer(market.app, name="market")
 app.add_typer(flow.app, name="flow")
 app.add_typer(chip.app, name="chip")
 app.add_typer(watchlist.app, name="watchlist")
+
+
+def cli() -> None:
+    """CLI entry point with global error handling."""
+    try:
+        app()
+    except StkError as e:
+        output.render_error(type(e).__name__, e.message)
+    except Exception as e:
+        output.render_error("UnexpectedError", str(e))

@@ -2,8 +2,8 @@
 
 from functools import lru_cache
 
-from app.config import settings
-from app.errors import ConfigError
+from stk.config import settings
+from stk.errors import ConfigError
 
 
 @lru_cache(maxsize=1)

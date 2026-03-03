@@ -1,7 +1,7 @@
 """Longport QuoteContext wrapper for HK/US stocks."""
 
-from app.deps import get_longport_ctx
-from app.errors import SourceError
+from stk.deps import get_longport_ctx
+from stk.errors import SourceError
 
 
 def get_realtime_quote(symbol: str) -> dict:

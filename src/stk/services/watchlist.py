@@ -1,7 +1,7 @@
 """Watchlist CRUD service."""
 
-from app.models.watchlist import Watchlist
-from app.store.file_store import load_json, save_json
+from stk.models.watchlist import Watchlist
+from stk.store.file_store import load_json, save_json
 
 WATCHLIST_FILE = "watchlist.json"
 

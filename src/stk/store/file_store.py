@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 from typing import Any
 
-from app.config import settings
+from stk.config import settings
 
 
 def _ensure_dir() -> Path:

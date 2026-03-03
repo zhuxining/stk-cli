@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `stk-cli` is a Stock Query CLI tool built with Typer, designed for agent-driven interaction. It wraps two data sources: **longport** (real-time broker data) and **akshare** (A-share market data), with **ta-lib** for technical analysis.
 
 - Python 3.14, managed with **uv**
-- App source lives in `app/` (built as wheel package)
-- Entry point: `main.py`
+- Src layout: source in `src/stk/` (built as wheel package via `uv_build`)
+- Entry point: `src/stk/cli.py` → `cli()` (registered as `stk` command via `project.scripts`)
 
 ## Commands
 
@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 uv sync
 
 # Run the CLI
-uv run python main.py
+uv run stk
 
 # Lint & format (auto-fix enabled)
 uv run ruff check .
@@ -41,7 +41,7 @@ uv run pytest tests/path/to/test_file.py
 Three-layer architecture. Full design doc: `dosc/design/architecture.md`.
 
 ```
-app/
+src/stk/
 ├── cli.py              # Root Typer app, registers all subcommand groups
 ├── config.py           # pydantic-settings Settings (reads .env)
 ├── output.py           # Unified JSON envelope output

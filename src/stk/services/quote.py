@@ -2,8 +2,8 @@
 
 import re
 
-from app.models.common import TargetType
-from app.models.quote import Quote
+from stk.models.common import TargetType
+from stk.models.quote import Quote
 
 
 def get_quote(symbol: str, *, target_type: TargetType = TargetType.STOCK) -> Quote:
@@ -20,11 +20,11 @@ def get_quote(symbol: str, *, target_type: TargetType = TargetType.STOCK) -> Quo
 def _get_stock_quote(symbol: str) -> dict:
     """Route stock symbol to longport or akshare."""
     if _is_hk_us(symbol):
-        from app.services.longport_quote import get_realtime_quote
+        from stk.services.longport_quote import get_realtime_quote
 
         return get_realtime_quote(symbol)
 
-    from app.services.akshare_quote import get_realtime_quote
+    from stk.services.akshare_quote import get_realtime_quote
 
     return get_realtime_quote(symbol)
 

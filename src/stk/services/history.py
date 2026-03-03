@@ -1,7 +1,7 @@
 """Historical candlestick data service."""
 
-from app.models.common import TargetType
-from app.models.history import Candlestick
+from stk.models.common import TargetType
+from stk.models.history import Candlestick
 
 
 def get_history(

@@ -1,7 +1,7 @@
 """Technical indicator calculation service (ta-lib + pandas)."""
 
-from app.models.common import TargetType
-from app.models.indicator import IndicatorResult
+from stk.models.common import TargetType
+from stk.models.indicator import IndicatorResult
 
 
 def calc_indicator(

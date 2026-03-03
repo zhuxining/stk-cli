@@ -1,7 +1,7 @@
 """News service."""
 
-from app.models.common import TargetType
-from app.models.news import NewsItem
+from stk.models.common import TargetType
+from stk.models.news import NewsItem
 
 
 def get_news(

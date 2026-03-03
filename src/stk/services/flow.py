@@ -1,7 +1,7 @@
 """Money flow service."""
 
-from app.models.common import TargetType
-from app.models.flow import MoneyFlow, SectorFlow
+from stk.models.common import TargetType
+from stk.models.flow import MoneyFlow, SectorFlow
 
 
 def get_flow(

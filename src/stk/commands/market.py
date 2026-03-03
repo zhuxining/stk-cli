@@ -2,7 +2,7 @@
 
 import typer
 
-from app import output
+from stk import output
 
 app = typer.Typer(help="Market indices, temperature, and breadth", no_args_is_help=True)
 
@@ -10,7 +10,7 @@ app = typer.Typer(help="Market indices, temperature, and breadth", no_args_is_he
 @app.command()
 def index() -> None:
     """Get major index quotes."""
-    from app.services.market import get_indices
+    from stk.services.market import get_indices
 
     result = get_indices()
     output.render(result, meta={"count": len(result)})
@@ -19,7 +19,7 @@ def index() -> None:
 @app.command()
 def temperature() -> None:
     """Get market temperature score (0-100)."""
-    from app.services.market import get_temperature
+    from stk.services.market import get_temperature
 
     result = get_temperature()
     output.render(result)
@@ -28,7 +28,7 @@ def temperature() -> None:
 @app.command()
 def breadth() -> None:
     """Get market breadth (advance/decline stats)."""
-    from app.services.market import get_breadth
+    from stk.services.market import get_breadth
 
     result = get_breadth()
     output.render(result)

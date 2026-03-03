@@ -1,6 +1,6 @@
 """Chip distribution service (A-share only)."""
 
-from app.models.chip import ChipDistribution, HolderChange
+from stk.models.chip import ChipDistribution, HolderChange
 
 
 def get_chip_distribution(symbol: str) -> ChipDistribution:

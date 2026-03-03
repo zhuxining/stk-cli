@@ -2,8 +2,8 @@
 
 import typer
 
-from app import output
-from app.models.common import TargetType
+from stk import output
+from stk.models.common import TargetType
 
 app = typer.Typer(help="News and announcements", no_args_is_help=True)
 
@@ -15,7 +15,7 @@ def list(
     count: int = typer.Option(10, "--count", "-c", help="Number of news items"),
 ) -> None:
     """List recent news for a symbol."""
-    from app.services.news import get_news
+    from stk.services.news import get_news
 
     result = get_news(symbol, target_type=type, count=count)
     output.render(result, meta={"count": len(result)})

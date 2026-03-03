@@ -1,6 +1,6 @@
 """Fundamental data service (financials, valuation, dividends)."""
 
-from app.models.fundamental import Dividend, FinancialReport, Valuation
+from stk.models.fundamental import Dividend, FinancialReport, Valuation
 
 
 def get_financial_report(

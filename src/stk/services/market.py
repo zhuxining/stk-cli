@@ -1,6 +1,6 @@
 """Market service — indices, temperature, breadth."""
 
-from app.models.market import IndexQuote, MarketBreadth, MarketTemperature
+from stk.models.market import IndexQuote, MarketBreadth, MarketTemperature
 
 
 def get_indices() -> list[IndexQuote]:

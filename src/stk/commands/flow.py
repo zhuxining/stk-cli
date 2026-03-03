@@ -2,8 +2,8 @@
 
 import typer
 
-from app import output
-from app.models.common import TargetType
+from stk import output
+from stk.models.common import TargetType
 
 app = typer.Typer(help="Money flow data", no_args_is_help=True)
 
@@ -14,7 +14,7 @@ def get(
     type: TargetType = typer.Option(TargetType.STOCK, "--type", "-t", help="Target type"),
 ) -> None:
     """Get money flow data."""
-    from app.services.flow import get_flow
+    from stk.services.flow import get_flow
 
     result = get_flow(symbol, target_type=type)
     output.render(result)

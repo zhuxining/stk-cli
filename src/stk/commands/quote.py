@@ -2,8 +2,8 @@
 
 import typer
 
-from app import output
-from app.models.common import TargetType
+from stk import output
+from stk.models.common import TargetType
 
 app = typer.Typer(help="Real-time quote data", no_args_is_help=True)
 
@@ -14,7 +14,7 @@ def get(
     type: TargetType = typer.Option(TargetType.STOCK, "--type", "-t", help="Target type"),
 ) -> None:
     """Get real-time quote for a symbol."""
-    from app.services.quote import get_quote
+    from stk.services.quote import get_quote
 
     result = get_quote(symbol, target_type=type)
     output.render(result, meta={"source": "auto"})

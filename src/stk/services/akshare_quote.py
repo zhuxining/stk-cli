@@ -1,6 +1,6 @@
 """Akshare wrapper for A-share data."""
 
-from app.errors import SourceError
+from stk.errors import SourceError
 
 
 def get_realtime_quote(symbol: str) -> dict:
