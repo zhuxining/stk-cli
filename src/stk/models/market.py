@@ -15,9 +15,10 @@ class IndexQuote(BaseModel):
 
 
 class MarketTemperature(BaseModel):
-    score: int  # 0-100
-    level: str  # 冰点/偏冷/中性/偏热/沸点
-    details: list[dict]
+    score: int  # 0-100 temperature value
+    level: str  # description from longport (e.g. 冰点/偏冷/中性/偏热/沸点)
+    valuation: int | None = None
+    sentiment: int | None = None
 
 
 class MarketBreadth(BaseModel):

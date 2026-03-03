@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`stk-cli` is a Stock Query CLI tool built with Typer, designed for agent-driven interaction. It wraps two data sources: **longport** (real-time broker data) and **akshare** (A-share market data), with **ta-lib** for technical analysis.
+`stk-cli` is a Stock Query CLI tool built with Typer, designed for agent-driven interaction. It uses **longport** as the unified data source for all markets (A-share, HK, US), with **ta-lib** for technical analysis.
 
 - Python 3.14, managed with **uv**
 - Src layout: source in `src/stk/` (built as wheel package via `uv_build`)
@@ -58,9 +58,9 @@ src/stk/
 │   ├── chip.py         # stk chip — chip distribution
 │   └── watchlist.py    # stk watchlist — watchlist CRUD
 ├── services/           # Business logic: call APIs → return Pydantic models
+│   ├── symbol.py       # Symbol normalization (user input → longport format)
 │   ├── longport_quote.py
-│   ├── akshare_quote.py
-│   ├── quote.py        # Facade: routes symbol to correct data source
+│   ├── quote.py        # Facade: all markets via longport
 │   ├── history.py
 │   ├── indicator.py    # ta-lib calculations (pure DataFrame ops)
 │   ├── news.py
@@ -81,11 +81,12 @@ src/stk/
 - **commands/** — Thin. No business logic. Parse params → call service → `output.render()`.
 - **services/** — All logic here. Call data source → transform → return Pydantic model. No stdout.
 - **models/** — Data contracts between layers. Also the JSON schema agents consume.
-- **Data flow**: CLI command → commands/ → services/ → longport/akshare API → pandas DataFrame → models/ → output.py (JSON envelope to stdout).
-- **Symbol routing** (in `services/quote.py` facade): `.HK`/`.US` suffix → longport; 6-digit number → akshare (A-share).
+- **Data flow**: CLI command → commands/ → services/ → longport API → pandas DataFrame → models/ → output.py (JSON envelope to stdout).
+- **Symbol normalization** (in `services/symbol.py`): `600519`→`600519.SH`, `000001`→`000001.SZ`; `.HK`/`.US`/`.`prefix → pass through.
 - **Target types**: `--type stock|sector|concept|index` (default `stock`).
 - **JSON envelope**: `{"ok": true, "data": [...], "error": null, "meta": {...}}`. All output to stdout, logs to stderr.
 - **Errors**: `StkError` → `ConfigError` / `SourceError` / `SymbolNotFoundError` / `IndicatorError` / `DataNotFoundError`. Services wrap SDK exceptions; global handler formats JSON error output.
 - **Storage**: `~/.stk/` directory for watchlist.json etc. Atomic writes (tmp file + rename).
 
 Use `loguru` for all logging. Use `pandas` + `ta-lib` for indicator calculations in services.
+Longport is the sole data source. Some features (news, chip, breadth, financial report, dividend) are marked `NotImplementedError` pending future akshare integration.
