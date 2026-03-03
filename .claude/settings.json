@@ -16,11 +16,12 @@
   "enabledPlugins": {},
   "permissions": {
     "allow": [
-      "Bash(git)",
-      "Bash(cd)",
-      "Bash(ls)",
-      "Bash(cat)",
-      "Bash(uv)"
+      "Bash(git:*)",
+      "Bash(cd:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(uv:*)"
     ]
   }
 }
