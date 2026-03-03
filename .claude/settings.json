@@ -21,6 +21,7 @@
       "Bash(git add:*)",
       "Bash(cd:*)",
       "Bash(grep:*)",
+      "Bash(find:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(uv:*)",
