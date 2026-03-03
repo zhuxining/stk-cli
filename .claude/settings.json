@@ -17,11 +17,14 @@
   "permissions": {
     "allow": [
       "Bash(git:*)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)",
       "Bash(cd:*)",
       "Bash(grep:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
-      "Bash(uv:*)"
+      "Bash(uv:*)",
+      "Bash(uv run:*)"
     ]
   }
 }
