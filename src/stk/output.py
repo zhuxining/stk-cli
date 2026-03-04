@@ -9,10 +9,7 @@ from pydantic import BaseModel
 
 def render(data: Any, *, meta: dict[str, Any] | None = None) -> None:
     """Print success JSON envelope to stdout."""
-    if isinstance(data, list):
-        serialized = [_serialize(item) for item in data]
-    else:
-        serialized = _serialize(data)
+    serialized = [_serialize(item) for item in data] if isinstance(data, list) else _serialize(data)
 
     envelope = {"ok": True, "data": serialized, "error": None, "meta": meta or {}}
     print(json.dumps(envelope, ensure_ascii=False, default=str))

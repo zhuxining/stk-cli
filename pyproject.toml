@@ -13,6 +13,7 @@ dependencies = [
     "akshare>=1.18.30",
     "ta-lib>=0.6.8",
     "pandas>=3.0.1",
+    "crawl4ai>=0.8.0",
 ]
 
 [project.scripts]
@@ -43,27 +44,31 @@ default = true
 [tool.ruff]
 line-length = 100
 fix = true
+preview = true
+unsafe-fixes = true
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "F",   # Pyflakes
-    "UP",  # pyupgrade
-    "B",   # flake8-bugbear
-    "SIM", # flake8-simplify
-    "C4",  # flake8-comprehensions
-    "I",   # isort
-    "TID", # tidy imports
-    "PTH", # pathlib
-    "RUF", # Ruff-specific
-    "NPY", # numpy-specific
-    "PD",  # pandas-specific
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+    "DTZ",  # flake8-datetimez
+    "D",    # pydocstyle
+    "I",    # isort
+    "N",    # pep8-naming
+    "TID",  # tidy imports
+    "PTH",  # pathlib
+    "FLY",  # flynt-specific
+    "RUF",  # Ruff-specific
+    "FURB", # refurb specific
+    "NPY",  # numpy-specific
+    "PD",   # pandas-specific
 ]
 ignore = [
-    "E501",   # line too long
-    "B008",   # function call in default arg (typer pattern)
-    "RUF029", # functions declared async that do not await
-    "SIM108", # ternary operator (readability preference)
+    "F401", # module imported but unused (handled by pyflakes)
 ]
 allowed-confusables = ["，", "。", "：", "；", "！", "？", "（", "）", "“", "”"]
 unfixable = []

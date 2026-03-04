@@ -42,7 +42,7 @@ def get_flow(
             medium_out=Decimal(str(dist.capital_out.medium)),
             small_in=Decimal(str(dist.capital_in.small)),
             small_out=Decimal(str(dist.capital_out.small)),
-            intraday=intraday if intraday else None,
+            intraday=intraday or None,
         )
     except NotImplementedError:
         raise

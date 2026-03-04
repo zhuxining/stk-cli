@@ -24,7 +24,7 @@ def _setup_logging() -> None:
 
 @app.callback()
 def _callback() -> None:
-    """stk — Stock Query CLI for Agents."""
+    """Stk — Stock Query CLI for Agents."""
     _setup_logging()
 
 
