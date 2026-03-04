@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 
 class ChipDistribution(BaseModel):
+    """Chip distribution data for a security."""
+
     symbol: str
     avg_cost: Decimal | None = None
     profit_ratio: Decimal | None = None
@@ -14,6 +16,8 @@ class ChipDistribution(BaseModel):
 
 
 class HolderChange(BaseModel):
+    """Holder count change data."""
+
     date: str
     holder_count: int
     avg_shares: Decimal | None = None

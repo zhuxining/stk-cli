@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 
 class Candlestick(BaseModel):
+    """Candlestick OHLCV data."""
+
     date: str
     open: Decimal
     high: Decimal

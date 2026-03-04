@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 
 class FinancialReport(BaseModel):
+    """Financial report data."""
+
     symbol: str
     report_type: str  # income / balance / cashflow
     period: str
@@ -13,6 +15,8 @@ class FinancialReport(BaseModel):
 
 
 class Valuation(BaseModel):
+    """Valuation metrics."""
+
     symbol: str
     pe: Decimal | None = None
     pb: Decimal | None = None
@@ -23,6 +27,8 @@ class Valuation(BaseModel):
 
 
 class Dividend(BaseModel):
+    """Dividend information."""
+
     symbol: str
     ex_date: str
     amount: Decimal

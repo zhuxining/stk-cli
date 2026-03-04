@@ -32,6 +32,7 @@ def _make_candles(count: int = 30) -> list[Candlestick]:
 
 @patch("stk.services.indicator.get_history")
 def test_calc_ma(mock_history):
+    """Test MA indicator calculation."""
     mock_history.return_value = _make_candles(30)
     result = calc_indicator("600519", "MA", count=30, timeperiod=5)
     assert result.symbol == "600519"
@@ -45,6 +46,7 @@ def test_calc_ma(mock_history):
 
 @patch("stk.services.indicator.get_history")
 def test_calc_macd(mock_history):
+    """Test MACD indicator calculation."""
     mock_history.return_value = _make_candles(60)
     result = calc_indicator("600519", "MACD", count=60)
     assert result.indicator == "MACD"
@@ -57,6 +59,7 @@ def test_calc_macd(mock_history):
 
 @patch("stk.services.indicator.get_history")
 def test_calc_rsi(mock_history):
+    """Test RSI indicator calculation."""
     mock_history.return_value = _make_candles(30)
     result = calc_indicator("600519", "RSI", count=30, timeperiod=14)
     assert result.indicator == "RSI"
@@ -65,6 +68,7 @@ def test_calc_rsi(mock_history):
 
 @patch("stk.services.indicator.get_history")
 def test_calc_boll(mock_history):
+    """Test Bollinger Bands calculation."""
     mock_history.return_value = _make_candles(30)
     result = calc_indicator("600519", "BOLL", count=30)
     assert result.indicator == "BOLL"
@@ -76,6 +80,7 @@ def test_calc_boll(mock_history):
 
 @patch("stk.services.indicator.get_history")
 def test_calc_kdj(mock_history):
+    """Test KDJ indicator calculation."""
     mock_history.return_value = _make_candles(30)
     result = calc_indicator("600519", "KDJ", count=30)
     assert result.indicator == "KDJ"
@@ -86,5 +91,6 @@ def test_calc_kdj(mock_history):
 
 
 def test_unknown_indicator():
+    """Test error for unknown indicator."""
     with pytest.raises(IndicatorError, match="Unknown indicator"):
         calc_indicator("600519", "UNKNOWN")

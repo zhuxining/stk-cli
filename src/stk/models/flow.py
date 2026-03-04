@@ -26,6 +26,8 @@ class MoneyFlow(BaseModel):
 
 
 class SectorFlow(BaseModel):
+    """Sector-level money flow data."""
+
     sector: str
     change_pct: Decimal | None = None
     main_net: Decimal | None = None

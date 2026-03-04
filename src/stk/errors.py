@@ -5,6 +5,7 @@ class StkError(Exception):
     """Base exception for all stk-cli errors."""
 
     def __init__(self, message: str):
+        """Initialize exception with message."""
         self.message = message
         super().__init__(message)
 

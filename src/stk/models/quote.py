@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 
 class Quote(BaseModel):
+    """Real-time quote data."""
+
     symbol: str
     name: str = ""
     last: Decimal

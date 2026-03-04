@@ -16,13 +16,11 @@ def _get_period(period: str):
     if not _PERIOD_MAP:
         from longport.openapi import Period
 
-        _PERIOD_MAP.update(
-            {
-                "day": Period.Day,
-                "week": Period.Week,
-                "month": Period.Month,
-            }
-        )
+        _PERIOD_MAP.update({
+            "day": Period.Day,
+            "week": Period.Week,
+            "month": Period.Month,
+        })
     lp_period = _PERIOD_MAP.get(period)
     if lp_period is None:
         raise SourceError(f"Unsupported period: {period}. Use day/week/month")

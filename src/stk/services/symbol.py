@@ -4,7 +4,8 @@ import re
 
 
 def to_longport_symbol(symbol: str) -> str:
-    """Convert user input to longport symbol format.
+    """
+    Convert user input to longport symbol format.
 
     - 700.HK / AAPL.US / HSI.HK / 000001.SH → pass through
     - .DJI / .IXIC / .SPX → pass through (US index)

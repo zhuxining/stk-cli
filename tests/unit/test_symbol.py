@@ -30,4 +30,5 @@ from stk.services.symbol import to_longport_symbol
     ],
 )
 def test_to_longport_symbol(input_symbol, expected):
+    """Test symbol normalization to Longport format."""
     assert to_longport_symbol(input_symbol) == expected
