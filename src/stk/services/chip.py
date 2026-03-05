@@ -1,13 +1,44 @@
-"""Chip distribution service — longport has no chip/holder data."""
+"""Chip distribution service — akshare (A-share only)."""
 
-from stk.models.chip import ChipDistribution, HolderChange
+from decimal import Decimal
+
+import akshare as ak
+
+from stk.errors import SourceError
+from stk.models.chip import ChipDistribution
+from stk.services.symbol import to_longport_symbol
 
 
 def get_chip_distribution(symbol: str) -> ChipDistribution:
-    """Get chip cost distribution. TODO: needs akshare — longport has no position cost data."""
-    raise NotImplementedError("Chip distribution not yet implemented (needs akshare)")
+    """Get chip cost distribution from akshare."""
+    lp_symbol = to_longport_symbol(symbol)
+    ak_symbol = lp_symbol.split(".")[0] if "." in lp_symbol else lp_symbol
 
+    try:
+        df = ak.stock_cyq_em(symbol=ak_symbol, adjust="")
 
-def get_holder_change(symbol: str) -> list[HolderChange]:
-    """Get shareholder count changes. TODO: needs akshare — longport has no holder data."""
-    raise NotImplementedError("Holder change not yet implemented (needs akshare)")
+        if df.empty:
+            raise SourceError(f"No chip distribution data for {symbol}")
+
+        row = df.iloc[-1]  # latest date
+
+        return ChipDistribution(
+            symbol=lp_symbol,
+            avg_cost=Decimal(str(row["平均成本"])),
+            profit_ratio=Decimal(str(row["获利比例"])),
+            concentration=Decimal(str(row["90集中度"])),
+            chips=[
+                {
+                    "date": str(row["日期"]),
+                    "cost_90_low": float(row["90成本-低"]),
+                    "cost_90_high": float(row["90成本-高"]),
+                    "cost_70_low": float(row["70成本-低"]),
+                    "cost_70_high": float(row["70成本-高"]),
+                    "concentration_70": float(row["70集中度"]),
+                }
+            ],
+        )
+    except SourceError:
+        raise
+    except Exception as e:
+        raise SourceError(f"Failed to fetch chip distribution for {symbol}: {e}") from e

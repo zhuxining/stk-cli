@@ -1,6 +1,10 @@
-"""Market service — indices, temperature, breadth via longport."""
+"""Market service — indices, temperature, breadth via longport + akshare."""
 
+from datetime import UTC, datetime
 from decimal import Decimal
+
+import akshare as ak
+from loguru import logger
 
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
@@ -63,5 +67,39 @@ def get_temperature() -> MarketTemperature:
 
 
 def get_breadth() -> MarketBreadth:
-    """Get market breadth. TODO: longport has no advance/decline stats API."""
-    raise NotImplementedError("Market breadth not yet implemented (needs akshare)")
+    """Get market breadth from akshare (A-share)."""
+    today = datetime.now(tz=UTC).strftime("%Y%m%d")
+
+    try:
+        # Count up/down/flat from A-share spot data
+        df = ak.stock_zh_a_spot_em()
+        up_count = int((df["涨跌幅"] > 0).sum())
+        down_count = int((df["涨跌幅"] < 0).sum())
+        flat_count = int((df["涨跌幅"] == 0).sum())
+
+        # Limit up/down counts
+        limit_up = 0
+        limit_down = 0
+        try:
+            zt_df = ak.stock_zt_pool_em(date=today)
+            limit_up = len(zt_df)
+        except Exception:
+            logger.debug("Failed to fetch limit-up pool, skipping")
+
+        try:
+            dt_df = ak.stock_zt_pool_dtgc_em(date=today)
+            limit_down = len(dt_df)
+        except Exception:
+            logger.debug("Failed to fetch limit-down pool, skipping")
+
+        return MarketBreadth(
+            up_count=up_count,
+            down_count=down_count,
+            flat_count=flat_count,
+            limit_up=limit_up,
+            limit_down=limit_down,
+        )
+    except SourceError:
+        raise
+    except Exception as e:
+        raise SourceError(f"Failed to fetch market breadth: {e}") from e
