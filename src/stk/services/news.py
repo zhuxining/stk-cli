@@ -10,7 +10,7 @@ from stk.utils.symbol import to_longport_symbol
 _GLOBAL_SOURCE_CONFIG = {
     "cls": {
         "api": "stock_info_global_cls",
-        "kwargs_fn": lambda symbol: {"symbol": symbol},
+        "kwargs_fn": lambda f: {"symbol": f},
         "title": "标题",
         "summary": "内容",
         "published_at": "发布时间",
@@ -64,13 +64,13 @@ def get_global_news(
     *,
     source: str = "cls",
     count: int = 20,
-    symbol: str = "全部",
+    filter_: str = "全部",
 ) -> list[NewsItem]:
     """
     Get global market news from cls/ths/em.
 
     source: cls (财联社) / ths (同花顺) / em (东方财富)
-    symbol: for cls only — "全部" or "重点"
+    filter_: for cls only — "全部" or "重点"
     """
     cfg = _GLOBAL_SOURCE_CONFIG.get(source)
     if not cfg:
@@ -79,7 +79,7 @@ def get_global_news(
 
     try:
         api_fn = getattr(ak, cfg["api"])
-        kwargs = cfg["kwargs_fn"](symbol)
+        kwargs = cfg["kwargs_fn"](filter_)
         df = api_fn(**kwargs)
 
         if df.empty:

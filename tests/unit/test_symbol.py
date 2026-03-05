@@ -68,12 +68,18 @@ def test_to_em_symbol(input_symbol, expected):
         ("600519", ("600519", "sh")),
         ("000001", ("000001", "sz")),
         ("688001", ("688001", "sh")),
-        ("700.HK", ("700", "hk")),
     ],
 )
 def test_to_ak_market(input_symbol, expected):
     """Test conversion to akshare (code, market) format."""
     assert to_ak_market(input_symbol) == expected
+
+
+@pytest.mark.parametrize("input_symbol", ["700.HK", "AAPL.US", ".DJI", "TSLA"])
+def test_to_ak_market_rejects_non_a_share(input_symbol):
+    """Test to_ak_market raises ValueError for non-A-share symbols."""
+    with pytest.raises(ValueError, match="only supports A-share"):
+        to_ak_market(input_symbol)
 
 
 @pytest.mark.parametrize(

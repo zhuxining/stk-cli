@@ -3,6 +3,7 @@
 import typer
 
 from stk import output
+from stk.models.common import ActionResult
 
 app = typer.Typer(help="Watchlist management", no_args_is_help=True)
 
@@ -36,7 +37,7 @@ def add(
     from stk.services.watchlist import add_symbol
 
     add_symbol(name, symbol)
-    output.render({"message": f"Added {symbol} to {name}"})
+    output.render(ActionResult(message=f"Added {symbol} to {name}"))
 
 
 @app.command()
@@ -48,4 +49,4 @@ def remove(
     from stk.services.watchlist import remove_symbol
 
     remove_symbol(name, symbol)
-    output.render({"message": f"Removed {symbol} from {name}"})
+    output.render(ActionResult(message=f"Removed {symbol} from {name}"))

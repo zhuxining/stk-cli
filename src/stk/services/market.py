@@ -1,7 +1,8 @@
 """Market service — indices, temperature, breadth."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import akshare as ak
 from loguru import logger
@@ -12,21 +13,24 @@ from stk.models.market import IndexQuote, MarketBreadth, MarketTemperature
 from stk.utils.price import r2
 
 MAJOR_INDICES = [
-    "000001.SH",  # 上证指数
-    "399001.SZ",  # 深证成指
-    "399006.SZ",  # 创业板指
-    "HSI.HK",  # 恒生指数
-    ".IXIC",  # 纳斯达克
-    ".DJI",  # 道琼斯
-    ".SPX",  # 标普 500
+    ("000001.SH", "上证指数"),
+    ("399001.SZ", "深证成指"),
+    ("399006.SZ", "创业板指"),
+    ("HSI.HK", "恒生指数"),
+    (".IXIC", "纳斯达克"),
+    (".DJI", "道琼斯"),
+    (".SPX", "标普500"),
 ]
+
+_INDEX_NAMES = dict(MAJOR_INDICES)
 
 
 def get_indices() -> list[IndexQuote]:
     """Get major index quotes from longport."""
     try:
         ctx = get_longport_ctx()
-        resp = ctx.quote(MAJOR_INDICES)
+        symbols = [s for s, _ in MAJOR_INDICES]
+        resp = ctx.quote(symbols)
 
         results = []
         for q in resp:
@@ -37,7 +41,7 @@ def get_indices() -> list[IndexQuote]:
             results.append(
                 IndexQuote(
                     symbol=q.symbol,
-                    name=q.symbol,
+                    name=_INDEX_NAMES.get(q.symbol, q.symbol),
                     last=last,
                     change=change,
                     change_pct=change_pct,
@@ -68,7 +72,7 @@ def get_temperature() -> MarketTemperature:
 
 def get_breadth() -> MarketBreadth:
     """Get market breadth from akshare (A-share)."""
-    today = datetime.now(tz=UTC).strftime("%Y%m%d")
+    today = datetime.now(tz=ZoneInfo("Asia/Shanghai")).strftime("%Y%m%d")
 
     try:
         # Count up/down/flat from A-share spot data

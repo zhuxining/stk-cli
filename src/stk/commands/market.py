@@ -43,7 +43,7 @@ def news_cmd(
         help="Source: cls (财联社) / ths (同花顺) / em (东方财富)",
     ),
     count: int = typer.Option(20, "--count", "-c", help="Number of items"),
-    symbol: str = typer.Option(
+    filter_: str = typer.Option(
         "全部",
         "--filter",
         "-f",
@@ -53,5 +53,5 @@ def news_cmd(
     """Get global market news."""
     from stk.services.news import get_global_news
 
-    result = get_global_news(source=source, count=count, symbol=symbol)
+    result = get_global_news(source=source, count=count, filter_=filter_)
     output.render(result, meta={"count": len(result), "source": source})

@@ -1,11 +1,11 @@
 """Board service — sector/concept board data and money flow."""
 
 import akshare as ak
-import pandas as pd
 
 from stk.errors import SourceError
 from stk.models.flow import SectorFlowDay, SectorFlowDetail, SectorFlowHist
 from stk.models.quote import BoardCons, BoardItem, BoardList, ConsItem
+from stk.services.flow import _SKIP_FLOW_COLS, _df_to_flow_items
 from stk.utils.symbol import to_decimal, to_metrics
 
 # ---------------------------------------------------------------------------
@@ -96,27 +96,6 @@ def get_board_cons(name: str, *, type: str = "sector") -> BoardCons:
 # Sector/concept money flow
 # ---------------------------------------------------------------------------
 
-_SECTOR_FLOW_SKIP_COLS = {"序号", "代码", "简称", "名称"}
-
-
-def _df_to_flow_items(df: pd.DataFrame) -> list:
-    """Convert a DataFrame to a list of FlowRankItem or SectorFlowDetail items."""
-    from stk.models.flow import FlowRankItem
-
-    cols = df.columns.tolist()
-    items: list[FlowRankItem] = []
-    for _, row in df.iterrows():
-        code = str(row.get("代码", row.get("名称", "")))
-        name = str(row.get("简称", row.get("名称", code)))
-        items.append(
-            FlowRankItem(
-                code=code,
-                name=name,
-                metrics=to_metrics(row, cols, _SECTOR_FLOW_SKIP_COLS),
-            )
-        )
-    return items
-
 
 def get_sector_flow_hist(name: str, *, type: str = "sector") -> SectorFlowHist:
     """Get historical fund flow for a sector or concept."""
@@ -138,7 +117,7 @@ def get_sector_flow_hist(name: str, *, type: str = "sector") -> SectorFlowHist:
             days.append(
                 SectorFlowDay(
                     date=str(row[date_col]),
-                    metrics=to_metrics(row, cols[1:], _SECTOR_FLOW_SKIP_COLS),
+                    metrics=to_metrics(row, cols[1:], _SKIP_FLOW_COLS),
                 )
             )
 

@@ -52,8 +52,11 @@ def to_ak_market(symbol: str) -> tuple[str, str]:
     Convert symbol to akshare (stock, market) format.
 
     Returns (code, market) where market is 'sh' or 'sz'.
+    Raises ValueError for non-A-share symbols.
     """
     lp = to_longport_symbol(symbol)
+    if not lp.endswith((".SH", ".SZ")):
+        raise ValueError(f"to_ak_market only supports A-share symbols (.SH/.SZ), got: {lp}")
     code, market = lp.split(".", 1)
     return code, market.lower()
 
@@ -111,13 +114,5 @@ def to_metrics(
     for col in columns:
         if col in skip_cols:
             continue
-        val = row[col]
-        try:
-            s = str(val)
-            if s in ("", "-", "nan", "NaN", "None") or val is None:
-                metrics[col] = None
-            else:
-                metrics[col] = to_decimal(s)
-        except Exception:
-            metrics[col] = None
+        metrics[col] = to_decimal(row[col])
     return metrics

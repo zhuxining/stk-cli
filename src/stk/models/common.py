@@ -21,6 +21,12 @@ class ErrorDetail(BaseModel):
     message: str
 
 
+class ActionResult(BaseModel):
+    """Result of a mutation action."""
+
+    message: str
+
+
 class Envelope(BaseModel):
     """Unified JSON response envelope."""
 

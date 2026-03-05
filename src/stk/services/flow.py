@@ -3,6 +3,7 @@
 from decimal import Decimal
 
 import akshare as ak
+from loguru import logger
 import pandas as pd
 
 from stk.deps import get_longport_ctx
@@ -57,8 +58,8 @@ def get_stock_flow(symbol: str) -> StockFlow:
             FlowLine(timestamp=str(fl.timestamp), inflow=Decimal(str(fl.inflow)))
             for fl in flow_lines
         ] or None
-    except Exception:
-        pass  # longport may not support all markets
+    except Exception as e:
+        logger.debug(f"Longport flow data unavailable for {lp_symbol}: {e}")
 
     # Akshare history (A-share only)
     if lp_symbol.endswith((".SH", ".SZ")):
@@ -82,10 +83,10 @@ def get_stock_flow(symbol: str) -> StockFlow:
                             day[col] = None
                     history.append(day)
                 result.history = history
-        except Exception:
-            pass  # akshare history is supplementary
+        except Exception as e:
+            logger.debug(f"Akshare flow history unavailable for {symbol}: {e}")
 
-    if not result.large_in and not result.history:
+    if result.large_in is None and not result.history:
         raise SourceError(f"No flow data available for {symbol}")
 
     return result

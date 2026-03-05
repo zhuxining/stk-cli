@@ -43,5 +43,7 @@ def cli() -> None:
         app()
     except StkError as e:
         output.render_error(type(e).__name__, e.message)
+        raise SystemExit(1) from None
     except Exception as e:
         output.render_error("UnexpectedError", str(e))
+        raise SystemExit(1) from None

@@ -13,8 +13,7 @@ def get_quote(symbol: str, *, target_type: TargetType = TargetType.STOCK) -> Quo
     if target_type in (TargetType.STOCK, TargetType.INDEX):
         from stk.services.longport_quote import get_realtime_quote
 
-        data = get_realtime_quote(symbol)
-        return Quote(**data)
+        return get_realtime_quote(symbol)
 
     if target_type == TargetType.SECTOR:
         return _get_board_quote(symbol, board_type="sector")

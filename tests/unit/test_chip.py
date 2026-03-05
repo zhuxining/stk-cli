@@ -45,7 +45,8 @@ def test_get_chip_distribution(mock_ak):
     assert result.profit_ratio == Decimal("0.123135")
     assert result.concentration == Decimal("0.067975")
     assert len(result.chips) == 1
-    assert result.chips[0]["date"] == "2026-03-05"
+    assert result.chips[0].date == "2026-03-05"
+    assert result.chips[0].cost_90_low == Decimal("1352.36")
 
 
 @patch("stk.services.chip.ak")

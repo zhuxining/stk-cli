@@ -5,7 +5,7 @@ from decimal import Decimal
 import akshare as ak
 
 from stk.errors import SourceError
-from stk.models.chip import ChipDistribution
+from stk.models.chip import ChipDistribution, ChipSlice
 from stk.utils.symbol import to_longport_symbol
 
 
@@ -28,14 +28,14 @@ def get_chip_distribution(symbol: str) -> ChipDistribution:
             profit_ratio=Decimal(str(row["获利比例"])),
             concentration=Decimal(str(row["90集中度"])),
             chips=[
-                {
-                    "date": str(row["日期"]),
-                    "cost_90_low": float(row["90成本-低"]),
-                    "cost_90_high": float(row["90成本-高"]),
-                    "cost_70_low": float(row["70成本-低"]),
-                    "cost_70_high": float(row["70成本-高"]),
-                    "concentration_70": float(row["70集中度"]),
-                }
+                ChipSlice(
+                    date=str(row["日期"]),
+                    cost_90_low=Decimal(str(row["90成本-低"])),
+                    cost_90_high=Decimal(str(row["90成本-高"])),
+                    cost_70_low=Decimal(str(row["70成本-低"])),
+                    cost_70_high=Decimal(str(row["70成本-高"])),
+                    concentration_70=Decimal(str(row["70集中度"])),
+                )
             ],
         )
     except SourceError:

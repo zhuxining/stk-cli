@@ -18,9 +18,6 @@ class Settings(BaseSettings):
     # Local storage
     data_dir: Path = Path.home() / ".stk"
 
-    # Output
-    default_format: str = "json"
-
     # Logging
     log_level: str = "WARNING"
 
