@@ -6,7 +6,7 @@ import akshare as ak
 
 from stk.errors import SourceError
 from stk.models.chip import ChipDistribution
-from stk.services.symbol import to_longport_symbol
+from stk.utils.symbol import to_longport_symbol
 
 
 def get_chip_distribution(symbol: str) -> ChipDistribution:

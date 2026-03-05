@@ -44,11 +44,11 @@ def rank(
 ) -> None:
     """Unified ranking: hot stocks, technical screening, or fund flow ranking."""
     if type == "hot":
-        from stk.services.market import get_hot_rank
+        from stk.services.rank import get_hot_rank
 
         result = get_hot_rank()
     elif type == "tech":
-        from stk.services.market import get_tech_rank
+        from stk.services.rank import get_tech_rank
 
         result = get_tech_rank(type=screen, ma=ma)
     elif type == "flow":

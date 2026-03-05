@@ -6,7 +6,7 @@ from stk.deps import get_longport_ctx
 from stk.errors import SourceError
 from stk.models.common import TargetType
 from stk.models.history import Candlestick
-from stk.services.symbol import to_longport_symbol
+from stk.utils.symbol import to_longport_symbol
 
 _PERIOD_MAP: dict[str, object] = {}
 

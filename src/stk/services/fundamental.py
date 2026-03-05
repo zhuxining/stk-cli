@@ -12,8 +12,8 @@ from stk.models.fundamental import (
     IndustryComparison,
     Valuation,
 )
-from stk.services.symbol import to_longport_symbol
 from stk.utils.price import r2
+from stk.utils.symbol import is_hk, to_em_symbol, to_hk_code, to_longport_symbol
 
 _A_CATEGORY_API = {
     "growth": "stock_zh_growth_comparison_em",
@@ -32,31 +32,10 @@ _SKIP_COLS = {"排名", "代码", "简称"}
 _SKIP_SUFFIX = "排名"
 
 
-def _to_em_symbol(symbol: str) -> str:
-    """Convert to EastMoney format: 600519 → SH600519, 000001 → SZ000001."""
-    lp = to_longport_symbol(symbol)
-    if "." not in lp:
-        return lp
-    code, market = lp.split(".", 1)
-    return f"{market}{code}"
-
-
-def _is_hk(symbol: str) -> bool:
-    """Check if symbol is a HK stock."""
-    return to_longport_symbol(symbol).endswith(".HK")
-
-
-def _to_hk_code(symbol: str) -> str:
-    """Extract HK code: 700.HK → 00700, 3900.HK → 03900."""
-    lp = to_longport_symbol(symbol)
-    code = lp.split(".")[0]
-    return code.zfill(5)
-
-
 def get_comparison(symbol: str, *, category: str = "growth") -> IndustryComparison:
     """Get industry comparison data from akshare (A-share and HK)."""
     lp_symbol = to_longport_symbol(symbol)
-    hk = _is_hk(symbol)
+    hk = is_hk(symbol)
 
     category_map = _HK_CATEGORY_API if hk else _A_CATEGORY_API
     api_name = category_map.get(category)
@@ -64,7 +43,7 @@ def get_comparison(symbol: str, *, category: str = "growth") -> IndustryComparis
         valid = "/".join(category_map.keys())
         raise SourceError(f"Unknown category: {category}, use {valid}")
 
-    em_symbol = _to_hk_code(symbol) if hk else _to_em_symbol(symbol)
+    em_symbol = to_hk_code(symbol) if hk else to_em_symbol(symbol)
 
     try:
         api_fn = getattr(ak, api_name)

@@ -1,8 +1,14 @@
-"""Tests for symbol normalization."""
+"""Tests for symbol normalization and data conversion."""
 
 import pytest
 
-from stk.services.symbol import to_longport_symbol
+from stk.utils.symbol import (
+    is_hk,
+    to_ak_market,
+    to_em_symbol,
+    to_hk_code,
+    to_longport_symbol,
+)
 
 
 @pytest.mark.parametrize(
@@ -18,13 +24,20 @@ from stk.services.symbol import to_longport_symbol
         (".DJI", ".DJI"),
         (".IXIC", ".IXIC"),
         (".SPX", ".SPX"),
-        # A-share: 6xx → .SH
+        # A-share: 6xx → .SH (主板)
         ("600519", "600519.SH"),
         ("601318", "601318.SH"),
-        # A-share: 0xx/3xx → .SZ
+        # A-share: 688xxx → .SH (科创板)
+        ("688001", "688001.SH"),
+        ("688888", "688888.SH"),
+        # A-share: 0xx/2xx/3xx → .SZ (深交所)
         ("000001", "000001.SZ"),
         ("000858", "000858.SZ"),
+        ("002001", "002001.SZ"),
         ("300750", "300750.SZ"),
+        # A-share: 8xxxxx → .BJ (北交所) **新增**
+        ("800001", "800001.BJ"),
+        ("830001", "830001.BJ"),
         # Other: pass through
         ("TSLA", "TSLA"),
     ],
@@ -32,3 +45,60 @@ from stk.services.symbol import to_longport_symbol
 def test_to_longport_symbol(input_symbol, expected):
     """Test symbol normalization to Longport format."""
     assert to_longport_symbol(input_symbol) == expected
+
+
+@pytest.mark.parametrize(
+    ("input_symbol", "expected"),
+    [
+        ("600519", "SH600519"),
+        ("000001", "SZ000001"),
+        ("688001", "SH688001"),
+        ("300750", "SZ300750"),
+        ("700.HK", "HK700"),  # to_em_symbol doesn't zero-pad HK codes
+    ],
+)
+def test_to_em_symbol(input_symbol, expected):
+    """Test conversion to EastMoney format."""
+    assert to_em_symbol(input_symbol) == expected
+
+
+@pytest.mark.parametrize(
+    ("input_symbol", "expected"),
+    [
+        ("600519", ("600519", "sh")),
+        ("000001", ("000001", "sz")),
+        ("688001", ("688001", "sh")),
+        ("700.HK", ("700", "hk")),
+    ],
+)
+def test_to_ak_market(input_symbol, expected):
+    """Test conversion to akshare (code, market) format."""
+    assert to_ak_market(input_symbol) == expected
+
+
+@pytest.mark.parametrize(
+    ("input_symbol", "expected"),
+    [
+        ("700.HK", True),
+        ("00700.HK", True),
+        ("600519", False),
+        ("AAPL.US", False),
+    ],
+)
+def test_is_hk(input_symbol, expected):
+    """Test HK stock detection."""
+    assert is_hk(input_symbol) == expected
+
+
+@pytest.mark.parametrize(
+    ("input_symbol", "expected"),
+    [
+        ("700.HK", "00700"),
+        ("00700.HK", "00700"),
+        ("3900.HK", "03900"),
+        ("1234.HK", "01234"),
+    ],
+)
+def test_to_hk_code(input_symbol, expected):
+    """Test HK code extraction with zero padding."""
+    assert to_hk_code(input_symbol) == expected

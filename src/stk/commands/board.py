@@ -17,7 +17,7 @@ def list_boards(
     ),
 ) -> None:
     """List all sector or concept boards with quotes."""
-    from stk.services.quote import get_board_list
+    from stk.services.board import get_board_list
 
     result = get_board_list(type=type)
     output.render(result)
@@ -34,7 +34,7 @@ def cons(
     ),
 ) -> None:
     """Get constituent stocks of a sector or concept board."""
-    from stk.services.quote import get_board_cons
+    from stk.services.board import get_board_cons
 
     result = get_board_cons(name, type=type)
     output.render(result)
@@ -51,7 +51,7 @@ def flow(
     ),
 ) -> None:
     """Get historical fund flow for a sector or concept."""
-    from stk.services.flow import get_sector_flow_hist
+    from stk.services.board import get_sector_flow_hist
 
     result = get_sector_flow_hist(name, type=type)
     output.render(result)
@@ -68,7 +68,7 @@ def detail(
     ),
 ) -> None:
     """Get individual stocks' fund flow within a sector."""
-    from stk.services.flow import get_sector_flow_detail
+    from stk.services.board import get_sector_flow_detail
 
     result = get_sector_flow_detail(name, period=period)
     output.render(result)

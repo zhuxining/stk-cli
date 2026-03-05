@@ -53,15 +53,16 @@ src/stk/
 │   ├── stock.py        # stk stock — rank, quote, profile, fundamental, valuation, indicator, history, news, flow, chip
 │   └── watchlist.py    # stk watchlist — watchlist CRUD
 ├── services/           # Business logic: call APIs → return Pydantic models
-│   ├── symbol.py       # Symbol normalization (user input → longport format)
+│   ├── board.py        # Sector/concept board data + sector flow
+│   ├── rank.py         # Stock technical/popularity rankings
+│   ├── quote.py        # Real-time quotes via longport
+│   ├── market.py       # Market overview: indices, temperature, breadth
+│   ├── flow.py         # Individual stock flow + flow rankings
+│   ├── fundamental.py  # Valuation, industry comparison, profile
 │   ├── longport_quote.py
-│   ├── quote.py        # Facade: all markets via longport
 │   ├── history.py
 │   ├── indicator.py    # ta-lib calculations (pure DataFrame ops)
 │   ├── news.py
-│   ├── fundamental.py
-│   ├── market.py       # Index quotes + market temperature scoring
-│   ├── flow.py
 │   ├── chip.py
 │   └── watchlist.py
 ├── models/             # Pydantic models (data contracts, JSON schema for agents)
@@ -70,7 +71,8 @@ src/stk/
 ├── store/              # Local JSON file storage (~/.stk/)
 │   └── file_store.py   # Atomic JSON read/write
 └── utils/              # Utility functions
-    └── price.py        # Price formatting
+    ├── price.py        # Price formatting
+    └── symbol.py       # Symbol normalization + akshare data converters
 ```
 
 ### Key conventions
@@ -79,7 +81,7 @@ src/stk/
 - **services/** — All logic here. Call data source → transform → return Pydantic model. No stdout.
 - **models/** — Data contracts between layers. Also the JSON schema agents consume.
 - **Data flow**: CLI command → commands/ → services/ → longport API → pandas DataFrame → models/ → output.py (JSON envelope to stdout).
-- **Symbol normalization** (in `services/symbol.py`): `600519`→`600519.SH`, `000001`→`000001.SZ`; `.HK`/`.US`/`.`prefix → pass through.
+- **Symbol normalization** (in `utils/symbol.py`): `600519`→`600519.SH`, `000001`→`000001.SZ`, `8xxxxx`→`8xxxxx.BJ`; `.HK`/`.US`/`.` prefix → pass through.
 - **Target types**: `--type stock|sector|concept|index` (default `stock`).
 - **JSON envelope**: `{"ok": true, "data": [...], "error": null, "meta": {...}}`. All output to stdout, logs to stderr.
 - **Errors**: `StkError` → `ConfigError` / `SourceError` / `SymbolNotFoundError` / `IndicatorError` / `DataNotFoundError`. Services wrap SDK exceptions; global handler formats JSON error output.

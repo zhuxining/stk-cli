@@ -4,7 +4,7 @@ import akshare as ak
 
 from stk.errors import SourceError
 from stk.models.news import NewsItem
-from stk.services.symbol import to_longport_symbol
+from stk.utils.symbol import to_longport_symbol
 
 # Column mapping: akshare column name → NewsItem field
 _GLOBAL_SOURCE_CONFIG = {

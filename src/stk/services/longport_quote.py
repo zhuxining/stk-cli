@@ -4,8 +4,8 @@ from decimal import Decimal
 
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
-from stk.services.symbol import to_longport_symbol
 from stk.utils.price import r2
+from stk.utils.symbol import to_longport_symbol
 
 
 def get_realtime_quote(symbol: str) -> dict:
