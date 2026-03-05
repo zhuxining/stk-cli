@@ -71,7 +71,7 @@ def get_tech_rank(
                 )
             )
 
-        return TechRank(type=type, label=cfg["label"], items=items)
+        return TechRank(type=type, label=cfg["label"], items=items)  # type: ignore[arg-type]
     except SourceError:
         raise
     except Exception as e:

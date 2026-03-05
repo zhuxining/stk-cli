@@ -29,12 +29,13 @@ def _callback() -> None:
 
 
 # Register subcommand groups
-from stk.commands import board, market, stock, watchlist  # noqa: E402
+from stk.commands import board, doctor, market, stock, watchlist  # noqa: E402
 
 app.add_typer(market.app, name="market")
 app.add_typer(board.app, name="board")
 app.add_typer(stock.app, name="stock")
 app.add_typer(watchlist.app, name="watchlist")
+app.add_typer(doctor.app, name="doctor")
 
 
 def cli() -> None:

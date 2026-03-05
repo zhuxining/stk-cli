@@ -78,8 +78,8 @@ def get_global_news(
         raise SourceError(f"Unknown source: {source}, use {valid}")
 
     try:
-        api_fn = getattr(ak, cfg["api"])
-        kwargs = cfg["kwargs_fn"](filter_)
+        api_fn = getattr(ak, cfg["api"])  # type: ignore[arg-type]
+        kwargs = cfg["kwargs_fn"](filter_)  # type: ignore[misc]
         df = api_fn(**kwargs)
 
         if df.empty:
@@ -106,7 +106,7 @@ def get_global_news(
                     title=title,
                     summary=summary,
                     published_at=pub_at,
-                    source=source_name,
+                    source=source_name,  # type: ignore[arg-type]
                     url=str(row.get(cfg.get("url", ""), "")),
                 )
             )
