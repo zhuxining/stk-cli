@@ -108,7 +108,7 @@ wheels = [
 
 [[package]]
 name = "akshare"
-version = "1.18.30"
+version = "1.18.34"
 source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
 dependencies = [
     { name = "akracer", marker = "sys_platform == 'linux'" },
@@ -128,9 +128,9 @@ dependencies = [
     { name = "urllib3" },
     { name = "xlrd" },
 ]
-sdist = { url = "http://mirrors.aliyun.com/pypi/packages/5c/68/52055c3bdf5ff2c66be3dcaef16bbdeb413bea6726e615eb164b7685be2a/akshare-1.18.30.tar.gz", hash = "sha256:dabc38ddd9e8e5f70df6369954aaf54e2b588e157647f5bd6042f1cd82e1c180" }
+sdist = { url = "http://mirrors.aliyun.com/pypi/packages/f7/b4/50ef7651c4d72e70214192cd0b94c4cba2ba48e0f392543061e1f91a71f8/akshare-1.18.34.tar.gz", hash = "sha256:6ef73e93be7e648d35bbd25bd2b68eef09a014ff75a5af73b21dafb04201369e" }
 wheels = [
-    { url = "http://mirrors.aliyun.com/pypi/packages/cb/73/239cc89f02bb2443ec8ac8a8fcec63cdd8bba51c4e204f097e2ad0f836e5/akshare-1.18.30-py3-none-any.whl", hash = "sha256:32fd22a7e504256beff4cc47219382332d624c488cc72bece5d080c0c4675a29" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/26/6b/a3981e7a740786e4423e86b203efb5ac9361b37fa8f35093951dab1f4210/akshare-1.18.34-py3-none-any.whl", hash = "sha256:5e7a91e1fff23d0e3d90a9d4fd72349c52fed95fa0a1bc20fa0b48e92833e20d" },
 ]
 
 [[package]]
@@ -298,16 +298,16 @@ wheels = [
 
 [[package]]
 name = "chardet"
-version = "7.0.0"
+version = "7.0.1"
 source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
-sdist = { url = "http://mirrors.aliyun.com/pypi/packages/a3/20/e1e92c8f05666debb7c0c18285646195ef9915e72127771962408609815e/chardet-7.0.0.tar.gz", hash = "sha256:5272ea14c48cb5f38e87e698c641a7ea2a8b1db6c42ea729527fbe8bd621f39c" }
+sdist = { url = "http://mirrors.aliyun.com/pypi/packages/6c/80/4684035f1a2a3096506bc377276a815ccf0be3c3316eab35d589e82d9f3c/chardet-7.0.1.tar.gz", hash = "sha256:6fce895c12c5495bb598e59ae3cd89306969b4464ec7b6dd609b9c86e3397fe3" }
 wheels = [
-    { url = "http://mirrors.aliyun.com/pypi/packages/54/74/8311899ecad99e0e07b1f76b1afb1ce8c464bd6955070b6ff37c6fdab51e/chardet-7.0.0-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:8883e3fd31f8125952c3c4d8b3a0245f5095268706a43794f4431c74744e3cb8" },
-    { url = "http://mirrors.aliyun.com/pypi/packages/7c/a3/75a91d7b3de6dc3df4426a0f6817595d6c9dab679b5727a55f8f0ea5ad1b/chardet-7.0.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:8102637cb2695535f35f2f6a1df3edd5c0a3b63f3572d52a88a83f3d4a50e556" },
-    { url = "http://mirrors.aliyun.com/pypi/packages/ef/13/a5fd9e60ced4f4bd16f372f2b7dde02696858009a006b032f1b960053d3c/chardet-7.0.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:89889ec2f64e49956d70e35c57e4d52bb7680616de8577beefef081edf9f7216" },
-    { url = "http://mirrors.aliyun.com/pypi/packages/ae/bc/abd5539ae99b2e10c50ede3f398e0cd657ca52744aa1cb6cadd5bea17df4/chardet-7.0.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8aeb797bd40a75f620feb6f4ed3aaa48ea969b8f5ff537b23043a08efbf135fe" },
-    { url = "http://mirrors.aliyun.com/pypi/packages/6c/ee/87f528b78bbda1f7e360ae19c2050c05ac89acdebe9f5def496bd73359ea/chardet-7.0.0-cp314-cp314-win_amd64.whl", hash = "sha256:ebf9d2af092f2660b43a25b4043ab5d72f0714106edc580b41ea5a3d03b0760c" },
-    { url = "http://mirrors.aliyun.com/pypi/packages/4b/89/8607111108b362ba444db6f054d1c1f2f28791428e7f177804c998efee2c/chardet-7.0.0-py3-none-any.whl", hash = "sha256:d5a8f8edda42b016352de4cdb36e1145e19a66ddd5ac42a1b2bbb6592f4d070c" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/b5/bd/30c131115b0b3ba72da996ba4fefe23d9ac96ff55f9e981bcf1896bff516/chardet-7.0.1-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:88793aeebb28a5296eea9bdd9b5e74ee4e3582766a6a2cb7f39e4761a96fdd55" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/98/2d/5f77ea0d96cf89e8312261a435c6899e023c672a7d20287997647c0da079/chardet-7.0.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:44011e3b4fd4a8a15bc94736717414b7ec82880066fb22d9f476c68a4ded2647" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/15/03/0f3fe90b5fba51e3f79c48b299497626ff231a1a3326865cf8edb94f65f6/chardet-7.0.1-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:33f4132f9781302beff34713fe6c990badd009aa8ea730611aef0931b27f1541" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/89/3b/a8d2a8ee1baa43f8d3b06c8fd9a86317ea4418b2c90fbe084c45665916e0/chardet-7.0.1-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1566d0f91990b8f33b53836391d557f779584bd48beabf90efbf7a6efa89179e" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/9c/46/71151da7b43673ef8b1bb83503e0e4ac9658d24b908f208a84d439767036/chardet-7.0.1-cp314-cp314-win_amd64.whl", hash = "sha256:9e827211249d8e3cacc1adf6950a7a8cf56920e5e303e56dcab827b71c03df33" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/a3/1f/c1a089db6333b1283409cad3714b8935e7e56722c9c60f9299726a1e57c2/chardet-7.0.1-py3-none-any.whl", hash = "sha256:e51e1ff2c51b2d622d97c9737bd5ee9d9b9038f05b7dd8f9ea10b9e2d9674c24" },
 ]
 
 [[package]]
@@ -1169,6 +1169,18 @@ dependencies = [
 sdist = { url = "http://mirrors.aliyun.com/pypi/packages/c7/74/97e72a36efd4ae2bccb3463284300f8953f199b5ffbc04cbbb0ec78f74b1/matplotlib_inline-0.2.1.tar.gz", hash = "sha256:e1ee949c340d771fc39e241ea75683deb94762c8fa5f2927ec57c83c4dffa9fe" }
 wheels = [
     { url = "http://mirrors.aliyun.com/pypi/packages/af/33/ee4519fa02ed11a94aef9559552f3b17bb863f2ecfe1a35dc7f548cde231/matplotlib_inline-0.2.1-py3-none-any.whl", hash = "sha256:d56ce5156ba6085e00a9d54fead6ed29a9c47e215cd1bba2e976ef39f5710a76" },
+]
+
+[[package]]
+name = "mdformat-ruff"
+version = "0.1.3"
+source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
+dependencies = [
+    { name = "ruff" },
+]
+sdist = { url = "http://mirrors.aliyun.com/pypi/packages/3a/e2/9003dc57c78aea34b21f67854d842985ceac48028d288432efa113df3887/mdformat_ruff-0.1.3.tar.gz", hash = "sha256:2ddd2758dd3f6738c1c7bfbeb89320d271454f4cd8c28a99968a50d3578b15d6" }
+wheels = [
+    { url = "http://mirrors.aliyun.com/pypi/packages/b1/22/3f2464d478f145bbcb731cee9fe720b9e4d69efb6ffd8bc4491f14ca20a2/mdformat_ruff-0.1.3-py3-none-any.whl", hash = "sha256:9c0cf7bfe6bf99b9e0e617e960041d06e9fa84300d5645f922306dd2ed0d1296" },
 ]
 
 [[package]]
@@ -2111,6 +2123,7 @@ dependencies = [
 dev = [
     { name = "ipykernel" },
     { name = "ipywidgets" },
+    { name = "mdformat-ruff" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
@@ -2119,7 +2132,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "akshare", specifier = ">=1.18.30" },
+    { name = "akshare", specifier = ">=1.18.34" },
     { name = "crawl4ai", specifier = ">=0.8.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "longport", specifier = ">=3.0.22" },
@@ -2134,6 +2147,7 @@ requires-dist = [
 dev = [
     { name = "ipykernel", specifier = ">=7.2.0" },
     { name = "ipywidgets", specifier = ">=8.1.7" },
+    { name = "mdformat-ruff", specifier = ">=0.1.3" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
     { name = "ruff", specifier = ">=0.15.4" },
@@ -2163,11 +2177,11 @@ wheels = [
 
 [[package]]
 name = "tabulate"
-version = "0.9.0"
+version = "0.10.0"
 source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
-sdist = { url = "http://mirrors.aliyun.com/pypi/packages/ec/fe/802052aecb21e3797b8f7902564ab6ea0d60ff8ca23952079064155d1ae1/tabulate-0.9.0.tar.gz", hash = "sha256:0095b12bf5966de529c0feb1fa08671671b3368eec77d7ef7ab114be2c068b3c" }
+sdist = { url = "http://mirrors.aliyun.com/pypi/packages/46/58/8c37dea7bbf769b20d58e7ace7e5edfe65b849442b00ffcdd56be88697c6/tabulate-0.10.0.tar.gz", hash = "sha256:e2cfde8f79420f6deeffdeda9aaec3b6bc5abce947655d17ac662b126e48a60d" }
 wheels = [
-    { url = "http://mirrors.aliyun.com/pypi/packages/40/44/4a5f08c96eb108af5cb50b41f76142f0afa346dfa99d5296fe7202a11854/tabulate-0.9.0-py3-none-any.whl", hash = "sha256:024ca478df22e9340661486f85298cff5f6dcdba14f3813e8830015b9ed1948f" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/99/55/db07de81b5c630da5cbf5c7df646580ca26dfaefa593667fc6f2fe016d2e/tabulate-0.10.0-py3-none-any.whl", hash = "sha256:f0b0622e567335c8fabaaa659f1b33bcb6ddfe2e496071b743aa113f8774f2d3" },
 ]
 
 [[package]]
