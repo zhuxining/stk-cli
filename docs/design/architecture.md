@@ -37,18 +37,17 @@ class TargetType(str, Enum):
 
 | 命令 | stock | index | sector | concept |
 |------|-------|-------|--------|---------|
-| quote | ✅ longport | ✅ longport | ❌ 待 akshare | ❌ 待 akshare |
+| quote | ✅ longport | ✅ longport | ✅ akshare | ✅ akshare |
 | history | ✅ longport | ✅ longport | ❌ 待 akshare | ❌ 待 akshare |
 | indicator | ✅ ta-lib | ✅ ta-lib | ❌ 待 akshare | ❌ |
 | fundamental valuation | ✅ longport | ❌ | ❌ | ❌ |
-| fundamental report | ❌ 待 akshare | ❌ | ❌ | ❌ |
-| fundamental dividend | ❌ 待 akshare | ❌ | ❌ | ❌ |
+| fundamental compare | ✅ akshare | ❌ | ❌ | ❌ |
 | market index | ✅ longport（7 大指数） | — | — | — |
 | market temperature | ✅ longport | — | — | — |
-| market breadth | ❌ 待 akshare | — | — | — |
-| flow | ✅ longport | ❌ | ❌ 待 akshare | ❌ |
-| chip | ❌ 待 akshare | ❌ | ❌ | ❌ |
-| news | ❌ 待 akshare | ❌ | ❌ | ❌ |
+| market breadth | ✅ akshare | — | — | — |
+| flow | ✅ longport | ❌ | ✅ akshare | ✅ akshare |
+| chip cost | ✅ akshare | ❌ | ❌ | ❌ |
+| news | ✅ akshare | ❌ | ❌ | ❌ |
 
 ## 3. Longport SDK API 使用映射
 
@@ -98,9 +97,15 @@ stk indicator get 600519 MACD --count 60
 
 支持的指标：MA, EMA, MACD, RSI, KDJ, BOLL
 
-### 4.4 基本面估值 (`stk fundamental`)
+### 4.4 基本面 (`stk fundamental`)
 
 ```
+stk fundamental compare 600519 --type growth
+  → services/fundamental.py: get_comparison(symbol, category="growth")
+    → ak.stock_zh_growth_comparison_em(em_symbol)
+    → DataFrame rows → list[CompanyMetric] (行业中值/平均 + 同行 + 目标股)
+  → models/fundamental.py: IndustryComparison(symbol, category, companies)
+
 stk fundamental valuation 700.HK
   → services/fundamental.py: get_valuation(symbol)
     → ctx.static_info() → total_shares, eps_ttm, bps
@@ -108,6 +113,8 @@ stk fundamental valuation 700.HK
     → PE = price / eps_ttm, PB = price / bps, market_cap = price * total_shares
   → models/fundamental.py: Valuation(pe, pb, market_cap, total_shares, float_shares)
 ```
+
+支持的对比类型：growth（成长性）、valuation（估值）、dupont（杜邦分析）
 
 ### 4.5 指数行情 + 市场温度 (`stk market`)
 
@@ -153,15 +160,13 @@ stk flow get 600519
 └── config.json             # 可选：用户偏好配置持久化
 ```
 
-## 7. 待实现功能（需 akshare 补充）
+## 7. akshare 补充功能（已实现）
 
-| 功能 | 原因 |
-|------|------|
-| `news` — 新闻资讯 | Longport 无新闻 API |
-| `chip cost` — 筹码分布 | Longport 无各价位持仓数据 |
-| `chip holder` — 股东变动 | Longport 无股东人数数据 |
-| `market breadth` — 市场广度 | Longport 无涨跌家数统计 |
-| `fundamental report` — 财报 | Longport 无财报详情 |
-| `fundamental dividend` — 分红 | Longport 无分红明细 |
-| `quote sector/concept` — 板块概念 | Longport 无板块分类 |
-| `flow sector` — 板块资金流向 | Longport 无板块级数据 |
+| 功能 | akshare API | 说明 |
+|------|------------|------|
+| `news` — 新闻资讯 | `stock_news_em` | A 股新闻 |
+| `chip cost` — 筹码分布 | `stock_cyq_em` | A 股筹码成本 |
+| `market breadth` — 市场广度 | `stock_zh_a_spot_em` + `stock_zt_pool_em` | 涨跌家数 + 涨停跌停 |
+| `fundamental compare` — 行业对比 | `stock_zh_growth/valuation/dupont_comparison_em` | 成长性/估值/杜邦分析 vs 行业同行 |
+| `quote sector/concept` — 板块概念 | `stock_board_industry_name_em` / `stock_board_concept_name_em` | 板块行情 |
+| `flow sector` — 板块资金流向 | `stock_sector_fund_flow_rank` | 行业/概念资金流 |

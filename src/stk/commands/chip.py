@@ -16,14 +16,3 @@ def cost(
 
     result = get_chip_distribution(symbol)
     output.render(result)
-
-
-@app.command()
-def holder(
-    symbol: str = typer.Argument(help="Stock symbol (e.g. 600519)"),
-) -> None:
-    """Get shareholder count changes."""
-    from stk.services.chip import get_holder_change
-
-    result = get_holder_change(symbol)
-    output.render(result, meta={"count": len(result)})

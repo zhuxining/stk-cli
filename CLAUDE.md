@@ -52,7 +52,7 @@ src/stk/
 │   ├── history.py      # stk history — historical candlesticks
 │   ├── indicator.py    # stk indicator — technical indicators
 │   ├── news.py         # stk news — news feed
-│   ├── fundamental.py  # stk fundamental — financials, valuation, dividends
+│   ├── fundamental.py  # stk fundamental — financials, valuation
 │   ├── market.py       # stk market — indices, temperature, breadth
 │   ├── flow.py         # stk flow — money flow
 │   ├── chip.py         # stk chip — chip distribution
@@ -91,4 +91,4 @@ src/stk/
 - **Storage**: `~/.stk/` directory for watchlist.json etc. Atomic writes (tmp file + rename).
 
 Use `loguru` for all logging. Use `pandas` + `ta-lib` for indicator calculations in services.
-Longport is the sole data source. Some features (news, chip, breadth, financial report, dividend) are marked `NotImplementedError` pending future akshare integration.
+Longport is the primary data source. akshare supplements A-share features: news, chip distribution, market breadth, financial report, sector/concept quotes, sector money flow.

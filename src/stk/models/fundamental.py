@@ -5,13 +5,20 @@ from decimal import Decimal
 from pydantic import BaseModel
 
 
-class FinancialReport(BaseModel):
-    """Financial report data."""
+class CompanyMetric(BaseModel):
+    """A single company's metrics in an industry comparison."""
+
+    code: str  # "600519" or "行业平均"/"行业中值"
+    name: str
+    metrics: dict[str, Decimal | None]
+
+
+class IndustryComparison(BaseModel):
+    """Industry comparison result — stock vs peers."""
 
     symbol: str
-    report_type: str  # income / balance / cashflow
-    period: str
-    items: dict[str, Decimal | str | None]
+    category: str  # "growth" / "valuation" / "dupont"
+    companies: list[CompanyMetric]
 
 
 class Valuation(BaseModel):
@@ -24,12 +31,3 @@ class Valuation(BaseModel):
     market_cap: Decimal | None = None
     total_shares: int | None = None
     float_shares: int | None = None
-
-
-class Dividend(BaseModel):
-    """Dividend information."""
-
-    symbol: str
-    ex_date: str
-    amount: Decimal
-    pay_date: str = ""

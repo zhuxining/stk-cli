@@ -13,12 +13,3 @@ class ChipDistribution(BaseModel):
     profit_ratio: Decimal | None = None
     concentration: Decimal | None = None
     chips: list[dict] = []
-
-
-class HolderChange(BaseModel):
-    """Holder count change data."""
-
-    date: str
-    holder_count: int
-    avg_shares: Decimal | None = None
-    change_pct: Decimal | None = None
