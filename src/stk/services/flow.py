@@ -1,85 +1,244 @@
-"""Money flow service via longport (stock) + akshare (sector/concept)."""
+"""Money flow service — individual stock, ranking, sector history & detail."""
 
 from decimal import Decimal
 
 import akshare as ak
+import pandas as pd
 
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
-from stk.models.common import TargetType
-from stk.models.flow import FlowLine, MoneyFlow, SectorFlow
+from stk.models.flow import (
+    FlowLine,
+    FlowRank,
+    FlowRankItem,
+    SectorFlowDay,
+    SectorFlowDetail,
+    SectorFlowHist,
+    StockFlow,
+)
 from stk.services.symbol import to_longport_symbol
 
+# Columns to skip when building generic metrics dict
+_SKIP_COLS = {"序号", "代码", "简称", "名称"}
+
+
+def _to_metrics(row: pd.Series, columns: list[str]) -> dict[str, Decimal | None]:
+    """Convert a DataFrame row to a metrics dict, skipping non-metric columns."""
+    metrics: dict[str, Decimal | None] = {}
+    for col in columns:
+        if col in _SKIP_COLS:
+            continue
+        val = row[col]
+        try:
+            s = str(val)
+            if s in ("", "-", "nan", "NaN", "None") or val is None:
+                metrics[col] = None
+            else:
+                metrics[col] = Decimal(s)
+        except Exception:
+            metrics[col] = None
+    return metrics
+
+
+def _df_to_rank_items(df: pd.DataFrame) -> list[FlowRankItem]:
+    """Convert a DataFrame to a list of FlowRankItem."""
+    cols = df.columns.tolist()
+    items: list[FlowRankItem] = []
+    for _, row in df.iterrows():
+        code = str(row.get("代码", row.get("名称", "")))
+        name = str(row.get("简称", row.get("名称", code)))
+        items.append(
+            FlowRankItem(
+                code=code,
+                name=name,
+                metrics=_to_metrics(row, cols),
+            )
+        )
+    return items
+
+
+# ---------------------------------------------------------------------------
+# 1. get_stock_flow — 个股资金流 (longport realtime + akshare history)
+# ---------------------------------------------------------------------------
+
+
+def _to_ak_stock_market(symbol: str) -> tuple[str, str]:
+    """Convert symbol to akshare (stock, market) format."""
+    lp = to_longport_symbol(symbol)
+    code, market = lp.split(".", 1)
+    return code, market.lower()
+
+
+def get_stock_flow(symbol: str) -> StockFlow:
+    """Get individual stock money flow — realtime + recent history."""
+    lp_symbol = to_longport_symbol(symbol)
+    result = StockFlow(symbol=lp_symbol)
+
+    # Longport realtime distribution
+    try:
+        ctx = get_longport_ctx()
+        dist = ctx.capital_distribution(lp_symbol)
+        flow_lines = ctx.capital_flow(lp_symbol)
+        result.large_in = Decimal(str(dist.capital_in.large))
+        result.large_out = Decimal(str(dist.capital_out.large))
+        result.medium_in = Decimal(str(dist.capital_in.medium))
+        result.medium_out = Decimal(str(dist.capital_out.medium))
+        result.small_in = Decimal(str(dist.capital_in.small))
+        result.small_out = Decimal(str(dist.capital_out.small))
+        result.intraday = [
+            FlowLine(timestamp=str(fl.timestamp), inflow=Decimal(str(fl.inflow)))
+            for fl in flow_lines
+        ] or None
+    except Exception:
+        pass  # longport may not support all markets
+
+    # Akshare history (A-share only)
+    if lp_symbol.endswith((".SH", ".SZ")):
+        try:
+            code, market = _to_ak_stock_market(symbol)
+            df = ak.stock_individual_fund_flow(stock=code, market=market)
+            if not df.empty:
+                cols = df.columns.tolist()
+                history = []
+                for _, row in df.head(10).iterrows():
+                    day: dict[str, Decimal | None] = {}
+                    for col in cols:
+                        val = row[col]
+                        try:
+                            s = str(val)
+                            if s in ("", "-", "nan", "NaN", "None"):
+                                day[col] = None
+                            else:
+                                day[col] = Decimal(s)
+                        except Exception:
+                            day[col] = None
+                    history.append(day)
+                result.history = history
+        except Exception:
+            pass  # akshare history is supplementary
+
+    if not result.large_in and not result.history:
+        raise SourceError(f"No flow data available for {symbol}")
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# 2. get_flow_rank — 资金流排名
+# ---------------------------------------------------------------------------
+
 _SECTOR_TYPE_MAP = {
-    TargetType.SECTOR: "行业资金流",
-    TargetType.CONCEPT: "概念资金流",
+    "sector": "行业资金流",
+    "concept": "概念资金流",
 }
 
 
-def get_flow(
-    symbol: str,
+def get_flow_rank(
     *,
-    target_type: TargetType = TargetType.STOCK,
-) -> MoneyFlow | SectorFlow:
-    """Get money flow data from longport (stock) or akshare (sector/concept)."""
-    if target_type in (TargetType.SECTOR, TargetType.CONCEPT):
-        return _get_sector_flow(symbol, target_type)
+    scope: str = "stock",
+    period: str = "今日",
+    market: str = "全部股票",
+) -> FlowRank:
+    """
+    Get fund flow ranking.
 
-    if target_type != TargetType.STOCK:
-        raise NotImplementedError(f"Flow for {target_type.value} not yet implemented")
-
+    scope: stock / main / sector / concept
+    period: 今日 / 3日 / 5日 / 10日 (not all periods valid for all scopes)
+    market: for main scope only — 全部股票 / 沪深A股 / etc.
+    """
     try:
-        ctx = get_longport_ctx()
-        lp_symbol = to_longport_symbol(symbol)
-
-        dist = ctx.capital_distribution(lp_symbol)
-        flow_lines = ctx.capital_flow(lp_symbol)
-        intraday = [
-            FlowLine(timestamp=str(fl.timestamp), inflow=Decimal(str(fl.inflow)))
-            for fl in flow_lines
-        ]
-
-        return MoneyFlow(
-            symbol=lp_symbol,
-            large_in=Decimal(str(dist.capital_in.large)),
-            large_out=Decimal(str(dist.capital_out.large)),
-            medium_in=Decimal(str(dist.capital_in.medium)),
-            medium_out=Decimal(str(dist.capital_out.medium)),
-            small_in=Decimal(str(dist.capital_in.small)),
-            small_out=Decimal(str(dist.capital_out.small)),
-            intraday=intraday or None,
-        )
-    except NotImplementedError:
-        raise
-    except Exception as e:
-        raise SourceError(f"Longport flow API error: {e}") from e
-
-
-def _get_sector_flow(name: str, target_type: TargetType) -> SectorFlow:
-    """Get sector/concept money flow from akshare."""
-    sector_type = _SECTOR_TYPE_MAP[target_type]
-
-    try:
-        df = ak.stock_sector_fund_flow_rank(indicator="今日", sector_type=sector_type)
+        if scope == "stock":
+            df = ak.stock_individual_fund_flow_rank(indicator=period)
+        elif scope == "main":
+            df = ak.stock_main_fund_flow(symbol=market)
+        elif scope in ("sector", "concept"):
+            sector_type = _SECTOR_TYPE_MAP[scope]
+            df = ak.stock_sector_fund_flow_rank(
+                indicator=period,
+                sector_type=sector_type,
+            )
+        else:
+            raise SourceError(f"Unknown scope: {scope}, use stock/main/sector/concept")
 
         if df.empty:
-            raise SourceError(f"No {target_type.value} flow data available")
+            raise SourceError(f"No {scope} flow rank data")
 
-        matched = df[df["名称"].str.contains(name, na=False)]
-        if matched.empty:
-            raise SourceError(f"{target_type.value.title()} '{name}' not found in flow data")
-
-        row = matched.iloc[0]
-        return SectorFlow(
-            sector=str(row["名称"]),
-            change_pct=Decimal(str(row["今日涨跌幅"])) if row["今日涨跌幅"] is not None else None,
-            main_net=(
-                Decimal(str(row["今日主力净流入-净额"]))
-                if row["今日主力净流入-净额"] is not None
-                else None
-            ),
+        return FlowRank(
+            scope=scope,
+            period=period,
+            items=_df_to_rank_items(df),
         )
     except SourceError:
         raise
     except Exception as e:
-        raise SourceError(f"Failed to fetch {target_type.value} flow for '{name}': {e}") from e
+        raise SourceError(f"Failed to fetch {scope} flow rank: {e}") from e
+
+
+# ---------------------------------------------------------------------------
+# 3. get_sector_flow_hist — 板块/概念历史资金流
+# ---------------------------------------------------------------------------
+
+
+def get_sector_flow_hist(
+    name: str,
+    *,
+    type: str = "sector",
+) -> SectorFlowHist:
+    """Get historical fund flow for a sector or concept."""
+    try:
+        if type == "sector":
+            df = ak.stock_sector_fund_flow_hist(symbol=name)
+        elif type == "concept":
+            df = ak.stock_concept_fund_flow_hist(symbol=name)
+        else:
+            raise SourceError(f"Unknown type: {type}, use sector/concept")
+
+        if df.empty:
+            raise SourceError(f"No history flow data for '{name}'")
+
+        cols = df.columns.tolist()
+        date_col = cols[0]  # first column is date
+        days: list[SectorFlowDay] = []
+        for _, row in df.iterrows():
+            days.append(
+                SectorFlowDay(
+                    date=str(row[date_col]),
+                    metrics=_to_metrics(row, cols[1:]),
+                )
+            )
+
+        return SectorFlowHist(name=name, type=type, days=days)
+    except SourceError:
+        raise
+    except Exception as e:
+        raise SourceError(f"Failed to fetch {type} flow history for '{name}': {e}") from e
+
+
+# ---------------------------------------------------------------------------
+# 4. get_sector_flow_detail — 板块内个股资金流明细
+# ---------------------------------------------------------------------------
+
+
+def get_sector_flow_detail(
+    name: str,
+    *,
+    period: str = "今日",
+) -> SectorFlowDetail:
+    """Get individual stocks' fund flow within a sector."""
+    try:
+        df = ak.stock_sector_fund_flow_summary(
+            symbol=name,
+            indicator=period,
+        )
+        if df.empty:
+            raise SourceError(f"No detail flow data for '{name}'")
+
+        return SectorFlowDetail(
+            sector=name,
+            period=period,
+            items=_df_to_rank_items(df),
+        )
+    except SourceError:
+        raise
+    except Exception as e:
+        raise SourceError(f"Failed to fetch sector detail flow for '{name}': {e}") from e

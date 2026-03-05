@@ -1,52 +1,51 @@
-"""News service."""
+"""News service — individual stock news + global market news."""
 
 import akshare as ak
 
 from stk.errors import SourceError
-from stk.models.common import TargetType
 from stk.models.news import NewsItem
 from stk.services.symbol import to_longport_symbol
 
+# Column mapping: akshare column name → NewsItem field
+_GLOBAL_SOURCE_CONFIG = {
+    "cls": {
+        "api": "stock_info_global_cls",
+        "kwargs_fn": lambda symbol: {"symbol": symbol},
+        "title": "标题",
+        "summary": "内容",
+        "published_at": "发布时间",
+        "source_name": "财联社",
+    },
+    "ths": {
+        "api": "stock_info_global_ths",
+        "kwargs_fn": lambda _: {},
+        "title": "标题",
+        "summary": "内容",
+        "published_at": "发布时间",
+        "url": "链接",
+        "source_name": "同花顺",
+    },
+    "em": {
+        "api": "stock_info_global_em",
+        "kwargs_fn": lambda _: {},
+        "title": "标题",
+        "summary": "摘要",
+        "published_at": "发布时间",
+        "url": "链接",
+        "source_name": "东方财富",
+    },
+}
 
-def get_news(
-    symbol: str,
-    *,
-    target_type: TargetType = TargetType.STOCK,
-    count: int = 10,
-) -> list[NewsItem]:
-    """
-    Get recent news for a symbol.
 
-    Args:
-        symbol: Stock symbol (e.g., "600519", "700.HK", "AAPL.US")
-        target_type: Target type (only STOCK is supported)
-        count: Number of news items to return (default 10)
-
-    Returns:
-        List of NewsItem objects
-
-    Raises:
-        NotImplementedError: If target_type is not STOCK
-        SourceError: If news fetching fails
-
-    """
-    if target_type != TargetType.STOCK:
-        raise NotImplementedError(f"News for {target_type.value} not yet implemented")
-
-    # Convert to longport format, then extract pure code for akshare
+def get_news(symbol: str, *, count: int = 10) -> list[NewsItem]:
+    """Get recent news for an individual stock (A-share)."""
     lp_symbol = to_longport_symbol(symbol)
-
-    # akshare expects pure stock code without market suffix
-    # e.g., "600519.SH" -> "600519", "000001.SZ" -> "000001"
     ak_symbol = lp_symbol.split(".")[0] if "." in lp_symbol else lp_symbol
 
     try:
         df = ak.stock_news_em(symbol=ak_symbol)
-
-        # Limit to requested count
         df = df.head(count)
 
-        # Convert DataFrame to NewsItem list
         return [
             NewsItem(
                 title=row["新闻标题"],
@@ -57,6 +56,62 @@ def get_news(
             )
             for _, row in df.iterrows()
         ]
-
     except Exception as e:
         raise SourceError(f"Failed to fetch news for {symbol}: {e}") from e
+
+
+def get_global_news(
+    *,
+    source: str = "cls",
+    count: int = 20,
+    symbol: str = "全部",
+) -> list[NewsItem]:
+    """
+    Get global market news from cls/ths/em.
+
+    source: cls (财联社) / ths (同花顺) / em (东方财富)
+    symbol: for cls only — "全部" or "重点"
+    """
+    cfg = _GLOBAL_SOURCE_CONFIG.get(source)
+    if not cfg:
+        valid = "/".join(_GLOBAL_SOURCE_CONFIG)
+        raise SourceError(f"Unknown source: {source}, use {valid}")
+
+    try:
+        api_fn = getattr(ak, cfg["api"])
+        kwargs = cfg["kwargs_fn"](symbol)
+        df = api_fn(**kwargs)
+
+        if df.empty:
+            raise SourceError(f"No global news from {source}")
+
+        df = df.head(count)
+        source_name = cfg["source_name"]
+
+        items: list[NewsItem] = []
+        for _, row in df.iterrows():
+            # date column: cls has separate 发布日期+发布时间
+            pub_at = str(row.get(cfg["published_at"], ""))
+            if "发布日期" in row.index:
+                pub_at = f"{row['发布日期']} {pub_at}"
+
+            title = str(row.get(cfg["title"], ""))
+            summary = str(row.get(cfg.get("summary", ""), ""))
+            # CLS telegrams often have empty title — use content instead
+            if not title and summary:
+                title = summary[:80]
+
+            items.append(
+                NewsItem(
+                    title=title,
+                    summary=summary,
+                    published_at=pub_at,
+                    source=source_name,
+                    url=str(row.get(cfg.get("url", ""), "")),
+                )
+            )
+        return items
+    except SourceError:
+        raise
+    except Exception as e:
+        raise SourceError(f"Failed to fetch global news from {source}: {e}") from e

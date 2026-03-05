@@ -25,6 +25,22 @@ class MarketTemperature(BaseModel):
     sentiment: int | None = None
 
 
+class TechRankItem(BaseModel):
+    """A stock in technical screening ranking."""
+
+    code: str
+    name: str
+    metrics: dict[str, str | None]
+
+
+class TechRank(BaseModel):
+    """Technical screening ranking result."""
+
+    type: str  # lxsz / cxfl / xstp / ljqs
+    label: str  # 连续上涨 / 持续放量 / 向上突破 / 量价齐升
+    items: list[TechRankItem]
+
+
 class MarketBreadth(BaseModel):
     """Market breadth data."""
 

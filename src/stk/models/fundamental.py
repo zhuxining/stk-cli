@@ -21,6 +21,16 @@ class IndustryComparison(BaseModel):
     companies: list[CompanyMetric]
 
 
+class CompanyProfile(BaseModel):
+    """Company main business profile."""
+
+    symbol: str
+    main_business: str = ""
+    product_type: str = ""
+    product_name: str = ""
+    business_scope: str = ""
+
+
 class Valuation(BaseModel):
     """Valuation metrics."""
 

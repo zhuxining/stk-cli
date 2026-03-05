@@ -48,14 +48,9 @@ src/stk/
 ├── errors.py           # Custom exceptions + global error handler
 ├── deps.py             # Lazy singletons (longport ctx, etc.)
 ├── commands/           # Thin layer: parse args → call service → render output
-│   ├── quote.py        # stk quote — real-time quotes
-│   ├── history.py      # stk history — historical candlesticks
-│   ├── indicator.py    # stk indicator — technical indicators
-│   ├── news.py         # stk news — news feed
-│   ├── fundamental.py  # stk fundamental — financials, valuation
-│   ├── market.py       # stk market — indices, temperature, breadth
-│   ├── flow.py         # stk flow — money flow
-│   ├── chip.py         # stk chip — chip distribution
+│   ├── market.py       # stk market — index, temp, breadth, news
+│   ├── board.py        # stk board — list, cons, flow, detail
+│   ├── stock.py        # stk stock — rank, quote, profile, fundamental, valuation, indicator, history, news, flow, chip
 │   └── watchlist.py    # stk watchlist — watchlist CRUD
 ├── services/           # Business logic: call APIs → return Pydantic models
 │   ├── symbol.py       # Symbol normalization (user input → longport format)

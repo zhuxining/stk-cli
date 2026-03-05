@@ -6,7 +6,7 @@ import akshare as ak
 
 from stk.errors import SourceError
 from stk.models.common import TargetType
-from stk.models.quote import Quote
+from stk.models.quote import BoardCons, BoardItem, BoardList, ConsItem, Quote
 
 
 def get_quote(symbol: str, *, target_type: TargetType = TargetType.STOCK) -> Quote:
@@ -56,3 +56,94 @@ def _get_board_quote(name: str, fetch_fn, board_type: str) -> Quote:
         raise
     except Exception as e:
         raise SourceError(f"Failed to fetch {board_type} quote for '{name}': {e}") from e
+
+
+_BOARD_API = {
+    "sector": {
+        "list": "stock_board_industry_name_em",
+        "cons": "stock_board_industry_cons_em",
+        "name_col": "板块名称",
+        "code_col": "板块代码",
+    },
+    "concept": {
+        "list": "stock_board_concept_name_em",
+        "cons": "stock_board_concept_cons_em",
+        "name_col": "板块名称",
+        "code_col": "板块代码",
+    },
+}
+
+_SKIP_COLS = {"序号", "板块名称", "板块代码", "代码", "名称"}
+
+
+def _to_decimal(val) -> Decimal | None:
+    try:
+        s = str(val)
+        if s in ("", "-", "nan", "NaN", "None") or val is None:
+            return None
+        return Decimal(s)
+    except Exception:
+        return None
+
+
+def get_board_list(*, type: str = "sector") -> BoardList:
+    """Get board (sector/concept) listing with quotes."""
+    cfg = _BOARD_API.get(type)
+    if not cfg:
+        raise SourceError(f"Unknown board type: {type}, use sector/concept")
+
+    try:
+        df = getattr(ak, cfg["list"])()
+        if df.empty:
+            raise SourceError(f"No {type} board data")
+
+        name_col = cfg["name_col"]
+        code_col = cfg["code_col"]
+        metric_cols = [c for c in df.columns if c not in _SKIP_COLS]
+
+        items: list[BoardItem] = []
+        for _, row in df.iterrows():
+            metrics = {c: _to_decimal(row[c]) for c in metric_cols}
+            items.append(
+                BoardItem(
+                    code=str(row[code_col]),
+                    name=str(row[name_col]),
+                    metrics=metrics,
+                )
+            )
+
+        return BoardList(type=type, items=items)
+    except SourceError:
+        raise
+    except Exception as e:
+        raise SourceError(f"Failed to fetch {type} board list: {e}") from e
+
+
+def get_board_cons(name: str, *, type: str = "sector") -> BoardCons:
+    """Get constituent stocks of a board (sector/concept)."""
+    cfg = _BOARD_API.get(type)
+    if not cfg:
+        raise SourceError(f"Unknown board type: {type}, use sector/concept")
+
+    try:
+        df = getattr(ak, cfg["cons"])(symbol=name)
+        if df.empty:
+            raise SourceError(f"No constituents for {type} '{name}'")
+
+        metric_cols = [c for c in df.columns if c not in _SKIP_COLS]
+        items: list[ConsItem] = []
+        for _, row in df.iterrows():
+            metrics = {c: _to_decimal(row[c]) for c in metric_cols}
+            items.append(
+                ConsItem(
+                    code=str(row.get("代码", "")),
+                    name=str(row.get("名称", "")),
+                    metrics=metrics,
+                )
+            )
+
+        return BoardCons(board=name, type=type, items=items)
+    except SourceError:
+        raise
+    except Exception as e:
+        raise SourceError(f"Failed to fetch {type} constituents for '{name}': {e}") from e

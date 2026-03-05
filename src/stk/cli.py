@@ -29,26 +29,11 @@ def _callback() -> None:
 
 
 # Register subcommand groups
-from stk.commands import (  # noqa: E402
-    chip,
-    flow,
-    fundamental,
-    history,
-    indicator,
-    market,
-    news,
-    quote,
-    watchlist,
-)
+from stk.commands import board, market, stock, watchlist  # noqa: E402
 
-app.add_typer(quote.app, name="quote")
-app.add_typer(history.app, name="history")
-app.add_typer(indicator.app, name="indicator")
-app.add_typer(news.app, name="news")
-app.add_typer(fundamental.app, name="fundamental")
 app.add_typer(market.app, name="market")
-app.add_typer(flow.app, name="flow")
-app.add_typer(chip.app, name="chip")
+app.add_typer(board.app, name="board")
+app.add_typer(stock.app, name="stock")
 app.add_typer(watchlist.app, name="watchlist")
 
 
