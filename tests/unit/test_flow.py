@@ -75,10 +75,12 @@ def test_get_flow_rank_unknown_scope():
 
 @patch("stk.services.flow.ak")
 @patch("stk.services.flow.get_longport_ctx")
-def test_get_stock_flow(mock_ctx, mock_ak):
+def test_get_stock_flow(mock_get_longport_ctx, mock_ak):
     """Test individual stock flow."""
+    # Mock akshare — explicitly return empty DataFrame so history branch is skipped intentionally
+    mock_ak.stock_individual_fund_flow.return_value = pd.DataFrame()
     # Mock longport context
-    mock_ctx.return_value.capital_distribution.return_value = type(
+    mock_get_longport_ctx.return_value.capital_distribution.return_value = type(
         "obj",
         (object,),
         {
@@ -86,7 +88,7 @@ def test_get_stock_flow(mock_ctx, mock_ak):
             "capital_out": type("obj", (object,), {"large": Decimal(50)}),
         },
     )()
-    mock_ctx.return_value.capital_flow.return_value = []
+    mock_get_longport_ctx.return_value.capital_flow.return_value = []
 
     result = get_stock_flow("600519")
     assert result.symbol == "600519.SH"

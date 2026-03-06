@@ -10,7 +10,7 @@ from loguru import logger
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
 from stk.models.market import IndexQuote, MarketBreadth, MarketTemperature
-from stk.utils.price import r2
+from stk.utils.price import calc_change, r2
 
 MAJOR_INDICES = [
     ("000001.SH", "上证指数"),
@@ -36,8 +36,7 @@ def get_indices() -> list[IndexQuote]:
         for q in resp:
             last = r2(Decimal(str(q.last_done)))
             prev = Decimal(str(q.prev_close))
-            change = r2(last - prev) if prev else None
-            change_pct = r2(change / prev * 100) if (change is not None and prev) else None
+            change, change_pct = calc_change(last, prev)
             results.append(
                 IndexQuote(
                     symbol=q.symbol,

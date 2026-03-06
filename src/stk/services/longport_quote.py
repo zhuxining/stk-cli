@@ -5,7 +5,7 @@ from decimal import Decimal
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
 from stk.models.quote import Quote
-from stk.utils.price import r2
+from stk.utils.price import calc_change, r2
 from stk.utils.symbol import to_longport_symbol
 
 
@@ -21,12 +21,11 @@ def get_realtime_quote(symbol: str) -> Quote:
 
         last = Decimal(str(q.last_done))
         prev_close = Decimal(str(q.prev_close))
-        change = r2(last - prev_close) if prev_close else None
-        change_pct = r2(change / prev_close * 100) if (change is not None and prev_close) else None
+        change, change_pct = calc_change(last, prev_close)
 
         return Quote(
             symbol=lp_symbol,
-            name=q.symbol,
+            name=getattr(q, "name", ""),
             last=r2(last),
             open=r2(Decimal(str(q.open))),
             high=r2(Decimal(str(q.high))),

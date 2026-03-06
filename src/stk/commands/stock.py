@@ -118,11 +118,15 @@ def indicator(
     type: TargetType = typer.Option(TargetType.STOCK, "--type", "-t", help="Target type"),
     period: str = typer.Option("day", "--period", "-p", help="K-line period"),
     count: int = typer.Option(60, "--count", "-c", help="Number of data points"),
+    timeperiod: int = typer.Option(None, "--timeperiod", help="Indicator period (e.g. MA20 → 20)"),
 ) -> None:
     """Calculate a technical indicator."""
     from stk.services.indicator import calc_indicator
 
-    result = calc_indicator(symbol, name, target_type=type, period=period, count=count)
+    params = {}
+    if timeperiod is not None:
+        params["timeperiod"] = timeperiod
+    result = calc_indicator(symbol, name, target_type=type, period=period, count=count, **params)
     output.render(result)
 
 

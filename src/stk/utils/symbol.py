@@ -18,7 +18,7 @@ def to_longport_symbol(symbol: str) -> str:
     - .DJI / .IXIC / .SPX → pass through (US index)
     - 600519 / 688001 → 600519.SH / 688001.SH (上交所主板/科创板)
     - 000001 / 002001 / 300001 → 000001.SZ / 002001.SZ / 300001.SZ (深交所)
-    - 800001 / 830001 → 800001.BJ (北交所) **新增**
+    - 800001 / 830001 / 430001 / 920001 → .BJ (北交所)
     """
     # Already has suffix (.HK, .US, .SH, .SZ, .BJ) or US index prefix (.)
     if re.search(r"\.\w+$", symbol) or symbol.startswith("."):
@@ -26,8 +26,8 @@ def to_longport_symbol(symbol: str) -> str:
 
     # Pure 6-digit A-share code
     if re.fullmatch(r"\d{6}", symbol):
-        # 北交所 (8 开头)
-        if symbol.startswith("8"):
+        # 北交所 (4/8/9 开头)
+        if symbol.startswith(("4", "8", "9")):
             return f"{symbol}.BJ"
         # 上交所 (6 开头，含科创板 688)
         if symbol.startswith("6"):

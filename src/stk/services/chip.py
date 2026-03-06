@@ -22,22 +22,25 @@ def get_chip_distribution(symbol: str) -> ChipDistribution:
 
         row = df.iloc[-1]  # latest date
 
-        return ChipDistribution(
-            symbol=lp_symbol,
-            avg_cost=Decimal(str(row["平均成本"])),
-            profit_ratio=Decimal(str(row["获利比例"])),
-            concentration=Decimal(str(row["90集中度"])),
-            chips=[
-                ChipSlice(
-                    date=str(row["日期"]),
-                    cost_90_low=Decimal(str(row["90成本-低"])),
-                    cost_90_high=Decimal(str(row["90成本-高"])),
-                    cost_70_low=Decimal(str(row["70成本-低"])),
-                    cost_70_high=Decimal(str(row["70成本-高"])),
-                    concentration_70=Decimal(str(row["70集中度"])),
-                )
-            ],
-        )
+        try:
+            return ChipDistribution(
+                symbol=lp_symbol,
+                avg_cost=Decimal(str(row["平均成本"])),
+                profit_ratio=Decimal(str(row["获利比例"])),
+                concentration=Decimal(str(row["90集中度"])),
+                chips=[
+                    ChipSlice(
+                        date=str(row["日期"]),
+                        cost_90_low=Decimal(str(row["90成本-低"])),
+                        cost_90_high=Decimal(str(row["90成本-高"])),
+                        cost_70_low=Decimal(str(row["70成本-低"])),
+                        cost_70_high=Decimal(str(row["70成本-高"])),
+                        concentration_70=Decimal(str(row["70集中度"])),
+                    )
+                ],
+            )
+        except KeyError as e:
+            raise SourceError(f"Unexpected chip data schema, missing column: {e}") from e
     except SourceError:
         raise
     except Exception as e:

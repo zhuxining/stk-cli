@@ -88,14 +88,9 @@ def run_health_check(*, quick: bool = False) -> list[HealthResult]:
         quick: If True, only check critical APIs (eastmoney + longport)
 
     """
-    checks = [
-        check_akshare_eastmoney(),
-        check_akshare_push2(),
-        check_akshare_news(),
-        check_longport(),
-    ]
-
-    if quick:
-        return checks[:1] + checks[3:]  # Only eastmoney + longport
-
-    return checks
+    fns = (
+        [check_akshare_eastmoney, check_longport]
+        if quick
+        else [check_akshare_eastmoney, check_akshare_push2, check_akshare_news, check_longport]
+    )
+    return [fn() for fn in fns]

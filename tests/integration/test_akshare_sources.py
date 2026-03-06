@@ -5,7 +5,8 @@ This test file verifies that all akshare APIs used by stk-cli are accessible.
 Run with: uv run pytest -m integration tests/integration/test_akshare_sources.py -v
 """
 
-from datetime import UTC, datetime
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import akshare as ak
 import pytest
@@ -96,14 +97,14 @@ class TestMarketAPIs:
 
     def test_stock_zt_pool_em(self):
         """Test limit-up pool API."""
-        today = datetime.now(UTC).strftime("%Y%m%d")
+        today = datetime.now(tz=ZoneInfo("Asia/Shanghai")).strftime("%Y%m%d")
         df = ak.stock_zt_pool_em(date=today)
         # May be empty if no limit-up stocks today
         assert df is not None, "Limit-up pool API should return a result"
 
     def test_stock_zt_pool_dtgc_em(self):
         """Test limit-up pool (day-to-day cover) API."""
-        today = datetime.now(UTC).strftime("%Y%m%d")
+        today = datetime.now(tz=ZoneInfo("Asia/Shanghai")).strftime("%Y%m%d")
         df = ak.stock_zt_pool_dtgc_em(date=today)
         # May be empty if no matching stocks today
         assert df is not None, "DTGC pool API should return a result"
