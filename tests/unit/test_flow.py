@@ -73,23 +73,25 @@ def test_get_flow_rank_unknown_scope():
         get_flow_rank(scope="invalid")
 
 
-@patch("stk.services.flow.ak")
 @patch("stk.services.flow.get_longport_ctx")
-def test_get_stock_flow(mock_get_longport_ctx, mock_ak):
-    """Test individual stock flow."""
-    # Mock akshare — explicitly return empty DataFrame so history branch is skipped intentionally
-    mock_ak.stock_individual_fund_flow.return_value = pd.DataFrame()
-    # Mock longport context
+def test_get_stock_flow(mock_get_longport_ctx):
+    """Test individual stock flow via longport capital_distribution."""
+    cap_in = type(
+        "obj", (object,),
+        {"large": Decimal(100), "medium": Decimal(60), "small": Decimal(30)},
+    )
+    cap_out = type(
+        "obj", (object,),
+        {"large": Decimal(50), "medium": Decimal(40), "small": Decimal(20)},
+    )
     mock_get_longport_ctx.return_value.capital_distribution.return_value = type(
-        "obj",
-        (object,),
-        {
-            "capital_in": type("obj", (object,), {"large": Decimal(100)}),
-            "capital_out": type("obj", (object,), {"large": Decimal(50)}),
-        },
+        "obj", (object,), {"capital_in": cap_in, "capital_out": cap_out},
     )()
     mock_get_longport_ctx.return_value.capital_flow.return_value = []
 
     result = get_stock_flow("600519")
     assert result.symbol == "600519.SH"
     assert result.large_in == Decimal(100)
+    assert result.large_out == Decimal(50)
+    assert result.medium_in == Decimal(60)
+    assert result.small_out == Decimal(20)

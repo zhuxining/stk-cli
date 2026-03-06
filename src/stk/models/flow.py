@@ -24,8 +24,6 @@ class StockFlow(BaseModel):
     small_in: Decimal | None = None
     small_out: Decimal | None = None
     intraday: list[FlowLine] | None = None
-    # Recent daily history (akshare) — latest N days
-    history: list[dict[str, Decimal | None]] | None = None
 
 
 class FlowRankItem(BaseModel):
