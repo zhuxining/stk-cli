@@ -13,6 +13,7 @@ from stk.models.fundamental import (
     IndustryComparison,
     Valuation,
 )
+from stk.store.cache import cached
 from stk.utils.price import r2
 from stk.utils.symbol import is_hk, to_em_symbol, to_hk_code, to_longport_symbol
 
@@ -33,6 +34,7 @@ _SKIP_COLS = {"排名", "代码", "简称"}
 _SKIP_SUFFIX = "排名"
 
 
+@cached(ttl=86400, disk=True)
 def get_comparison(symbol: str, *, category: str = "growth") -> IndustryComparison:
     """Get industry comparison data from akshare (A-share and HK)."""
     lp_symbol = to_longport_symbol(symbol)
@@ -199,9 +201,7 @@ def get_valuation(symbol: str) -> Valuation:
         for attr, field in _INT_FIELDS:
             val = getattr(r, attr, None)
             data[field] = int(val) if val else None
-        data["expiry_date"] = (
-            str(r.expiry_date) if getattr(r, "expiry_date", None) else None
-        )
+        data["expiry_date"] = str(r.expiry_date) if getattr(r, "expiry_date", None) else None
 
         return Valuation(**data)  # type: ignore[arg-type]
     except SourceError:
@@ -210,6 +210,7 @@ def get_valuation(symbol: str) -> Valuation:
         raise SourceError(f"Longport valuation API error: {e}") from e
 
 
+@cached(ttl=604800, disk=True)
 def get_profile(symbol: str) -> CompanyProfile:
     """Get company main business profile from akshare (A-share)."""
     lp_symbol = to_longport_symbol(symbol)

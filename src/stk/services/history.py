@@ -6,6 +6,7 @@ from stk.deps import get_longport_ctx
 from stk.errors import SourceError
 from stk.models.common import TargetType
 from stk.models.history import Candlestick
+from stk.store.cache import cached
 from stk.utils.symbol import to_longport_symbol
 
 _PERIOD_MAP: dict[str, object] = {}
@@ -27,6 +28,7 @@ def _get_period(period: str):
     return lp_period
 
 
+@cached(ttl=3600)
 def get_history(
     symbol: str,
     *,

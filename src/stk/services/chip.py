@@ -6,9 +6,11 @@ import akshare as ak
 
 from stk.errors import SourceError
 from stk.models.chip import ChipDistribution, ChipSlice
+from stk.store.cache import cached
 from stk.utils.symbol import to_longport_symbol
 
 
+@cached(ttl=86400, disk=True)
 def get_chip_distribution(symbol: str) -> ChipDistribution:
     """Get chip cost distribution from akshare."""
     lp_symbol = to_longport_symbol(symbol)

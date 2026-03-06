@@ -6,6 +6,7 @@ from stk.errors import SourceError
 from stk.models.flow import SectorFlowDay, SectorFlowDetail, SectorFlowHist
 from stk.models.quote import BoardCons, BoardItem, BoardList, ConsItem
 from stk.services.flow import _SKIP_FLOW_COLS, _df_to_flow_items
+from stk.store.cache import cached
 from stk.utils.symbol import to_decimal, to_metrics
 
 # ---------------------------------------------------------------------------
@@ -30,6 +31,7 @@ _BOARD_API = {
 _SKIP_BOARD_COLS = {"序号", "板块名称", "板块代码", "代码", "名称"}
 
 
+@cached(ttl=14400, disk=True)
 def get_board_list(*, type: str = "sector") -> BoardList:
     """Get board (sector/concept) listing with quotes."""
     cfg = _BOARD_API.get(type)
@@ -62,6 +64,7 @@ def get_board_list(*, type: str = "sector") -> BoardList:
         raise SourceError(f"Failed to fetch {type} board list: {e}") from e
 
 
+@cached(ttl=14400, disk=True)
 def get_board_cons(name: str, *, type: str = "sector") -> BoardCons:
     """Get constituent stocks of a board (sector/concept)."""
     cfg = _BOARD_API.get(type)
@@ -97,6 +100,7 @@ def get_board_cons(name: str, *, type: str = "sector") -> BoardCons:
 # ---------------------------------------------------------------------------
 
 
+@cached(ttl=3600)
 def get_sector_flow_hist(name: str, *, type: str = "sector") -> SectorFlowHist:
     """Get historical fund flow for a sector or concept."""
     try:
@@ -128,6 +132,7 @@ def get_sector_flow_hist(name: str, *, type: str = "sector") -> SectorFlowHist:
         raise SourceError(f"Failed to fetch {type} flow history for '{name}': {e}") from e
 
 
+@cached(ttl=300)
 def get_sector_flow_detail(name: str, *, period: str = "今日") -> SectorFlowDetail:
     """Get individual stocks' fund flow within a sector."""
     try:

@@ -9,6 +9,7 @@ import pandas as pd
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
 from stk.models.flow import FlowLine, FlowRank, FlowRankItem, StockFlow
+from stk.store.cache import cached
 from stk.utils.symbol import to_metrics
 
 _SKIP_FLOW_COLS = {"序号", "代码", "简称", "名称"}
@@ -50,8 +51,7 @@ def get_stock_flow(symbol: str) -> StockFlow:
         raise SourceError(f"Failed to get flow data for {symbol}: {e}") from e
 
     intraday = [
-        FlowLine(timestamp=str(fl.timestamp), inflow=Decimal(str(fl.inflow)))
-        for fl in flow_lines
+        FlowLine(timestamp=str(fl.timestamp), inflow=Decimal(str(fl.inflow))) for fl in flow_lines
     ] or None
 
     return StockFlow(
@@ -76,6 +76,7 @@ _SECTOR_TYPE_MAP = {
 }
 
 
+@cached(ttl=300)
 def get_flow_rank(
     *,
     scope: str = "stock",

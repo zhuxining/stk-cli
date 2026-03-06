@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # Local storage
     data_dir: Path = Path.home() / ".stk"
 
+    # Cache
+    cache_enabled: bool = True
+    cache_dir: Path = Path.home() / ".stk" / "cache"
+
     # Logging
     log_level: str = "WARNING"
 

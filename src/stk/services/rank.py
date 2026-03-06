@@ -6,6 +6,7 @@ import akshare as ak
 
 from stk.errors import SourceError
 from stk.models.market import TechRank, TechRankItem
+from stk.store.cache import cached
 
 _TechRankConfig = dict[str, str | Callable[[str], dict[str, str]]]
 
@@ -35,6 +36,7 @@ _TECH_RANK_CONFIG: dict[str, _TechRankConfig] = {
 _SKIP_TECH_COLS = {"序号", "股票代码", "股票简称"}
 
 
+@cached(ttl=3600)
 def get_tech_rank(
     *,
     type: str = "lxsz",
@@ -78,6 +80,7 @@ def get_tech_rank(
         raise SourceError(f"Failed to fetch {type} rank: {e}") from e
 
 
+@cached(ttl=300)
 def get_hot_rank() -> TechRank:
     """Get stock popularity ranking from EastMoney."""
     try:

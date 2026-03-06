@@ -10,6 +10,7 @@ from loguru import logger
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
 from stk.models.market import IndexQuote, MarketBreadth, MarketTemperature
+from stk.store.cache import cached
 from stk.utils.price import calc_change, r2
 
 MAJOR_INDICES = [
@@ -69,6 +70,7 @@ def get_temperature() -> MarketTemperature:
         raise SourceError(f"Longport temperature API error: {e}") from e
 
 
+@cached(ttl=30, market_hours_only=True)
 def get_breadth() -> MarketBreadth:
     """Get market breadth from akshare (A-share)."""
     today = datetime.now(tz=ZoneInfo("Asia/Shanghai")).strftime("%Y%m%d")
