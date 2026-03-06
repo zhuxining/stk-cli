@@ -104,7 +104,7 @@ def fundamental(
 def valuation(
     symbol: str = typer.Argument(help="Stock symbol"),
 ) -> None:
-    """Get valuation metrics (PE, PB, PS, market cap)."""
+    """Get calc index metrics (PE, PB, market cap, change rates, etc)."""
     from stk.services.fundamental import get_valuation
 
     result = get_valuation(symbol)

@@ -30,13 +30,18 @@ stk
 | `stk stock quote` | `services/quote.get_quote()` | 实时报价 |
 | `stk stock profile` | `services/fundamental.get_profile()` | 公司概况 |
 | `stk stock fundamental` | `services/fundamental.get_comparison()` | 同业对比 |
-| `stk stock valuation` | `services/fundamental.get_valuation()` | 估值指标 |
+| `stk stock valuation` | `services/fundamental.get_valuation()` | 估值指标 (via calc_indexes) |
 | `stk stock indicator` | `services/indicator.calc_indicator()` | 技术指标 |
 | `stk stock history` | `services/history.get_history()` | K 线历史 |
 | `stk stock news` | `services/news.get_news()` | 个股新闻 |
 | `stk stock flow` | `services/flow.get_stock_flow()` | 个股资金流 |
 | `stk stock chip` | `services/chip.get_chip_distribution()` | 筹码分布 |
-| `stk watchlist *` | `services/watchlist.*` | 自选股 CRUD |
+| `stk watchlist list` | `services/watchlist.list_watchlists()` | 列出所有分组 (longport API) |
+| `stk watchlist show` | `services/watchlist.get_watchlist()` | 查看分组内标的 |
+| `stk watchlist create` | `services/watchlist.create_group()` | 创建分组 |
+| `stk watchlist add` | `services/watchlist.add_symbol()` | 添加标的到分组 |
+| `stk watchlist remove` | `services/watchlist.remove_symbol()` | 从分组移除标的 |
+| `stk watchlist delete` | `services/watchlist.delete_group()` | 删除分组 |
 
 ---
 
@@ -44,7 +49,7 @@ stk
 
 **Longport + akshare 双数据源**：
 
-- **Longport**：主数据源，覆盖 A 股/港股/美股的实时行情、K 线、估值
+- **Longport**：主数据源，覆盖 A 股/港股/美股的实时行情、K 线、估值 (calc_indexes)、自选股管理
 - **akshare**：补充 A 股特色数据（新闻、筹码、市场广度、板块资金流、基本面对比）
 
 ### Symbol 规范化
@@ -120,10 +125,11 @@ class TargetType(StrEnum):
 |----------|-------------|----------|
 | `stock quote` | `ctx.quote([symbols])` | 实时行情 |
 | `stock history` | `ctx.candlesticks(symbol, period, count, adjust)` | K 线数据 |
-| `stock valuation` | `ctx.static_info()` + `ctx.quote()` | 静态信息 + 实时价格 |
+| `stock valuation` | `ctx.calc_indexes([symbol], [CalcIndex.*])` | PE/PB/市值/涨跌/资金流等全量指标 |
 | `market index` | `ctx.quote(MAJOR_INDICES)` | 批量指数行情 |
 | `market temperature` | `ctx.market_temperature(Market.CN)` | 市场温度 |
 | `stock flow` | `ctx.capital_distribution()` + `ctx.capital_flow()` | 资金分布 + 日内流向 |
+| `watchlist *` | `ctx.watchlist()` / `ctx.create_watchlist_group()` / `ctx.update_watchlist_group()` / `ctx.delete_watchlist_group()` | 自选股分组管理 |
 
 ---
 
@@ -175,12 +181,12 @@ stk stock fundamental compare 600519 --type growth
     → DataFrame rows → list[CompanyMetric] (行业中值/平均 + 同行 + 目标股)
   → models/fundamental.py: IndustryComparison(symbol, category, companies)
 
-stk stock fundamental valuation 700.HK
+stk stock valuation 700.HK
   → services/fundamental.py: get_valuation(symbol)
-    → ctx.static_info() → total_shares, eps_ttm, bps
-    → ctx.quote() → last_done (实时价格)
-    → PE = price / eps_ttm, PB = price / bps, market_cap = price * total_shares
-  → models/fundamental.py: Valuation(pe, pb, market_cap, total_shares, float_shares)
+    → ctx.calc_indexes(["700.HK"], [CalcIndex.PeTtmRatio, PbRatio, TotalMarketValue, ...])
+    → 返回全量指标：PE/PB/市值/涨跌幅/资金流/换手率/振幅/量比/股息率等
+    → 权证/期权标的额外返回：行权价/杠杆/Delta/Gamma 等希腊字母
+  → models/fundamental.py: Valuation(pe_ttm_ratio, pb_ratio, total_market_value, ...)
 ```
 
 支持的对比类型：`growth`（成长性）、`valuation`（估值）、`dupont`（杜邦分析，仅 A 股）
@@ -287,11 +293,11 @@ stk stock flow 600519
 
 ```
 ~/.stk/
-├── watchlist.json          # 自选股列表
+├── watchlist_groups.json   # 自选股分组 name→id 映射缓存（数据存 longport 服务端）
 └── config.json             # 可选：用户偏好配置持久化
 ```
 
-存储操作由 `services/watchlist.py` 封装，使用原子写入（tmp 文件 + rename）。
+自选股数据存储在 longport 服务端，本地仅缓存分组名称与 ID 的映射关系，用于 add/remove/delete 操作时快速查找分组 ID。每次 `watchlist list` 时自动同步缓存。存储使用原子写入（tmp 文件 + rename）。
 
 ---
 
@@ -320,12 +326,12 @@ services/
 ├── quote.py          # 实时报价：get_quote (stock/index/sector/concept)
 ├── market.py         # 市场概览：indices, temperature, breadth
 ├── flow.py           # 资金流：stock_flow, flow_rank
-├── fundamental.py    # 基本面：valuation, comparison, profile
+├── fundamental.py    # 基本面：valuation (calc_indexes), comparison, profile
 ├── history.py        # K 线历史
 ├── indicator.py      # 技术指标 (ta-lib)
 ├── news.py           # 新闻资讯
 ├── chip.py           # 筹码分布
-├── watchlist.py      # 自选股 CRUD
+├── watchlist.py      # 自选股 CRUD (longport API + 本地 group ID 缓存)
 ├── longport_quote.py # Longport 原始 API 封装
 └── symbol.py         # （已移至 utils/symbol.py）
 ```

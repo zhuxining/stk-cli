@@ -32,12 +32,47 @@ class CompanyProfile(BaseModel):
 
 
 class Valuation(BaseModel):
-    """Valuation metrics."""
+    """Valuation metrics from longport calc_indexes."""
 
     symbol: str
-    pe: Decimal | None = None
-    pb: Decimal | None = None
-    ps: Decimal | None = None
-    market_cap: Decimal | None = None
-    total_shares: int | None = None
-    float_shares: int | None = None
+    last_done: Decimal | None = None
+    change_value: Decimal | None = None
+    change_rate: Decimal | None = None
+    volume: int | None = None
+    turnover: Decimal | None = None
+    ytd_change_rate: Decimal | None = None
+    turnover_rate: Decimal | None = None
+    total_market_value: Decimal | None = None
+    capital_flow: Decimal | None = None
+    amplitude: Decimal | None = None
+    volume_ratio: Decimal | None = None
+    pe_ttm_ratio: Decimal | None = None
+    pb_ratio: Decimal | None = None
+    dividend_ratio_ttm: Decimal | None = None
+    five_day_change_rate: Decimal | None = None
+    ten_day_change_rate: Decimal | None = None
+    half_year_change_rate: Decimal | None = None
+    five_minutes_change_rate: Decimal | None = None
+    # Warrant / Option fields
+    expiry_date: str | None = None
+    strike_price: Decimal | None = None
+    upper_strike_price: Decimal | None = None
+    lower_strike_price: Decimal | None = None
+    outstanding_qty: int | None = None
+    outstanding_ratio: Decimal | None = None
+    premium: Decimal | None = None
+    itm_otm: Decimal | None = None
+    implied_volatility: Decimal | None = None
+    warrant_delta: Decimal | None = None
+    call_price: Decimal | None = None
+    to_call_price: Decimal | None = None
+    effective_leverage: Decimal | None = None
+    leverage_ratio: Decimal | None = None
+    conversion_ratio: Decimal | None = None
+    balance_point: Decimal | None = None
+    open_interest: int | None = None
+    delta: Decimal | None = None
+    gamma: Decimal | None = None
+    theta: Decimal | None = None
+    vega: Decimal | None = None
+    rho: Decimal | None = None

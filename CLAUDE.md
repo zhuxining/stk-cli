@@ -51,20 +51,20 @@ src/stk/
 │   ├── market.py       # stk market — index, temp, breadth, news
 │   ├── board.py        # stk board — list, cons, flow, detail
 │   ├── stock.py        # stk stock — rank, quote, profile, fundamental, valuation, indicator, history, news, flow, chip
-│   └── watchlist.py    # stk watchlist — watchlist CRUD
+│   └── watchlist.py    # stk watchlist — longport watchlist group CRUD
 ├── services/           # Business logic: call APIs → return Pydantic models
 │   ├── board.py        # Sector/concept board data + sector flow
 │   ├── rank.py         # Stock technical/popularity rankings
 │   ├── quote.py        # Real-time quotes via longport
 │   ├── market.py       # Market overview: indices, temperature, breadth
 │   ├── flow.py         # Individual stock flow + flow rankings
-│   ├── fundamental.py  # Valuation, industry comparison, profile
+│   ├── fundamental.py  # Valuation (via calc_indexes), industry comparison, profile
 │   ├── longport_quote.py
 │   ├── history.py
 │   ├── indicator.py    # ta-lib calculations (pure DataFrame ops)
 │   ├── news.py
 │   ├── chip.py
-│   └── watchlist.py
+│   └── watchlist.py    # Watchlist via longport API, local group ID cache
 ├── models/             # Pydantic models (data contracts, JSON schema for agents)
 │   ├── common.py       # Envelope, ErrorDetail
 │   └── ...             # One file per domain
@@ -85,7 +85,7 @@ src/stk/
 - **Target types**: `--type stock|sector|concept|index` (default `stock`).
 - **JSON envelope**: `{"ok": true, "data": [...], "error": null, "meta": {...}}`. All output to stdout, logs to stderr.
 - **Errors**: `StkError` → `ConfigError` / `SourceError` / `SymbolNotFoundError` / `IndicatorError` / `DataNotFoundError`. Services wrap SDK exceptions; global handler formats JSON error output.
-- **Storage**: `~/.stk/` directory for watchlist.json etc. Atomic writes (tmp file + rename).
+- **Storage**: `~/.stk/` directory for local caches (e.g. `watchlist_groups.json` for group name→id mapping). Atomic writes (tmp file + rename). Watchlist data is stored on longport server.
 
 Use `loguru` for all logging. Use `pandas` + `ta-lib` for indicator calculations in services.
 Longport is the primary data source. akshare supplements A-share features: news, chip distribution, market breadth, financial report, sector/concept quotes, sector money flow.
