@@ -77,15 +77,19 @@ def test_get_flow_rank_unknown_scope():
 def test_get_stock_flow(mock_get_longport_ctx):
     """Test individual stock flow via longport capital_distribution."""
     cap_in = type(
-        "obj", (object,),
+        "obj",
+        (object,),
         {"large": Decimal(100), "medium": Decimal(60), "small": Decimal(30)},
     )
     cap_out = type(
-        "obj", (object,),
+        "obj",
+        (object,),
         {"large": Decimal(50), "medium": Decimal(40), "small": Decimal(20)},
     )
     mock_get_longport_ctx.return_value.capital_distribution.return_value = type(
-        "obj", (object,), {"capital_in": cap_in, "capital_out": cap_out},
+        "obj",
+        (object,),
+        {"capital_in": cap_in, "capital_out": cap_out},
     )()
     mock_get_longport_ctx.return_value.capital_flow.return_value = []
 

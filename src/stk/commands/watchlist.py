@@ -32,7 +32,10 @@ def show(
 def create(
     name: str = typer.Argument(help="New group name"),
     symbols: list[str] = typer.Option(
-        None, "--symbol", "-s", help="Initial symbols",
+        None,
+        "--symbol",
+        "-s",
+        help="Initial symbols",
     ),
 ) -> None:
     """Create a new watchlist group."""
