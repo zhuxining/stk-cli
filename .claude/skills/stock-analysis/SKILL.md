@@ -84,7 +84,8 @@ description: >
 
 然后收集相关偏好：
 - 使用哪个自选列表（默认取第一个）
-- 选股的策略偏好（参见 `references/strategies.md` 中的策略模板）
+- 选股的策略偏好（参见 `references/strategies.md` 中的策略模板，共 6 种策略）
+- 如用户未指定策略，根据市场温度 + 涨跌统计自动匹配（见 `references/strategies.md` 市场环境与策略匹配表）
 - 关注的特定指标或阈值
 
 ## 模式一：选股
@@ -93,10 +94,11 @@ description: >
 
 ### 步骤
 
-1. **市场环境判断** — 并行执行：
-   - `stk market temp` -> 判断整体情绪
+1. **市场环境判断与策略匹配** — 并行执行：
+   - `stk market temp` -> 判断整体情绪（温度 = 估值百分位与情绪百分位的均值）
    - `stk market breadth` -> 确认市场宽度支持进场
    - `stk market index` -> 指数水平与趋势
+   - 根据温度 + 涨跌统计，参照 `references/strategies.md` 市场环境与策略匹配表自动确定策略方向
 
 2. **板块方向确认** — 并行执行：
    - `stk board list --type sector` -> 找到领涨行业
