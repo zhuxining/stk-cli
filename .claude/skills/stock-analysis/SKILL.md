@@ -16,31 +16,60 @@ description: >
 - 通过 `uv run stk <子命令>` 执行命令（已安装则直接用 `stk`）
 - 所有命令输出 JSON，从 `{"ok": true, "data": ...}` 信封中解析 `data` 字段
 - 扫描/盯盘/复盘默认使用用户的 watchlist 作为股票池
+- 首次运行或遇到连接问题时，先执行 `stk doctor check --quick` 验证数据源连通性
 
 ## 可用命令速查
+
+### 市场
 
 | 命令 | 用途 |
 |------|------|
 | `stk market index` | 主要指数行情 |
 | `stk market temp` | 市场温度 (0-100) |
 | `stk market breadth` | 涨跌统计（上涨/下跌/涨停/跌停） |
-| `stk market news` | 全球市场新闻 |
-| `stk board list --type sector\|concept` | 板块排行 |
-| `stk board cons <名称>` | 板块成分股 |
-| `stk board flow <名称>` | 板块资金流向历史 |
-| `stk board detail <名称>` | 板块内个股资金明细 |
-| `stk stock rank --type hot\|tech\|flow` | 股票排行 |
-| `stk stock quote <代码>` | 实时行情 |
+| `stk market news` | 全球市场新闻。`--source cls\|ths\|em` `--filter 全部\|重点` `--count N` |
+
+### 板块
+
+| 命令 | 用途 |
+|------|------|
+| `stk board list` | 板块排行。`--type sector\|concept` |
+| `stk board cons <名称>` | 板块成分股。`--type sector\|concept` |
+| `stk board flow <名称>` | 板块资金流向历史。`--type sector\|concept` |
+| `stk board detail <名称>` | 板块内个股资金明细（仅行业板块）。`--period 今日\|5日\|10日` |
+
+### 个股
+
+| 命令 | 用途 |
+|------|------|
+| `stk stock rank` | 排行。`--type hot\|tech\|flow`；tech: `--screen lxsz\|cxfl\|xstp\|ljqs` `--ma`；flow: `--scope stock\|main\|sector\|concept` `--period 今日\|3日\|5日\|10日` |
+| `stk stock quote <代码>` | 实时行情。`--type stock\|index\|sector\|concept` |
 | `stk stock profile <代码>` | 公司主营简介 |
-| `stk stock fundamental <代码>` | 成长性/估值/杜邦分析 |
+| `stk stock fundamental <代码>` | 行业对比。`--type growth\|valuation\|dupont` |
 | `stk stock valuation <代码>` | PE/PB/PS/市值 |
-| `stk stock indicator <代码> <指标名>` | 技术指标 (MA/MACD/RSI/KDJ/BOLL) |
-| `stk stock history <代码>` | 历史K线 |
-| `stk stock news <代码>` | 个股新闻 |
+| `stk stock indicator <代码> <指标名>` | 技术指标 (MA/EMA/MACD/RSI/KDJ/BOLL)。`--period day\|week\|month` `--count N` `--timeperiod N` |
+| `stk stock history <代码>` | 历史K线。`--period day\|week\|month` `--count N` |
+| `stk stock news <代码>` | 个股新闻。`--count N` |
 | `stk stock flow <代码>` | 个股资金流向 |
-| `stk stock chip <代码>` | 筹码分布 |
+| `stk stock chip <代码>` | 筹码分布（仅A股） |
+
+### 自选
+
+| 命令 | 用途 |
+|------|------|
 | `stk watchlist list` | 列出所有自选 |
 | `stk watchlist show <名称>` | 查看自选股列表 |
+| `stk watchlist create <名称>` | 创建自选组。`--symbol S1 --symbol S2` |
+| `stk watchlist add <名称> <代码>` | 添加到自选 |
+| `stk watchlist remove <名称> <代码>` | 从自选移除 |
+| `stk watchlist delete <名称>` | 删除自选组 |
+
+### 工具
+
+| 命令 | 用途 |
+|------|------|
+| `stk doctor check` | 数据源健康检查。`--quick` 快速模式 |
+| `stk cache clear` | 清除缓存。`--prefix PREFIX` 按前缀清除 |
 
 ## 模式选择
 
@@ -77,8 +106,9 @@ description: >
 3. **板块个股提取** — 从步骤2确认的 2-3 个强势板块中挖掘候选：
    - 对每个板块并行执行：
      - `stk board cons <板块名>` -> 获取成分股列表
-     - `stk board detail <板块名>` -> 板块内个股资金流明细
-   - 筛选规则：从每个板块中取资金净流入前 3-5 只（通过 board detail 排序）
+     - **行业板块**: `stk board detail <板块名>` -> 板块内个股资金流明细
+     - **概念板块**: `board detail` 不支持概念板块，改用 `stk stock flow` 逐一查询成分股资金流向
+   - 筛选规则：从每个板块中取资金净流入前 3-5 只（通过 board detail 或 stock flow 排序）
    - 合并去重得到**板块候选池**（约 6-15 只）
 
 4. **技术形态筛选** — 作为板块筛选的补充/交叉路径，根据用户策略偏好选择：
@@ -123,14 +153,16 @@ description: >
 3. **资讯摘要** — `stk market news --source cls --filter 重点 --count 10`
 
 4. **自选股深度扫描** — `stk watchlist show <名称>` 获取股票列表，然后对每只股票并行查询：
-   - `stk stock quote <代码>` — 收盘数据
-   - `stk stock flow <代码>` — 资金流向
-   - `stk stock history <代码> --count 10` — 近期K线走势
-   - `stk stock indicator <代码> MACD` — 趋势信号
-   - `stk stock indicator <代码> RSI` — 动量状态
-   - `stk stock indicator <代码> KDJ` — 短周期信号
-   - `stk stock indicator <代码> BOLL` — 波动通道
-   - `stk stock chip <代码>` — 筹码分布
+   - **核心（必查）**:
+     - `stk stock quote <代码>` — 收盘数据
+     - `stk stock flow <代码>` — 资金流向
+     - `stk stock history <代码> --count 10` — 近期K线走势
+     - `stk stock indicator <代码> MACD` — 趋势信号
+     - `stk stock indicator <代码> RSI` — 动量状态
+   - **按需（异动或需深入分析时追加）**:
+     - `stk stock indicator <代码> KDJ` — RSI 处于临界区间(30-40/60-80)时追加确认
+     - `stk stock indicator <代码> BOLL` — 需判断支撑压力位时追加
+     - `stk stock chip <代码>` — 需分析筹码结构时追加（仅A股）
 
 5. **综合评价** — 对每只自选股给出：
    - 今日表现小结
@@ -160,7 +192,7 @@ description: >
    - `stk stock flow <代码>` — 实时资金流向
    - `stk stock indicator <代码> MACD` — 趋势信号
    - `stk stock indicator <代码> RSI` — 超买超卖
-   - `stk stock indicator <代码> KDJ` — 短周期信号
+   - `stk stock indicator <代码> KDJ` — RSI 处于临界区间(30-40/60-80)时追加确认
 
 4. **异动预警** — 标记满足以下任一条件的持仓：
    - 日内跌幅 > 3% 或涨幅 > 5%
@@ -180,7 +212,10 @@ description: >
 1. **读取历史报告** — 从 `~/.stk/reports/` 中读取最近7日的扫描/盯盘/选股报告：
    - 列出目录下文件，按日期筛选近7日的报告
    - 提取每日市场温度、板块排名、自选股涨跌等关键数据
-   - 如无历史报告，提示用户先积累几天扫描数据
+   - **如目录不存在或无报告**：降级为"首次复盘"模式 —
+     跳过步骤3(趋势对比)和步骤4(策略回顾)，
+     仅执行步骤2(采集最新数据) + 步骤5(生成下周计划)，
+     并建议用户连续使用扫描模式积累 3-5 天数据后再进行完整复盘
 
 2. **采集最新市场数据** — 并行执行：
    - `stk market index` — 最新指数
@@ -224,6 +259,13 @@ description: >
 - 板块级查询 -> 全部并行
 - 个股查询 -> 股票之间并行，同一股票的不同指标也并行
 - 仅在后续步骤依赖前置结果时串行（如需要板块列表后才能查板块资金流向）
+
+## 错误处理
+
+- 单只股票查询失败 → 记录错误并继续处理其余股票，在报告中标注该股票数据不完整
+- 板块名称不匹配 → 用 `stk board list` 查找正确名称后重试
+- 大量查询失败 → 执行 `stk doctor check` 排查数据源状态，告知用户问题所在
+- 缓存导致数据异常 → 执行 `stk cache clear` 后重试
 
 ## 语气与格式
 

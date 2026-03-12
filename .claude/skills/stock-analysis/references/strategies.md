@@ -2,7 +2,7 @@
 
 ## 趋势跟踪型
 
-- 核心指标: MA(5/10/20/60), MACD, BOLL
+- 核心指标: MA(5/10/20/60), EMA(12/26), MACD, BOLL
 - 技术筛选: `stk stock rank --type tech --screen lxsz` (连续缩量上涨)
 - 确认条件: 成交量趋势配合、均线多头排列
 - 资金面: 主力持续净流入
