@@ -176,3 +176,15 @@ def chip(
 
     result = get_chip_distribution(symbol)
     output.render(result)
+
+
+@app.command()
+def score(
+    symbol: str = typer.Argument(help="Stock symbol (e.g. 600519, 700.HK)"),
+    count: int = typer.Option(60, "--count", "-c", help="History data points for calculation"),
+) -> None:
+    """Multi-indicator resonance score (RSI+KDJ+MACD+BOLL+volume+flow)."""
+    from stk.services.score import calc_score
+
+    result = calc_score(symbol, count=count)
+    output.render(result)

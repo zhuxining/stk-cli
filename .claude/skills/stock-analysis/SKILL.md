@@ -47,11 +47,12 @@ description: >
 | `stk stock profile <代码>` | 公司主营简介 |
 | `stk stock fundamental <代码>` | 行业对比。`--type growth\|valuation\|dupont` |
 | `stk stock valuation <代码>` | PE/PB/PS/市值 |
-| `stk stock indicator <代码> <指标名>` | 技术指标 (MA/EMA/MACD/RSI/KDJ/BOLL)。`--period day\|week\|month` `--count N` `--timeperiod N` |
+| `stk stock indicator <代码> <指标名>` | 技术指标 (MA/EMA/MACD/RSI/KDJ/BOLL/ATR)。`--period day\|week\|month` `--count N` `--timeperiod N` |
 | `stk stock history <代码>` | 历史K线。`--period day\|week\|month` `--count N` |
 | `stk stock news <代码>` | 个股新闻。`--count N` |
 | `stk stock flow <代码>` | 个股资金流向 |
 | `stk stock chip <代码>` | 筹码分布（仅A股） |
+| `stk stock score <代码>` | 多指标共振评分 (0-100)。`--count N` 历史数据量 |
 
 ### 自选
 

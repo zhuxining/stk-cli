@@ -108,6 +108,15 @@ def _calc_boll(df: pd.DataFrame, params: dict) -> list[dict]:
     ]
 
 
+def _calc_atr(df: pd.DataFrame, params: dict) -> list[dict]:
+    period = params.get("timeperiod", 14)
+    result = talib.ATR(df["high"], df["low"], df["close"], timeperiod=period)
+    return [
+        {"date": d, f"ATR{period}": None if np.isnan(v) else round(v, 4)}
+        for d, v in zip(df["date"], result, strict=False)
+    ]
+
+
 _INDICATOR_MAP: dict[str, collections.abc.Callable] = {
     "MA": _calc_ma,
     "EMA": _calc_ema,
@@ -115,6 +124,7 @@ _INDICATOR_MAP: dict[str, collections.abc.Callable] = {
     "RSI": _calc_rsi,
     "KDJ": _calc_kdj,
     "BOLL": _calc_boll,
+    "ATR": _calc_atr,
 }
 
 
