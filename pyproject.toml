@@ -4,6 +4,11 @@ version = "0.1.0"
 description = "A Stock Query CLI built with Typer for Agents"
 readme = "README.md"
 requires-python = ">=3.14"
+
+[[tool.uv.index]]
+url = "http://mirrors.aliyun.com/pypi/simple/"
+default = true
+
 dependencies = [
     "typer>=0.24.1",
     "pydantic>=2.12.5",
@@ -16,18 +21,18 @@ dependencies = [
     "crawl4ai>=0.8.0",
 ]
 
-[project.scripts]
-stk = "stk.cli:cli"
-
 [dependency-groups]
 dev = [
-    "ty>=0.0.20",
-    "ruff>=0.15.4",
+    "ty>=0.0.23",
+    "ruff>=0.15.6",
     "pytest-asyncio>=1.3.0",
     "pytest>=9.0.2",
     "ipykernel>=7.2.0",
     "ipywidgets>=8.1.7",
 ]
+
+[project.scripts]
+stk = "stk.cli:cli"
 
 [build-system]
 requires = ["uv_build>=0.10.8,<0.11.0"]
@@ -35,10 +40,6 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "stk"
-
-[[tool.uv.index]]
-url = "http://mirrors.aliyun.com/pypi/simple/"
-default = true
 
 # Ruff
 [tool.ruff]
@@ -59,6 +60,7 @@ select = [
     "D",    # pydocstyle
     "I",    # isort
     "N",    # pep8-naming
+    "W",    # pycodestyle warnings
     "TID",  # tidy imports
     "PTH",  # pathlib
     "FLY",  # flynt-specific
@@ -82,10 +84,13 @@ force-sort-within-sections = true
 
 # Pytest
 [tool.pytest.ini_options]
-addopts = ["--import-mode=importlib", "--strict-markers", "-s"]
+asyncio_mode = "auto"
+
 pythonpath = "src"
+testpaths = ["tests"]
 log_cli = true
 log_cli_level = "INFO"
+addopts = ["--import-mode=importlib", "--strict-markers"]
 markers = [
     "integration: marks tests that hit external services (deselect with '-m \"not integration\"')",
 ]
