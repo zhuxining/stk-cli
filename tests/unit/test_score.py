@@ -6,35 +6,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from stk.errors import IndicatorError
-from stk.models.history import Candlestick
 from stk.services.score import calc_score
-
-
-def _make_candles(count: int = 60) -> list[Candlestick]:
-    """Generate synthetic uptrend candlestick data for testing."""
-    base = 100.0
-    candles = []
-    for i in range(count):
-        price = base + i * 0.5
-        candles.append(
-            Candlestick(
-                date=f"2025-{(i // 28) + 1:02d}-{(i % 28) + 1:02d}",
-                open=Decimal(str(price - 0.2)),
-                high=Decimal(str(price + 1.0)),
-                low=Decimal(str(price - 1.0)),
-                close=Decimal(str(price)),
-                volume=1000000 + i * 10000,
-                turnover=Decimal(str(price * 1000000)),
-            )
-        )
-    return candles
 
 
 @patch("stk.services.flow.get_stock_flow")
 @patch("stk.services.score.get_history")
-def test_calc_score_basic(mock_history, mock_flow):
+def test_calc_score_basic(mock_history, mock_flow, make_candles):
     """Test basic scoring returns valid structure."""
-    mock_history.return_value = _make_candles(60)
+    mock_history.return_value = make_candles(60)
     mock_flow.side_effect = Exception("no flow data")
 
     result = calc_score("600519")
@@ -49,9 +28,9 @@ def test_calc_score_basic(mock_history, mock_flow):
 
 @patch("stk.services.flow.get_stock_flow")
 @patch("stk.services.score.get_history")
-def test_score_dimensions_complete(mock_history, mock_flow):
+def test_score_dimensions_complete(mock_history, mock_flow, make_candles):
     """Test all 6 dimensions are present with correct max scores."""
-    mock_history.return_value = _make_candles(60)
+    mock_history.return_value = make_candles(60)
     mock_flow.side_effect = Exception("no flow data")
 
     result = calc_score("600519")
@@ -70,9 +49,9 @@ def test_score_dimensions_complete(mock_history, mock_flow):
 
 @patch("stk.services.flow.get_stock_flow")
 @patch("stk.services.score.get_history")
-def test_score_dimension_scores_not_exceed_max(mock_history, mock_flow):
+def test_score_dimension_scores_not_exceed_max(mock_history, mock_flow, make_candles):
     """Test no dimension exceeds its max score."""
-    mock_history.return_value = _make_candles(60)
+    mock_history.return_value = make_candles(60)
     mock_flow.side_effect = Exception("no flow data")
 
     result = calc_score("600519")
@@ -84,9 +63,9 @@ def test_score_dimension_scores_not_exceed_max(mock_history, mock_flow):
 
 @patch("stk.services.flow.get_stock_flow")
 @patch("stk.services.score.get_history")
-def test_score_atr_fields(mock_history, mock_flow):
+def test_score_atr_fields(mock_history, mock_flow, make_candles):
     """Test ATR-based trade points are calculated."""
-    mock_history.return_value = _make_candles(60)
+    mock_history.return_value = make_candles(60)
     mock_flow.side_effect = Exception("no flow data")
 
     result = calc_score("600519")
@@ -101,9 +80,9 @@ def test_score_atr_fields(mock_history, mock_flow):
 
 
 @patch("stk.services.score.get_history")
-def test_score_insufficient_data(mock_history):
+def test_score_insufficient_data(mock_history, make_candles):
     """Test error when insufficient history data."""
-    mock_history.return_value = _make_candles(10)
+    mock_history.return_value = make_candles(10)
 
     with pytest.raises(IndicatorError, match="Insufficient"):
         calc_score("600519")
@@ -120,9 +99,9 @@ def test_score_no_data(mock_history):
 
 @patch("stk.services.flow.get_stock_flow")
 @patch("stk.services.score.get_history")
-def test_score_with_flow_data(mock_history, mock_flow):
+def test_score_with_flow_data(mock_history, mock_flow, make_candles):
     """Test scoring with flow data available."""
-    mock_history.return_value = _make_candles(60)
+    mock_history.return_value = make_candles(60)
 
     flow = MagicMock()
     flow.large_in = Decimal(10000000)
@@ -141,9 +120,9 @@ def test_score_with_flow_data(mock_history, mock_flow):
 
 @patch("stk.services.flow.get_stock_flow")
 @patch("stk.services.score.get_history")
-def test_rating_mapping(mock_history, mock_flow):
+def test_rating_mapping(mock_history, mock_flow, make_candles):
     """Test rating is derived from total score."""
-    mock_history.return_value = _make_candles(60)
+    mock_history.return_value = make_candles(60)
     mock_flow.side_effect = Exception("no flow data")
 
     result = calc_score("600519")

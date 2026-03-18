@@ -8,14 +8,6 @@ import pytest
 from stk.store.cache import _make_key, _mem_cache, cached, clear_cache
 
 
-@pytest.fixture(autouse=True)
-def _clean_cache():
-    """Clear memory cache before each test."""
-    _mem_cache.clear()
-    yield
-    _mem_cache.clear()
-
-
 def test_basic_caching():
     """Cached function should return memoized result on second call."""
     call_count = 0

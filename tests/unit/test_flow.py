@@ -1,7 +1,7 @@
 """Tests for flow service — stock flow and flow rankings."""
 
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -76,21 +76,20 @@ def test_get_flow_rank_unknown_scope():
 @patch("stk.services.flow.get_longport_ctx")
 def test_get_stock_flow(mock_get_longport_ctx):
     """Test individual stock flow via longport capital_distribution."""
-    cap_in = type(
-        "obj",
-        (object,),
-        {"large": Decimal(100), "medium": Decimal(60), "small": Decimal(30)},
-    )
-    cap_out = type(
-        "obj",
-        (object,),
-        {"large": Decimal(50), "medium": Decimal(40), "small": Decimal(20)},
-    )
-    mock_get_longport_ctx.return_value.capital_distribution.return_value = type(
-        "obj",
-        (object,),
-        {"capital_in": cap_in, "capital_out": cap_out},
-    )()
+    cap_in = MagicMock()
+    cap_in.large = Decimal(100)
+    cap_in.medium = Decimal(60)
+    cap_in.small = Decimal(30)
+
+    cap_out = MagicMock()
+    cap_out.large = Decimal(50)
+    cap_out.medium = Decimal(40)
+    cap_out.small = Decimal(20)
+
+    dist = MagicMock()
+    dist.capital_in = cap_in
+    dist.capital_out = cap_out
+    mock_get_longport_ctx.return_value.capital_distribution.return_value = dist
     mock_get_longport_ctx.return_value.capital_flow.return_value = []
 
     result = get_stock_flow("600519")
