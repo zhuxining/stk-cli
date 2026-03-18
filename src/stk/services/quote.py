@@ -5,6 +5,7 @@ from decimal import Decimal
 from stk.errors import SourceError
 from stk.models.common import TargetType
 from stk.models.quote import Quote
+from stk.store.cache import cached
 from stk.utils.df import to_decimal
 
 
@@ -24,6 +25,7 @@ def get_quote(symbol: str, *, target_type: TargetType = TargetType.STOCK) -> Quo
     raise NotImplementedError(f"Quote for {target_type} not yet implemented")
 
 
+@cached(ttl=300)
 def _get_board_quote(name: str, board_type: str) -> Quote:
     """Get sector/concept board quote from akshare."""
     import akshare as ak

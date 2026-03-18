@@ -4,6 +4,7 @@ import akshare as ak
 
 from stk.errors import SourceError
 from stk.models.news import NewsItem
+from stk.store.cache import cached
 from stk.utils.symbol import extract_code, to_longport_symbol
 
 # Column mapping: akshare column name → NewsItem field
@@ -37,6 +38,7 @@ _GLOBAL_SOURCE_CONFIG = {
 }
 
 
+@cached(ttl=300)
 def get_news(symbol: str, *, count: int = 10) -> list[NewsItem]:
     """Get recent news for an individual stock (A-share)."""
     lp_symbol = to_longport_symbol(symbol)
@@ -62,6 +64,7 @@ def get_news(symbol: str, *, count: int = 10) -> list[NewsItem]:
         raise SourceError(f"Failed to fetch news for {symbol}: {e}") from e
 
 
+@cached(ttl=300)
 def get_global_news(
     *,
     source: str = "cls",

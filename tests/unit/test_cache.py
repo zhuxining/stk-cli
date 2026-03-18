@@ -191,7 +191,7 @@ def test_exception_not_cached():
     """Exceptions from the wrapped function should not be cached."""
     call_count = 0
 
-    @cached(ttl=60)
+    @cached(ttl=60, retries=1)
     def failing():
         nonlocal call_count
         call_count += 1
@@ -202,3 +202,64 @@ def test_exception_not_cached():
     with pytest.raises(ValueError):
         failing()
     assert call_count == 2  # retried, not cached
+
+
+def test_retry_on_failure():
+    """Cached function should retry on failure with exponential backoff."""
+    call_count = 0
+
+    @cached(ttl=60, retries=3)
+    def flaky():
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise ValueError("transient")
+        return "ok"
+
+    with patch("stk.store.cache.time.sleep"):
+        result = flaky()
+    assert result == "ok"
+    assert call_count == 3
+
+
+def test_stale_on_error():
+    """When all retries fail, return stale cached data if available."""
+    call_count = 0
+
+    @cached(ttl=1, retries=1)
+    def unstable():
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return "fresh"
+        raise ValueError("down")
+
+    result1 = unstable()
+    assert result1 == "fresh"
+
+    # Expire the cache
+    time.sleep(1.1)
+
+    # Second call fails but should return stale data
+    result2 = unstable()
+    assert result2 == "fresh"
+    assert call_count == 2
+
+
+def test_stale_on_error_disabled():
+    """When stale_on_error=False, raise on failure even if stale data exists."""
+    call_count = 0
+
+    @cached(ttl=1, retries=1, stale_on_error=False)
+    def unstable():
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return "fresh"
+        raise ValueError("down")
+
+    unstable()
+    time.sleep(1.1)
+
+    with pytest.raises(ValueError):
+        unstable()

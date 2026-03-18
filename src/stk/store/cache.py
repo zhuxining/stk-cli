@@ -5,6 +5,7 @@ import functools
 import hashlib
 from pathlib import Path
 import pickle
+import random
 import time
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -71,14 +72,35 @@ def _write_disk(key: str, expire_ts: float, value: Any) -> None:
         logger.debug("Disk cache write failed for {}", key)
 
 
-def cached(ttl: int, *, disk: bool = False, market_hours_only: bool = False):
+def _get_stale(key: str, disk: bool) -> Any | None:
+    """Return stale (expired) cached value if available, else None."""
+    entry = _mem_cache.get(key)
+    if entry:
+        return entry[1]
+    if disk:
+        entry = _read_disk(key)
+        if entry:
+            return entry[1]
+    return None
+
+
+def cached(
+    ttl: int,
+    *,
+    disk: bool = False,
+    market_hours_only: bool = False,
+    retries: int = 3,
+    stale_on_error: bool = True,
+):
     """
-    Cache decorator.
+    Cache decorator with retry and stale-fallback.
 
     Args:
         ttl: Time-to-live in seconds.
         disk: If True, also persist to disk (~/.stk/cache/).
         market_hours_only: If True, extend TTL 10x outside market hours.
+        retries: Max attempts on failure (exponential backoff).
+        stale_on_error: If True, return expired cache on total failure.
 
     """
 
@@ -105,21 +127,47 @@ def cached(ttl: int, *, disk: bool = False, market_hours_only: bool = False):
                     _mem_cache[key] = entry
                     return entry[1]
 
-            # 3. Call original function
+            # 3. Call original function with retry
             logger.debug("Cache MISS: {}", key)
-            result = func(*args, **kwargs)
+            last_err: Exception | None = None
+            for attempt in range(retries):
+                try:
+                    result = func(*args, **kwargs)
 
-            # Compute effective TTL
-            effective_ttl = ttl
-            if market_hours_only and not _is_market_hours():
-                effective_ttl = ttl * 10
+                    # Compute effective TTL
+                    effective_ttl = ttl
+                    if market_hours_only and not _is_market_hours():
+                        effective_ttl = ttl * 10
 
-            expire_ts = now + effective_ttl
-            _mem_cache[key] = (expire_ts, result)
-            if disk:
-                _write_disk(key, expire_ts, result)
+                    expire_ts = time.time() + effective_ttl
+                    _mem_cache[key] = (expire_ts, result)
+                    if disk:
+                        _write_disk(key, expire_ts, result)
 
-            return result
+                    return result
+                except Exception as e:
+                    last_err = e
+                    if attempt < retries - 1:
+                        delay = (2**attempt) + random.uniform(-0.5, 0.5)
+                        delay = max(0.1, delay)
+                        logger.warning(
+                            "Retry {}/{} for {} after {:.1f}s: {}",
+                            attempt + 1,
+                            retries,
+                            key,
+                            delay,
+                            e,
+                        )
+                        time.sleep(delay)
+
+            # 4. All retries failed → try stale cache
+            if stale_on_error:
+                stale = _get_stale(key, disk)
+                if stale is not None:
+                    logger.warning("Cache STALE (fallback): {}", key)
+                    return stale
+
+            raise last_err  # type: ignore[misc]
 
         return wrapper
 
