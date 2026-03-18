@@ -8,69 +8,21 @@ description: >
 
 # 股市分析技能
 
-通过 `stk` CLI 命令采集市场数据，生成结构化分析报告的工作流技能。包含四个模式，根据用户意图选择对应流程执行。
+通过 `stk` CLI 采集市场数据，生成结构化分析报告。
 
 ## 前置条件
 
-- 工作目录为 stk-cli 项目（或 `stk` 命令已在 PATH 中）
-- 通过 `uv run stk <子命令>` 执行命令（已安装则直接用 `stk`）
+- 通过 `uv run stk <子命令>` 执行（已安装则直接用 `stk`）
 - 所有命令输出 JSON，从 `{"ok": true, "data": ...}` 信封中解析 `data` 字段
 - 扫描/盯盘/复盘默认使用用户的 watchlist 作为股票池
 - 首次运行或遇到连接问题时，先执行 `stk doctor check --quick` 验证数据源连通性
 
-## 可用命令速查
+## 参考文档
 
-### 市场
-
-| 命令 | 用途 |
-|------|------|
-| `stk market index` | 主要指数行情 |
-| `stk market temp` | 市场温度 (0-100) |
-| `stk market breadth` | 涨跌统计（上涨/下跌/涨停/跌停） |
-| `stk market news` | 全球市场新闻。`--source cls\|ths\|em` `--filter 全部\|重点` `--count N` |
-
-### 板块
-
-| 命令 | 用途 |
-|------|------|
-| `stk board list` | 板块排行。`--type sector\|concept` |
-| `stk board cons <名称>` | 板块成分股。`--type sector\|concept` |
-| `stk board flow <名称>` | 板块资金流向历史。`--type sector\|concept` |
-| `stk board detail <名称>` | 板块内个股资金明细（仅行业板块）。`--period 今日\|5日\|10日` |
-
-### 个股
-
-| 命令 | 用途 |
-|------|------|
-| `stk stock rank` | 排行。`--type hot\|tech\|flow`；tech: `--screen lxsz\|cxfl\|xstp\|ljqs` `--ma`；flow: `--scope stock\|main\|sector\|concept` `--period 今日\|3日\|5日\|10日` |
-| `stk stock quote <代码>` | 实时行情。`--type stock\|index\|sector\|concept` |
-| `stk stock profile <代码>` | 公司主营简介 |
-| `stk stock fundamental <代码>` | 行业对比。`--type growth\|valuation\|dupont` |
-| `stk stock valuation <代码>` | PE/PB/PS/市值 |
-| `stk stock indicator <代码> <指标名>` | 技术指标 (MA/EMA/MACD/RSI/KDJ/BOLL/ATR)。`--period day\|week\|month` `--count N` `--timeperiod N` |
-| `stk stock history <代码>` | 历史K线。`--period day\|week\|month` `--count N` |
-| `stk stock news <代码>` | 个股新闻。`--count N` |
-| `stk stock flow <代码>` | 个股资金流向 |
-| `stk stock chip <代码>` | 筹码分布（仅A股） |
-| `stk stock score <代码>` | 多指标共振评分 (0-100)。`--count N` 历史数据量 |
-
-### 自选
-
-| 命令 | 用途 |
-|------|------|
-| `stk watchlist list` | 列出所有自选 |
-| `stk watchlist show <名称>` | 查看自选股列表 |
-| `stk watchlist create <名称>` | 创建自选组。`--symbol S1 --symbol S2` |
-| `stk watchlist add <名称> <代码>` | 添加到自选 |
-| `stk watchlist remove <名称> <代码>` | 从自选移除 |
-| `stk watchlist delete <名称>` | 删除自选组 |
-
-### 工具
-
-| 命令 | 用途 |
-|------|------|
-| `stk doctor check` | 数据源健康检查。`--quick` 快速模式 |
-| `stk cache clear` | 清除缓存。`--prefix PREFIX` 按前缀清除 |
+- `references/commands.md` — 完整命令速查
+- `references/workflows.md` — 可复用工作流模块（市场概览、板块扫描、个股深度扫描等）
+- `references/strategies.md` — 选股策略模板与市场环境匹配
+- `references/report-templates.md` — 报告格式模板
 
 ## 模式选择
 
@@ -91,190 +43,86 @@ description: >
 
 ## 模式一：选股
 
-目标：从宏观市场 -> 板块方向 -> 候选筛选 -> 验证精选。
+目标：从宏观市场 → 板块方向 → 候选筛选 → 验证精选。
 
-### 步骤
-
-1. **市场环境判断与策略匹配** — 并行执行：
-   - `stk market temp` -> 判断整体情绪（温度 = 估值百分位与情绪百分位的均值）
-   - `stk market breadth` -> 确认市场宽度支持进场
-   - `stk market index` -> 指数水平与趋势
-   - 根据温度 + 涨跌统计，参照 `references/strategies.md` 市场环境与策略匹配表自动确定策略方向
-
-2. **板块方向确认** — 并行执行：
-   - `stk board list --type sector` -> 找到领涨行业
-   - `stk board list --type concept` -> 找到热门概念
-   - 挑选前 2-3 个板块，分别执行 `stk board flow <名称>` 验证资金持续流入
-
-3. **板块个股提取** — 从步骤2确认的 2-3 个强势板块中挖掘候选：
-   - 对每个板块并行执行：
-     - `stk board cons <板块名>` -> 获取成分股列表
-     - **行业板块**: `stk board detail <板块名>` -> 板块内个股资金流明细
-     - **概念板块**: `board detail` 不支持概念板块，改用 `stk stock flow` 逐一查询成分股资金流向
-   - 筛选规则：从每个板块中取资金净流入前 3-5 只（通过 board detail 或 stock flow 排序）
-   - 合并去重得到**板块候选池**（约 6-15 只）
-
-4. **技术形态筛选** — 作为板块筛选的补充/交叉路径，根据用户策略偏好选择：
-   - 趋势型: `stk stock rank --type tech --screen lxsz` (连续缩量上涨)
-   - 反弹型: `stk stock rank --type tech --screen cxfl` (持续放量)
-   - 突破型: `stk stock rank --type tech --screen xstp` (向上突破)
-   - 量价型: `stk stock rank --type tech --screen ljqs` (量价齐升)
-   - 产出**技术候选池**
-
-5. **交叉验证与合并** — 三维度交叉：
-   - `stk stock rank --type flow --scope main` -> 产出**资金候选池**
-   - 取步骤3(板块候选) ∩ 步骤4(技术候选) ∩ 步骤5(资金候选) 的交集
-   - 交集优先，其次取至少命中两个维度的股票
-   - 最终候选池控制在 5-8 只
-
-6. **候选深度验证**（5-8 只，每只股票的查询并行执行）：
-   - `stk stock quote <代码>` — 当前价格
-   - `stk stock valuation <代码>` — PE/PB 合理性检查
-   - `stk stock indicator <代码> MACD` + `RSI` — 确认技术信号
-   - `stk stock flow <代码>` — 个股资金流向
-   - `stk stock fundamental <代码> --type growth` — 成长性检查
-
-7. **输出** — 按 `references/report-templates.md` 中的选股报告模板生成报告，排序候选股，重点分析 Top 3。
+1. **市场环境判断** — 执行 **市场概览** + **策略匹配**，确定策略方向
+2. **板块方向确认** — 执行 **板块扫描**，挑选前 2-3 个强势板块
+3. **板块个股提取** — 从确认的板块中挖掘候选：
+   - 对每个板块: `stk board cons <板块名>` 获取成分股
+   - 行业板块: `stk board detail <板块名>` 获取资金明细
+   - 概念板块: 逐一 `stk stock flow` 查询资金流向（board detail 不支持概念）
+   - 每板块取资金净流入前 3-5 只，合并去重得到**板块候选池**（约 6-15 只）
+4. **技术形态筛选** — 根据策略选对应技术筛选（见 `references/strategies.md`），产出**技术候选池**
+5. **交叉验证** — 三维度交叉：
+   - `stk stock rank --type flow --scope main` → **资金候选池**
+   - 取板块候选 ∩ 技术候选 ∩ 资金候选的交集优先，其次命中两个维度
+   - 最终控制在 5-8 只
+6. **候选深度验证** — 对 5-8 只执行 **个股深度扫描**（含 fundamental growth）
+7. **输出** — 按 `references/report-templates.md` 选股模板生成报告，重点分析 Top 3
 
 ## 模式二：扫描
 
-目标：当日市场全景 + 自选股深度检查，一站式收盘分析（合并原日报与复盘的当日部分）。
+目标：当日市场全景 + 自选股深度检查。
 
-### 步骤
-
-1. **大盘概览** — 并行执行：
-   - `stk market index` — 指数表现
-   - `stk market temp` — 市场温度
-   - `stk market breadth` — 涨跌统计
-
-2. **板块热点** — 并行执行：
-   - `stk board list --type sector` -> 行业涨跌前5
-   - `stk board list --type concept` -> 热门概念
-   - `stk stock rank --type flow --scope sector` -> 板块资金排行
-   - 对前3板块执行 `stk board flow <名称>` — 验证资金持续性
-
-3. **资讯摘要** — `stk market news --source cls --filter 重点 --count 10`
-
-4. **自选股深度扫描** — `stk watchlist show <名称>` 获取股票列表，然后对每只股票并行查询：
-   - **核心（必查）**:
-     - `stk stock quote <代码>` — 收盘数据
-     - `stk stock flow <代码>` — 资金流向
-     - `stk stock history <代码> --count 10` — 近期K线走势
-     - `stk stock indicator <代码> MACD` — 趋势信号
-     - `stk stock indicator <代码> RSI` — 动量状态
-   - **按需（异动或需深入分析时追加）**:
-     - `stk stock indicator <代码> KDJ` — RSI 处于临界区间(30-40/60-80)时追加确认
-     - `stk stock indicator <代码> BOLL` — 需判断支撑压力位时追加
-     - `stk stock chip <代码>` — 需分析筹码结构时追加（仅A股）
-
-5. **综合评价** — 对每只自选股给出：
-   - 今日表现小结
-   - 技术展望（看多/看空/中性，附依据）
-   - 风险等级评估（低/中/高）
-   - 操作建议（持有/减仓/加仓及理由）
-
-6. **明日关注** — 基于市场环境 + 持仓状态：
-   - 每只股票的关键价位（支撑/压力）
-   - 需关注的板块与方向
-   - 潜在风险提示
+1. **大盘概览** — 执行 **市场概览**
+2. **板块热点** — 执行 **板块扫描** + `stk stock rank --type flow --scope sector`
+3. **资讯摘要** — 执行 **资讯采集**
+4. **自选股深度扫描** — `stk watchlist show <名称>` 获取股票列表，执行 **个股深度扫描**
+5. **综合评价** — 对每只自选股给出：技术展望（看多/看空/中性）、风险等级（低/中/高）、操作建议（持有/减仓/加仓及理由）
+6. **明日关注** — 每只股票的关键价位（支撑/压力）+ 需关注的板块与方向 + 风险提示
 
 ## 模式三：盯盘
 
-目标：对所有持仓做一次全面的实时快照检查，发现异动和风险。
+目标：对所有持仓做一次全面实时快照检查。
 
-### 步骤
-
-1. **市场环境速览** — 并行执行：
-   - `stk market index`
-   - `stk market temp`
-
-2. **加载持仓** — `stk watchlist show <名称>`（用户指定的持仓列表）
-
-3. **逐一深度扫描** — 对每只持仓股，并行查询：
-   - `stk stock quote <代码>` — 当前价格与涨跌
-   - `stk stock flow <代码>` — 实时资金流向
-   - `stk stock indicator <代码> MACD` — 趋势信号
-   - `stk stock indicator <代码> RSI` — 超买超卖
-   - `stk stock indicator <代码> KDJ` — RSI 处于临界区间(30-40/60-80)时追加确认
-
+1. **市场速览** — `stk market index` + `stk market temp`（并行）
+2. **加载持仓** — `stk watchlist show <名称>`
+3. **持仓扫描** — 执行 **个股快速检查**
 4. **异动预警** — 标记满足以下任一条件的持仓：
    - 日内跌幅 > 3% 或涨幅 > 5%
    - RSI > 80（超买）或 RSI < 30（超卖）
    - MACD 死叉或金叉
    - 主力资金大幅净流出
-   - KDJ 超买(>80) / 超卖(<20)
-
-5. **输出** — 生成盯盘报告，异动汇总置顶，逐只持仓详情在下，附操作建议。
+   - KDJ > 80（超买）或 KDJ < 20（超卖）
+5. **输出** — 异动汇总置顶，逐只持仓详情在下，附操作建议
 
 ## 模式四：复盘
 
-目标：周级回顾 — 读取近7日历史报告，对比最新市场动态，总结趋势变化和策略得失，制定下周计划。
+目标：周级回顾 — 读取历史报告，对比最新动态，总结得失，制定计划。
 
-### 步骤
+1. **读取历史报告** — 从 `~/.stk/reports/` 读取近7日的扫描/盯盘/选股报告，提取关键数据
+   - **无报告时降级**：跳过步骤3-4，仅执行步骤2+5，建议用户积累 3-5 天数据后再完整复盘
+2. **采集最新数据** — 执行 **市场概览** + **板块扫描**
+3. **趋势对比** — 市场温度走势 + 板块轮动追踪（持续强势/由强转弱/新崛起）+ 自选股周表现
+4. **策略回顾** — 选股候选后续表现 + 预警是否应验 + 操作建议执行效果
+5. **总结与计划** — 本周主线总结 + 持仓调整建议 + 下周关注方向 + 风险规避
 
-1. **读取历史报告** — 从 `~/.stk/reports/` 中读取最近7日的扫描/盯盘/选股报告：
-   - 列出目录下文件，按日期筛选近7日的报告
-   - 提取每日市场温度、板块排名、自选股涨跌等关键数据
-   - **如目录不存在或无报告**：降级为"首次复盘"模式 —
-     跳过步骤3(趋势对比)和步骤4(策略回顾)，
-     仅执行步骤2(采集最新数据) + 步骤5(生成下周计划)，
-     并建议用户连续使用扫描模式积累 3-5 天数据后再进行完整复盘
+## 运行规范
 
-2. **采集最新市场数据** — 并行执行：
-   - `stk market index` — 最新指数
-   - `stk market temp` — 当前温度
-   - `stk market breadth` — 涨跌统计
-   - `stk board list --type sector` — 行业板块排名
-   - `stk board list --type concept` — 概念板块排名
+### 并行化
 
-3. **趋势对比分析**：
-   - **市场温度走势** — 从历史报告提取温度值，绘制7日趋势（数值列表），标注转折点
-   - **板块轮动追踪** — 对比每日板块排名，识别：持续强势板块 / 由强转弱板块 / 新崛起板块
-   - **自选股表现曲线** — 从历史报告提取各股涨跌数据，计算周累计涨跌，标注关键事件
+独立查询应同时发起：市场级全部并行，板块级全部并行，个股之间并行。仅在后续步骤依赖前置结果时串行。
 
-4. **策略回顾**：
-   - 选股报告中的候选股后续表现如何（对比推荐价与当前价）
-   - 盯盘预警是否应验（触发预警后实际走势）
-   - 操作建议的执行效果评估
+### 错误处理
 
-5. **总结与计划**：
-   - 本周市场主线逻辑总结
-   - 持仓调整建议（加仓/减仓/换仓及理由）
-   - 下周关注方向（板块、个股、事件）
-   - 需要规避的风险
+- 单只股票失败 → 记录错误继续处理，报告中标注数据不完整
+- 板块名称不匹配 → `stk board list` 查找正确名称后重试
+- 大量失败 → `stk doctor check` 排查数据源，告知用户
+- 缓存异常 → `stk cache clear` 后重试
 
-## 报告存储
+### 报告存储
 
-每次生成的报告保存到 `~/.stk/reports/`：
-- 文件名格式:
-  - 扫描: `扫描_{YYYY-MM-DD}_{HH-mm}.md`
-  - 盯盘: `盯盘_{YYYY-MM-DD}_{HH-mm}.md`
-  - 选股: `选股_{YYYY-MM-DD}_{HH-mm}.md`
-  - 复盘: `复盘_{YYYY-MM-DD}_周回顾.md`
-- "日报"触发时生成的报告也使用 `扫描_` 前缀
-- 目录不存在时自动创建: `mkdir -p ~/.stk/reports`
-- 报告末尾注明保存路径，方便用户后续查阅
+保存到 `~/.stk/reports/`（目录不存在时 `mkdir -p`）：
+- 扫描: `扫描_{YYYY-MM-DD}_{HH-mm}.md`
+- 盯盘: `盯盘_{YYYY-MM-DD}_{HH-mm}.md`
+- 选股: `选股_{YYYY-MM-DD}_{HH-mm}.md`
+- 复盘: `复盘_{YYYY-MM-DD}_周回顾.md`
 
-## 并行化原则
+报告末尾注明保存路径。
 
-尽量最大化并行执行，独立的数据查询应同时发起：
-- 市场级查询 -> 全部并行
-- 板块级查询 -> 全部并行
-- 个股查询 -> 股票之间并行，同一股票的不同指标也并行
-- 仅在后续步骤依赖前置结果时串行（如需要板块列表后才能查板块资金流向）
+### 语气与格式
 
-## 错误处理
-
-- 单只股票查询失败 → 记录错误并继续处理其余股票，在报告中标注该股票数据不完整
-- 板块名称不匹配 → 用 `stk board list` 查找正确名称后重试
-- 大量查询失败 → 执行 `stk doctor check` 排查数据源状态，告知用户问题所在
-- 缓存导致数据异常 → 执行 `stk cache clear` 后重试
-
-## 语气与格式
-
-- 报告使用中文
-- 对比数据用表格呈现（板块排名、个股对比）
-- 分析评论用要点列表
-- 关键数字和预警信息加粗
-- 评论简洁可操作 — 聚焦"所以呢"而非单纯罗列数据
-- 给出方向性观点时，必须附上依据（哪些指标、什么数值）
+- 中文，对比数据用表格，分析用要点列表
+- 关键数字和预警加粗
+- 聚焦"所以呢"而非罗列数据
+- 方向性观点必须附依据（哪些指标、什么数值）
