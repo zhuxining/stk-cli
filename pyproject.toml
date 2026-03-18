@@ -4,11 +4,6 @@ version = "0.1.0"
 description = "A Stock Query CLI built with Typer for Agents"
 readme = "README.md"
 requires-python = ">=3.14"
-
-[[tool.uv.index]]
-url = "http://mirrors.aliyun.com/pypi/simple/"
-default = true
-
 dependencies = [
     "typer>=0.24.1",
     "pydantic>=2.12.5",
@@ -18,7 +13,7 @@ dependencies = [
     "akshare>=1.18.34",
     "ta-lib>=0.6.8",
     "pandas>=3.0.1",
-    "crawl4ai>=0.8.0",
+    "crawl4ai>=0.8.5",
 ]
 
 [dependency-groups]
@@ -30,6 +25,10 @@ dev = [
     "ipykernel>=7.2.0",
     "ipywidgets>=8.1.7",
 ]
+
+[[tool.uv.index]]
+url = "http://mirrors.aliyun.com/pypi/simple/"
+default = true
 
 [project.scripts]
 stk = "stk.cli:cli"
