@@ -9,7 +9,7 @@ import talib
 
 from stk.errors import IndicatorError, SourceError
 from stk.models.score import ScoreDimension, ScoreResult
-from stk.services.history import get_history
+from stk.services.history import candles_to_df, get_history
 
 
 def _safe_last(series: pd.Series | np.ndarray) -> float | None:
@@ -45,10 +45,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
         got = len(candles) if candles else 0
         raise IndicatorError(f"Insufficient history for {symbol} (need>=20, got {got})")
 
-    df = pd.DataFrame([c.model_dump() for c in candles])
-    for col in ("open", "high", "low", "close", "turnover"):
-        if col in df.columns:
-            df[col] = df[col].astype(float)
+    df = candles_to_df(candles)
 
     close = df["close"]
     high = df["high"]

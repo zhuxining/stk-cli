@@ -2,12 +2,24 @@
 
 from decimal import Decimal
 
+import pandas as pd
+
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
 from stk.models.common import TargetType
 from stk.models.history import Candlestick
 from stk.store.cache import cached
 from stk.utils.symbol import to_longport_symbol
+
+
+def candles_to_df(candles: list) -> pd.DataFrame:
+    """Convert Candlestick list to DataFrame with float OHLCV columns."""
+    df = pd.DataFrame([c.model_dump() for c in candles])
+    for col in ("open", "high", "low", "close", "turnover"):
+        if col in df.columns:
+            df[col] = df[col].astype(float)
+    return df
+
 
 _PERIOD_MAP: dict[str, object] = {}
 

@@ -114,7 +114,7 @@ def valuation(
 @app.command()
 def indicator(
     symbol: str = typer.Argument(help="Symbol or name"),
-    name: str = typer.Argument(help="Indicator name (e.g. MA, MACD, RSI, KDJ, BOLL)"),
+    name: str = typer.Argument(help="Indicator name: MA/EMA/MACD/RSI/KDJ/BOLL/ATR"),
     type: TargetType = typer.Option(TargetType.STOCK, "--type", "-t", help="Target type"),
     period: str = typer.Option("day", "--period", "-p", help="K-line period"),
     count: int = typer.Option(60, "--count", "-c", help="Number of data points"),

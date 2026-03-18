@@ -5,7 +5,7 @@ from decimal import Decimal
 from stk.errors import SourceError
 from stk.models.common import TargetType
 from stk.models.quote import Quote
-from stk.utils.symbol import to_decimal
+from stk.utils.df import to_decimal
 
 
 def get_quote(symbol: str, *, target_type: TargetType = TargetType.STOCK) -> Quote:

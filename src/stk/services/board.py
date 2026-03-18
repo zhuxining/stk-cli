@@ -7,7 +7,7 @@ from stk.models.flow import SectorFlowDay, SectorFlowDetail, SectorFlowHist
 from stk.models.quote import BoardCons, BoardItem, BoardList, ConsItem
 from stk.services.flow import _SKIP_FLOW_COLS, _df_to_flow_items
 from stk.store.cache import cached
-from stk.utils.symbol import to_decimal, to_metrics
+from stk.utils.df import to_decimal, to_metrics
 
 # ---------------------------------------------------------------------------
 # Board listing and constituents

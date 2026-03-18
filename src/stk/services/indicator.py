@@ -9,16 +9,7 @@ import talib
 from stk.errors import IndicatorError
 from stk.models.common import TargetType
 from stk.models.indicator import IndicatorResult
-from stk.services.history import get_history
-
-
-def _to_dataframe(candles) -> pd.DataFrame:
-    """Convert candlestick list to pandas DataFrame with float columns."""
-    df = pd.DataFrame([c.model_dump() for c in candles])
-    for col in ("open", "high", "low", "close", "turnover"):
-        if col in df.columns:
-            df[col] = df[col].astype(float)
-    return df
+from stk.services.history import candles_to_df, get_history
 
 
 def _calc_ma(df: pd.DataFrame, params: dict) -> list[dict]:
@@ -148,7 +139,7 @@ def calc_indicator(
     if not candles:
         raise IndicatorError(f"No history data for {symbol}")
 
-    df = _to_dataframe(candles)
+    df = candles_to_df(candles)
     values = calc_fn(df, params)
 
     return IndicatorResult(

@@ -7,14 +7,14 @@ import akshare as ak
 from stk.errors import SourceError
 from stk.models.chip import ChipDistribution, ChipSlice
 from stk.store.cache import cached
-from stk.utils.symbol import to_longport_symbol
+from stk.utils.symbol import extract_code, to_longport_symbol
 
 
 @cached(ttl=86400, disk=True)
 def get_chip_distribution(symbol: str) -> ChipDistribution:
     """Get chip cost distribution from akshare."""
     lp_symbol = to_longport_symbol(symbol)
-    ak_symbol = lp_symbol.split(".")[0] if "." in lp_symbol else lp_symbol
+    ak_symbol = extract_code(lp_symbol)
 
     try:
         df = ak.stock_cyq_em(symbol=ak_symbol, adjust="")

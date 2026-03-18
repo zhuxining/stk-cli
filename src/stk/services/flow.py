@@ -10,7 +10,7 @@ from stk.deps import get_longport_ctx
 from stk.errors import SourceError
 from stk.models.flow import FlowLine, FlowRank, FlowRankItem, StockFlow
 from stk.store.cache import cached
-from stk.utils.symbol import to_metrics
+from stk.utils.df import to_metrics
 
 _SKIP_FLOW_COLS = {"序号", "代码", "简称", "名称"}
 

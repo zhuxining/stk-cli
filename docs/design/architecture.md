@@ -11,7 +11,9 @@ stk
 ├── market      # 市场整体：指数、温度、涨跌面、新闻
 ├── board       # 行业/概念板块：列表、成分股、资金流
 ├── stock       # 个股：报价、基本面、技术指标、资金流等
-└── watchlist   # 自选股管理
+├── watchlist   # 自选股管理
+├── doctor      # 数据源健康检查（超出原始设计）
+└── cache       # 缓存管理（超出原始设计）
 ```
 
 ### 命令与服务映射
@@ -42,6 +44,9 @@ stk
 | `stk watchlist add` | `services/watchlist.add_symbol()` | 添加标的到分组 |
 | `stk watchlist remove` | `services/watchlist.remove_symbol()` | 从分组移除标的 |
 | `stk watchlist delete` | `services/watchlist.delete_group()` | 删除分组 |
+| `stk stock score` | `services/score.calc_score()` | 多指标共振评分 + ATR 风控 🆕 |
+| `stk doctor check` | `services/health.run_health_check()` | 数据源健康检查 🆕 |
+| `stk cache clear` | `store/cache.clear_cache()` | 缓存清除 🆕 |
 
 ---
 
@@ -170,6 +175,60 @@ stk stock indicator 600519 MACD --count 60
 ```
 
 支持的指标：MA, EMA, MACD, RSI, KDJ, BOLL
+
+### 5.9 多指标共振评分 (`stk stock score`) 🆕
+
+```
+stk stock score 600519
+  → commands/stock.py: score()
+  → services/score.py: calc_score(symbol, count=60)
+    → services/history.get_history() → DataFrame
+    → talib.RSI/STOCH/MACD/BBANDS/ATR 逐项计算
+    → services/flow.get_stock_flow() → 资金流维度（可选）
+  → models/score.py: ScoreResult(total_score, rating, dimensions[], buy_signals[], sell_signals[], atr, stop_loss, take_profit, risk_reward_ratio)
+```
+
+评分体系（满分 100）：
+
+| 维度 | 权重 | 判断逻辑 |
+|------|------|---------|
+| RSI  | 20 | 超卖(<30)满分，超买(>70)0分 |
+| KDJ  | 20 | 金叉满分，死叉0分 |
+| MACD | 15 | 金叉满分，死叉0分 |
+| BOLL | 15 | 下轨反弹满分，触及上轨0分 |
+| 量价 | 15 | 放量上涨满分，放量下跌0分 |
+| 资金 | 15 | 主力大幅流入满分，大幅流出0分 |
+
+评级：A+(≥85) / A(≥70) / B+(≥60) / B(≥50) / C(<50)
+
+ATR 风控（基于 ATR×2 止损 / ATR×3 止盈）：
+
+```
+止损价 = 当前价 - ATR(14) × 2.0
+止盈价 = 当前价 + ATR(14) × 3.0
+盈亏比 = (止盈价 - 当前价) / (当前价 - 止损价)  # 理论值 ≈ 1.5
+```
+
+### 5.10 数据源健康检查 (`stk doctor check`) 🆕
+
+```
+stk doctor check [--quick]
+  → commands/doctor.py: check(quick=False)
+  → services/health.run_health_check(quick)
+    → 检查 Longport API 连通性 + 延迟
+    → 检查 akshare 各接口可用性
+  → output.render(results, meta={"healthy": N, "total": M})
+```
+
+### 5.11 缓存清除 (`stk cache clear`) 🆕
+
+```
+stk cache clear [--prefix PREFIX]
+  → commands/cache.py: clear(prefix="")
+  → store/cache.clear_cache(prefix)
+    → 按 prefix 过滤缓存条目（prefix="" 清除全部）
+  → output.render({"cleared": N, "prefix": "..."})
+```
 
 ### 5.4 基本面 (`stk stock fundamental`)
 
@@ -333,6 +392,8 @@ services/
 ├── chip.py           # 筹码分布
 ├── watchlist.py      # 自选股 CRUD (longport API + 本地 group ID 缓存)
 ├── longport_quote.py # Longport 原始 API 封装
+├── score.py          # 多指标共振评分 + ATR 风控 🆕
+├── health.py         # 数据源健康检查 🆕
 └── symbol.py         # （已移至 utils/symbol.py）
 ```
 
@@ -358,5 +419,6 @@ except Exception as e:
   - `SourceError` — 数据源错误（API 失败、数据为空）
   - `SymbolNotFoundError` — 标的不存在
   - `IndicatorError` — 指标计算错误
+  - `DataNotFoundError` — 数据不存在
 
 日志使用 `loguru`，输出到 stderr（不干扰 stdout 的 JSON）。

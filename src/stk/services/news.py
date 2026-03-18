@@ -4,7 +4,7 @@ import akshare as ak
 
 from stk.errors import SourceError
 from stk.models.news import NewsItem
-from stk.utils.symbol import to_longport_symbol
+from stk.utils.symbol import extract_code, to_longport_symbol
 
 # Column mapping: akshare column name → NewsItem field
 _GLOBAL_SOURCE_CONFIG = {
@@ -40,7 +40,7 @@ _GLOBAL_SOURCE_CONFIG = {
 def get_news(symbol: str, *, count: int = 10) -> list[NewsItem]:
     """Get recent news for an individual stock (A-share)."""
     lp_symbol = to_longport_symbol(symbol)
-    ak_symbol = lp_symbol.split(".")[0] if "." in lp_symbol else lp_symbol
+    ak_symbol = extract_code(lp_symbol)
 
     try:
         df = ak.stock_news_em(symbol=ak_symbol)

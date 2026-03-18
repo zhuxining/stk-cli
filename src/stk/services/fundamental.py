@@ -15,7 +15,7 @@ from stk.models.fundamental import (
 )
 from stk.store.cache import cached
 from stk.utils.price import r2
-from stk.utils.symbol import is_hk, to_em_symbol, to_hk_code, to_longport_symbol
+from stk.utils.symbol import extract_code, is_hk, to_em_symbol, to_hk_code, to_longport_symbol
 
 _A_CATEGORY_API = {
     "growth": "stock_zh_growth_comparison_em",
@@ -214,7 +214,7 @@ def get_valuation(symbol: str) -> Valuation:
 def get_profile(symbol: str) -> CompanyProfile:
     """Get company main business profile from akshare (A-share)."""
     lp_symbol = to_longport_symbol(symbol)
-    ak_code = lp_symbol.split(".")[0] if "." in lp_symbol else lp_symbol
+    ak_code = extract_code(lp_symbol)
 
     try:
         df = ak.stock_zyjs_ths(symbol=ak_code)

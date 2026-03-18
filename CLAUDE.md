@@ -38,7 +38,7 @@ uv run pytest tests/path/to/test_file.py
 
 ## Architecture
 
-Three-layer architecture. Full design doc: `dosc/design/architecture.md`.
+Three-layer architecture. Full design doc: `docs/design/architecture.md`.
 
 ```
 src/stk/
@@ -50,8 +50,10 @@ src/stk/
 ├── commands/           # Thin layer: parse args → call service → render output
 │   ├── market.py       # stk market — index, temp, breadth, news
 │   ├── board.py        # stk board — list, cons, flow, detail
-│   ├── stock.py        # stk stock — rank, quote, profile, fundamental, valuation, indicator, history, news, flow, chip
-│   └── watchlist.py    # stk watchlist — longport watchlist group CRUD
+│   ├── stock.py        # stk stock — rank, quote, profile, fundamental, valuation, indicator, history, news, flow, chip, score
+│   ├── watchlist.py    # stk watchlist — longport watchlist group CRUD
+│   ├── doctor.py       # stk doctor — data source health check
+│   └── cache.py        # stk cache — cache management
 ├── services/           # Business logic: call APIs → return Pydantic models
 │   ├── board.py        # Sector/concept board data + sector flow
 │   ├── rank.py         # Stock technical/popularity rankings
@@ -62,6 +64,8 @@ src/stk/
 │   ├── longport_quote.py
 │   ├── history.py
 │   ├── indicator.py    # ta-lib calculations (pure DataFrame ops)
+│   ├── score.py        # Multi-indicator resonance score + ATR risk control
+│   ├── health.py       # Data source connectivity + latency check
 │   ├── news.py
 │   ├── chip.py
 │   └── watchlist.py    # Watchlist via longport API, local group ID cache
@@ -69,7 +73,8 @@ src/stk/
 │   ├── common.py       # Envelope, ErrorDetail
 │   └── ...             # One file per domain
 ├── store/              # Local JSON file storage (~/.stk/)
-│   └── file_store.py   # Atomic JSON read/write
+│   ├── file_store.py   # Atomic JSON read/write
+│   └── cache.py        # API response cache
 └── utils/              # Utility functions
     ├── price.py        # Price formatting
     └── symbol.py       # Symbol normalization + akshare data converters
