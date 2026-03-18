@@ -57,7 +57,6 @@ select = [
     "SIM",  # flake8-simplify
     "C4",   # flake8-comprehensions
     "DTZ",  # flake8-datetimez
-    "D",    # pydocstyle
     "I",    # isort
     "N",    # pep8-naming
     "W",    # pycodestyle warnings
@@ -72,8 +71,6 @@ select = [
 ignore = [
     "F401", # module imported but unused (handled by pyflakes)
     "B008", # Typer calls in defaults (standard practice for Typer)
-    "D203", # incorrect-blank-line-before-class
-    "D212", # multi-line-summary-second-line
 ]
 allowed-confusables = ["，", "。", "：", "；", "！", "？", "（", "）", "“", "”"]
 unfixable = []
