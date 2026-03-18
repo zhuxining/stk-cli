@@ -1,6 +1,6 @@
 """Shared test fixtures."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -39,7 +39,9 @@ def make_candles():
             price = base + i * 0.5
             candles.append(
                 Candlestick(
-                    date=(datetime(2024, 1, 1) + timedelta(days=i)).strftime("%Y-%m-%d"),
+                    date=(datetime(2024, 1, 1, tzinfo=UTC) + timedelta(days=i)).strftime(
+                        "%Y-%m-%d"
+                    ),
                     open=Decimal(str(price - 0.2)),
                     high=Decimal(str(price + 1.0)),
                     low=Decimal(str(price - 1.0)),

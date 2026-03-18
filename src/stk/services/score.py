@@ -95,9 +95,8 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     kdj_signal = None
 
     if k_now is not None and d_now is not None:
-        has_prev = k_prev is not None and d_prev is not None
-        golden_cross = has_prev and k_prev <= d_prev and k_now > d_now
-        death_cross = has_prev and k_prev >= d_prev and k_now < d_now
+        golden_cross = k_prev is not None and d_prev is not None and k_prev <= d_prev and k_now > d_now
+        death_cross = k_prev is not None and d_prev is not None and k_prev >= d_prev and k_now < d_now
 
         if golden_cross and (j_now is None or j_now < 50):
             kdj_score = 20
