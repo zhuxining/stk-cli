@@ -114,19 +114,28 @@ def valuation(
 @app.command()
 def indicator(
     symbol: str = typer.Argument(help="Symbol or name"),
-    name: str = typer.Argument(help="Indicator name: MA/EMA/MACD/RSI/KDJ/BOLL/ATR"),
+    name: str = typer.Argument(
+        None, help="Indicator: EMA/MACD/RSI/KDJ/BOLL/ATR (omit for all)"
+    ),
     type: TargetType = typer.Option(TargetType.STOCK, "--type", "-t", help="Target type"),
     period: str = typer.Option("day", "--period", "-p", help="K-line period"),
-    count: int = typer.Option(60, "--count", "-c", help="Number of data points"),
+    count: int = typer.Option(10, "--count", "-c", help="Number of data points"),
     timeperiod: int = typer.Option(None, "--timeperiod", help="Indicator period (e.g. MA20 → 20)"),
 ) -> None:
-    """Calculate a technical indicator."""
-    from stk.services.indicator import calc_indicator
+    """Calculate technical indicators. Omit name to calculate all at once."""
+    if name is None:
+        from stk.services.indicator import calc_all_indicators
 
-    params = {}
-    if timeperiod is not None:
-        params["timeperiod"] = timeperiod
-    result = calc_indicator(symbol, name, target_type=type, period=period, count=count, **params)
+        result = calc_all_indicators(symbol, target_type=type, period=period, count=count)
+    else:
+        from stk.services.indicator import calc_indicator
+
+        params = {}
+        if timeperiod is not None:
+            params["timeperiod"] = timeperiod
+        result = calc_indicator(
+            symbol, name, target_type=type, period=period, count=count, **params
+        )
     output.render(result)
 
 
@@ -135,13 +144,13 @@ def history(
     symbol: str = typer.Argument(help="Symbol or name"),
     type: TargetType = typer.Option(TargetType.STOCK, "--type", "-t", help="Target type"),
     period: str = typer.Option("day", "--period", "-p", help="Period: day/week/month"),
-    count: int = typer.Option(30, "--count", "-c", help="Number of candlesticks"),
+    count: int = typer.Option(10, "--count", "-c", help="Number of days"),
 ) -> None:
-    """Get historical candlestick data."""
-    from stk.services.history import get_history
+    """Get OHLCV + all technical indicators (merged per day)."""
+    from stk.services.indicator import get_daily
 
-    result = get_history(symbol, target_type=type, period=period, count=count)
-    output.render(result, meta={"count": len(result)})
+    result = get_daily(symbol, target_type=type, period=period, count=count)
+    output.render(result)
 
 
 @app.command("news")

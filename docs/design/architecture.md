@@ -33,8 +33,9 @@ stk
 | `stk stock profile` | `services/fundamental.get_profile()` | 公司概况 |
 | `stk stock fundamental` | `services/fundamental.get_comparison()` | 同业对比 |
 | `stk stock valuation` | `services/fundamental.get_valuation()` | 估值指标 (via calc_indexes) |
-| `stk stock indicator` | `services/indicator.calc_indicator()` | 技术指标 |
-| `stk stock history` | `services/history.get_history()` | K 线历史 |
+| `stk stock history` | `services/indicator.get_daily()` | K 线 + 全部技术指标（合并） |
+| `stk stock indicator` | `services/indicator.calc_indicator()` | 单个技术指标查询 |
+| `stk stock score` | `services/score.calc_score()` | 多指标共振评分 + ATR 风控  |
 | `stk stock news` | `services/news.get_news()` | 个股新闻 |
 | `stk stock flow` | `services/flow.get_stock_flow()` | 个股资金流 |
 | `stk stock chip` | `services/chip.get_chip_distribution()` | 筹码分布 |
@@ -44,9 +45,8 @@ stk
 | `stk watchlist add` | `services/watchlist.add_symbol()` | 添加标的到分组 |
 | `stk watchlist remove` | `services/watchlist.remove_symbol()` | 从分组移除标的 |
 | `stk watchlist delete` | `services/watchlist.delete_group()` | 删除分组 |
-| `stk stock score` | `services/score.calc_score()` | 多指标共振评分 + ATR 风控 🆕 |
-| `stk doctor check` | `services/health.run_health_check()` | 数据源健康检查 🆕 |
-| `stk cache clear` | `store/cache.clear_cache()` | 缓存清除 🆕 |
+| `stk doctor check` | `services/health.run_health_check()` | 数据源健康检查 |
+| `stk cache clear` | `store/cache.clear_cache()` | 缓存清除 |
 
 ---
 
@@ -109,7 +109,7 @@ class TargetType(StrEnum):
 |------|-------|-------|--------|---------|
 | `stock quote` | ✅ | ✅ | ✅ | ✅ |
 | `stock history` | ✅ | ✅ | ❌ | ❌ |
-| `stock indicator` | ✅ | ✅ | ❌ | ❌ |
+| `stock indicator` (单指标) | ✅ | ✅ | ❌ | ❌ |
 | `stock valuation` | ✅ | ❌ | ❌ | ❌ |
 | `stock fundamental` | ✅ | ❌ | ❌ | ❌ |
 | `stock flow` | ✅ | ❌ | ❌ | ❌ |
@@ -129,7 +129,7 @@ class TargetType(StrEnum):
 | stk 命令 | Longport API | 返回类型 |
 |----------|-------------|----------|
 | `stock quote` | `ctx.quote([symbols])` | 实时行情 |
-| `stock history` | `ctx.candlesticks(symbol, period, count, adjust)` | K 线数据 |
+| `stock history` | `ctx.candlesticks(symbol, period, count, adjust)` | K 线 + 全部技术指标 |
 | `stock valuation` | `ctx.calc_indexes([symbol], [CalcIndex.*])` | PE/PB/市值/涨跌/资金流等全量指标 |
 | `market index` | `ctx.quote(MAJOR_INDICES)` | 批量指数行情 |
 | `market temperature` | `ctx.market_temperature(Market.CN)` | 市场温度 |
@@ -154,27 +154,48 @@ stk stock quote 600519
   → output.py: JSON envelope 输出
 ```
 
-### 5.2 K 线数据 (`stk stock history`)
+### 5.2 K 线 + 全部指标 (`stk stock history`)
 
 ```
-stk stock history 700.HK --period day --count 30
-  → services/history.py: get_history(symbol, target_type, period, count)
-    → to_longport_symbol("700.HK") → "700.HK"
-    → ctx.candlesticks("700.HK", Period.Day, 30, AdjustType.ForwardAdjust)
-  → models/history.py: list[Candlestick]
+stk stock history 600519 --count 10
+  → commands/stock.py: history()
+  → services/indicator.py: get_daily(symbol, count=10)
+    → get_history(count=10+60) → 拉取 70 根 K 线（60 根用于指标预热）
+    → 在同一 DataFrame 上计算全部指标（EMA/MACD/RSI/KDJ/BOLL/ATR）
+    → 合并 OHLCV + 涨跌幅 + 全部指标为逐日扁平数据
+    → 截取最近 count 天，按新到旧排列
+  → models/indicator.py: DailyResult(symbol, days[])
 ```
 
-### 5.3 技术指标 (`stk stock indicator`)
+每日数据结构（扁平 dict）：
+
+- K 线：date, open, high, low, close, volume, turnover, change_pct
+- EMA：EMA5, EMA10, EMA20, EMA60
+- MACD：MACD, signal, hist
+- RSI：RSI
+- KDJ：K, D, J
+- BOLL：upper, middle, lower
+- ATR：ATR14
+
+### 5.3 单指标查询 (`stk stock indicator`)
 
 ```
 stk stock indicator 600519 MACD --count 60
   → services/indicator.py: calc_indicator(symbol, "MACD", count=60)
-    → get_history() → pandas DataFrame (close, open, high, low, volume)
+    → get_history() → pandas DataFrame
     → talib.MACD(close, 12, 26, 9) → macd, signal, hist
   → models/indicator.py: IndicatorResult(symbol, indicator, params, values)
 ```
 
-支持的指标：MA, EMA, MACD, RSI, KDJ, BOLL
+支持的指标：EMA, MACD, RSI, KDJ, BOLL, ATR
+
+省略 name 参数时计算全部指标（按指标名分组返回）：
+
+```
+stk stock indicator 600519
+  → services/indicator.py: calc_all_indicators(symbol, count=10)
+  → models/indicator.py: AllIndicatorsResult(symbol, indicators)
+```
 
 ### 5.9 多指标共振评分 (`stk stock score`) 🆕
 
@@ -386,8 +407,8 @@ services/
 ├── market.py         # 市场概览：indices, temperature, breadth
 ├── flow.py           # 资金流：stock_flow, flow_rank
 ├── fundamental.py    # 基本面：valuation (calc_indexes), comparison, profile
-├── history.py        # K 线历史
-├── indicator.py      # 技术指标 (ta-lib)
+├── history.py        # K 线历史（供 indicator.py 内部调用）
+├── indicator.py      # 技术指标 (ta-lib) + get_daily (OHLCV + 全部指标合并)
 ├── news.py           # 新闻资讯
 ├── chip.py           # 筹码分布
 ├── watchlist.py      # 自选股 CRUD (longport API + 本地 group ID 缓存)

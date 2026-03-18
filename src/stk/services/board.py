@@ -125,6 +125,7 @@ def get_sector_flow_hist(name: str, *, type: str = "sector") -> SectorFlowHist:
                 )
             )
 
+        days.reverse()
         return SectorFlowHist(name=name, type=type, days=days)
     except SourceError:
         raise

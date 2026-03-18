@@ -51,7 +51,8 @@ def get_stock_flow(symbol: str) -> StockFlow:
         raise SourceError(f"Failed to get flow data for {symbol}: {e}") from e
 
     intraday = [
-        FlowLine(timestamp=str(fl.timestamp), inflow=Decimal(str(fl.inflow))) for fl in flow_lines
+        FlowLine(timestamp=str(fl.timestamp), inflow=Decimal(str(fl.inflow)))
+        for fl in reversed(flow_lines)
     ] or None
 
     return StockFlow(

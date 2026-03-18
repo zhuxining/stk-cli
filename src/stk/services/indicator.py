@@ -8,26 +8,23 @@ import talib
 
 from stk.errors import IndicatorError
 from stk.models.common import TargetType
-from stk.models.indicator import IndicatorResult
+from stk.models.indicator import AllIndicatorsResult, DailyResult, IndicatorResult
 from stk.services.history import candles_to_df, get_history
 
-
-def _calc_ma(df: pd.DataFrame, params: dict) -> list[dict]:
-    period = params.get("timeperiod", 20)
-    result = talib.SMA(df["close"], timeperiod=period)
-    return [
-        {"date": d, f"MA{period}": None if np.isnan(v) else round(v, 4)}
-        for d, v in zip(df["date"], result, strict=False)
-    ]
+_EMA_PERIODS = (5, 10, 20, 60)
 
 
 def _calc_ema(df: pd.DataFrame, params: dict) -> list[dict]:
-    period = params.get("timeperiod", 20)
-    result = talib.EMA(df["close"], timeperiod=period)
-    return [
-        {"date": d, f"EMA{period}": None if np.isnan(v) else round(v, 4)}
-        for d, v in zip(df["date"], result, strict=False)
-    ]
+    periods = params.get("periods", _EMA_PERIODS)
+    emas = {p: talib.EMA(df["close"], timeperiod=p) for p in periods}
+    rows: list[dict] = []
+    for i, d in enumerate(df["date"]):
+        row: dict = {"date": d}
+        for p, arr in emas.items():
+            v = arr[i]
+            row[f"EMA{p}"] = None if np.isnan(v) else round(v, 4)
+        rows.append(row)
+    return rows
 
 
 def _calc_macd(df: pd.DataFrame, params: dict) -> list[dict]:
@@ -109,7 +106,6 @@ def _calc_atr(df: pd.DataFrame, params: dict) -> list[dict]:
 
 
 _INDICATOR_MAP: dict[str, collections.abc.Callable] = {
-    "MA": _calc_ma,
     "EMA": _calc_ema,
     "MACD": _calc_macd,
     "RSI": _calc_rsi,
@@ -117,6 +113,20 @@ _INDICATOR_MAP: dict[str, collections.abc.Callable] = {
     "BOLL": _calc_boll,
     "ATR": _calc_atr,
 }
+
+
+def _fetch_df(
+    symbol: str,
+    *,
+    target_type: TargetType = TargetType.STOCK,
+    period: str = "day",
+    count: int = 60,
+) -> pd.DataFrame:
+    """Fetch history and convert to DataFrame (shared by single/all)."""
+    candles = get_history(symbol, target_type=target_type, period=period, count=count)
+    if not candles:
+        raise IndicatorError(f"No history data for {symbol}")
+    return candles_to_df(candles)
 
 
 def calc_indicator(
@@ -128,19 +138,15 @@ def calc_indicator(
     count: int = 60,
     **params,
 ) -> IndicatorResult:
-    """Calculate a technical indicator for the given symbol."""
+    """Calculate a single technical indicator for the given symbol."""
     name_upper = indicator_name.upper()
     calc_fn = _INDICATOR_MAP.get(name_upper)
     if calc_fn is None:
         supported = ", ".join(sorted(_INDICATOR_MAP))
         raise IndicatorError(f"Unknown indicator: {indicator_name}. Supported: {supported}")
 
-    candles = get_history(symbol, target_type=target_type, period=period, count=count)
-    if not candles:
-        raise IndicatorError(f"No history data for {symbol}")
-
-    df = candles_to_df(candles)
-    values = calc_fn(df, params)
+    df = _fetch_df(symbol, target_type=target_type, period=period, count=count)
+    values = calc_fn(df, params)[::-1]
 
     return IndicatorResult(
         symbol=symbol,
@@ -148,3 +154,69 @@ def calc_indicator(
         params=params or None,
         values=values,
     )
+
+
+def calc_all_indicators(
+    symbol: str,
+    *,
+    target_type: TargetType = TargetType.STOCK,
+    period: str = "day",
+    count: int = 10,
+) -> AllIndicatorsResult:
+    """Calculate all indicators in one pass (single history fetch).
+
+    Fetches enough history for indicator warm-up, returns only the last *count* rows.
+    """
+    # MACD(26+9) and BOLL/MA(20) need warm-up; 60 extra bars is sufficient
+    warmup = 60
+    df = _fetch_df(symbol, target_type=target_type, period=period, count=count + warmup)
+    indicators = {name: calc_fn(df, {})[-count:][::-1] for name, calc_fn in _INDICATOR_MAP.items()}
+    return AllIndicatorsResult(symbol=symbol, indicators=indicators)
+
+
+def get_daily(
+    symbol: str,
+    *,
+    target_type: TargetType = TargetType.STOCK,
+    period: str = "day",
+    count: int = 10,
+) -> DailyResult:
+    """Get OHLCV + all indicators merged per day (single history fetch)."""
+    warmup = 60
+    df = _fetch_df(symbol, target_type=target_type, period=period, count=count + warmup)
+
+    # Compute all indicators on full df
+    indicator_rows = {
+        name: calc_fn(df, {}) for name, calc_fn in _INDICATOR_MAP.items()
+    }
+
+    # Take last `count` rows, merge OHLCV + indicators per day
+    n = len(df)
+    days: list[dict] = []
+    for i in range(n - count, n):
+        row = df.iloc[i]
+        day: dict = {
+            "date": row["date"],
+            "open": round(row["open"], 4),
+            "high": round(row["high"], 4),
+            "low": round(row["low"], 4),
+            "close": round(row["close"], 4),
+            "volume": int(row["volume"]),
+            "turnover": round(row["turnover"], 4),
+        }
+        # Change percent
+        if i > 0:
+            prev_close = df.iloc[i - 1]["close"]
+            if prev_close:
+                day["change_pct"] = round(
+                    (row["close"] - prev_close) / prev_close * 100, 2
+                )
+        # Merge indicator values (skip date key)
+        for values in indicator_rows.values():
+            for k, v in values[i].items():
+                if k != "date":
+                    day[k] = v
+        days.append(day)
+
+    days.reverse()
+    return DailyResult(symbol=symbol, days=days)

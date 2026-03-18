@@ -46,7 +46,7 @@ def get_news(symbol: str, *, count: int = 10) -> list[NewsItem]:
         df = ak.stock_news_em(symbol=ak_symbol)
         df = df.head(count)
 
-        return [
+        items = [
             NewsItem(
                 title=row["新闻标题"],
                 summary=row["新闻内容"],
@@ -56,6 +56,8 @@ def get_news(symbol: str, *, count: int = 10) -> list[NewsItem]:
             )
             for _, row in df.iterrows()
         ]
+        items.reverse()
+        return items
     except Exception as e:
         raise SourceError(f"Failed to fetch news for {symbol}: {e}") from e
 
@@ -110,6 +112,7 @@ def get_global_news(
                     url=str(row.get(cfg.get("url", ""), "")),
                 )
             )
+        items.reverse()
         return items
     except SourceError:
         raise

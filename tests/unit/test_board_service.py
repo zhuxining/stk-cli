@@ -98,7 +98,7 @@ def test_get_sector_flow_hist(mock_ak):
     assert result.name == "酿酒行业"
     assert result.type == "sector"
     assert len(result.days) == 2
-    assert result.days[0].date == "2025-03-01"
+    assert result.days[0].date == "2025-03-02"  # newest first
 
 
 @patch("stk.services.board.ak")

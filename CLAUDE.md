@@ -50,7 +50,7 @@ src/stk/
 ├── commands/           # Thin layer: parse args → call service → render output
 │   ├── market.py       # stk market — index, temp, breadth, news
 │   ├── board.py        # stk board — list, cons, flow, detail
-│   ├── stock.py        # stk stock — rank, quote, profile, fundamental, valuation, indicator, history, news, flow, chip, score
+│   ├── stock.py        # stk stock — rank, quote, profile, fundamental, valuation, history, indicator, news, flow, chip, score
 │   ├── watchlist.py    # stk watchlist — longport watchlist group CRUD
 │   ├── doctor.py       # stk doctor — data source health check
 │   └── cache.py        # stk cache — cache management
@@ -63,7 +63,7 @@ src/stk/
 │   ├── fundamental.py  # Valuation (via calc_indexes), industry comparison, profile
 │   ├── longport_quote.py
 │   ├── history.py
-│   ├── indicator.py    # ta-lib calculations (pure DataFrame ops)
+│   ├── indicator.py    # ta-lib calculations + get_daily (OHLCV + all indicators merged)
 │   ├── score.py        # Multi-indicator resonance score + ATR risk control
 │   ├── health.py       # Data source connectivity + latency check
 │   ├── news.py
