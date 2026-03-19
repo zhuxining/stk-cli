@@ -25,6 +25,15 @@ class ScanItem(BaseModel):
     total_market_value: Decimal | None = None
     dividend_yield: Decimal | None = None
     volume_ratio: Decimal | None = None
+    # Trend context
+    trend_strength: str | None = None  # "trending" | "ranging"
+    adx: float | None = None
+    change_5d: Decimal | None = None  # 5日涨跌幅 (%)
+    change_10d: Decimal | None = None  # 10日涨跌幅 (%)
+    # ATR risk control
+    atr: float | None = None
+    stop_loss: float | None = None
+    take_profit: float | None = None
     # Flow summary
     net_main_flow: Decimal | None = None  # 主力净流入（万元）
 

@@ -84,12 +84,14 @@ def _batch_analyze(
         fl = flow_map.get(lp_sym)
 
         change_pct = q.change_pct if q else None
+        is_etf_mode = sc.mode == "etf" if sc else False
         alerts: list[str] = []
         if change_pct is not None:
             cpct = float(change_pct)
-            if cpct >= 5:
+            up_thresh, down_thresh = (2, -2) if is_etf_mode else (5, -3)
+            if cpct >= up_thresh:
                 alerts.append(f"大涨 ({cpct:+.1f}%)")
-            elif cpct <= -3:
+            elif cpct <= down_thresh:
                 alerts.append(f"大跌 ({cpct:.1f}%)")
 
         # RSI alerts from score
@@ -119,6 +121,13 @@ def _batch_analyze(
                 total_market_value=v.total_market_value if v else None,
                 dividend_yield=v.dividend_ratio_ttm if v else None,
                 volume_ratio=v.volume_ratio if v else None,
+                trend_strength=sc.trend_strength if sc else None,
+                adx=sc.adx if sc else None,
+                change_5d=v.five_day_change_rate if v else None,
+                change_10d=v.ten_day_change_rate if v else None,
+                atr=sc.atr if sc else None,
+                stop_loss=sc.stop_loss if sc else None,
+                take_profit=sc.take_profit if sc else None,
                 net_main_flow=_calc_net_main_flow(fl) if fl else None,
             )
         )

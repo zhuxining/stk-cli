@@ -21,7 +21,8 @@ def test_calc_score_basic(mock_history, mock_flow, make_candles):
     assert result.symbol == "600519"
     assert 0 <= result.total_score <= 100
     assert result.rating in ("A+", "A", "B+", "B", "C")
-    assert len(result.dimensions) == 6
+    # 7 dims for stock: 动量, MACD, BOLL, 量价, 趋势, 背离, 资金
+    assert len(result.dimensions) == 7
     assert isinstance(result.buy_signals, list)
     assert isinstance(result.sell_signals, list)
 
@@ -29,21 +30,22 @@ def test_calc_score_basic(mock_history, mock_flow, make_candles):
 @patch("stk.services.flow.get_stock_flow")
 @patch("stk.services.score.get_history")
 def test_score_dimensions_complete(mock_history, mock_flow, make_candles):
-    """Test all 6 dimensions are present with correct max scores."""
+    """Test all 7 dimensions are present with correct max scores."""
     mock_history.return_value = make_candles(60)
     mock_flow.side_effect = Exception("no flow data")
 
     result = calc_score("600519")
 
     dim_names = {d.name for d in result.dimensions}
-    assert dim_names == {"RSI", "KDJ", "MACD", "BOLL", "量价", "资金"}
+    assert dim_names == {"动量", "MACD", "BOLL", "量价", "趋势", "背离", "资金"}
 
     max_scores = {d.name: d.max_score for d in result.dimensions}
-    assert max_scores["RSI"] == 20
-    assert max_scores["KDJ"] == 20
+    assert max_scores["动量"] == 15
     assert max_scores["MACD"] == 15
     assert max_scores["BOLL"] == 15
-    assert max_scores["量价"] == 15
+    assert max_scores["量价"] == 10
+    assert max_scores["趋势"] == 20
+    assert max_scores["背离"] == 10
     assert max_scores["资金"] == 15
 
 
@@ -127,13 +129,26 @@ def test_rating_mapping(mock_history, mock_flow, make_candles):
 
     result = calc_score("600519")
 
-    if result.total_score >= 85:
+    if result.total_score >= 80:
         assert result.rating == "A+"
-    elif result.total_score >= 70:
+    elif result.total_score >= 65:
         assert result.rating == "A"
-    elif result.total_score >= 60:
+    elif result.total_score >= 55:
         assert result.rating == "B+"
-    elif result.total_score >= 50:
+    elif result.total_score >= 45:
         assert result.rating == "B"
     else:
         assert result.rating == "C"
+
+
+@patch("stk.services.flow.get_stock_flow")
+@patch("stk.services.score.get_history")
+def test_score_adx_trend_strength(mock_history, mock_flow, make_candles):
+    """Test ADX trend strength fields are populated."""
+    mock_history.return_value = make_candles(60)
+    mock_flow.side_effect = Exception("no flow data")
+
+    result = calc_score("600519")
+
+    assert result.adx is not None
+    assert result.trend_strength in ("trending", "ranging")

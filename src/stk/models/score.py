@@ -22,6 +22,9 @@ class ScoreResult(BaseModel):
     buy_signals: list[str]
     sell_signals: list[str]
     mode: str = "stock"  # "stock" | "etf"
+    # ADX trend strength context
+    trend_strength: str | None = None  # "trending" | "ranging" | None
+    adx: float | None = None
     # ATR-based trade points (optional, A-share only when history available)
     atr: float | None = None
     stop_loss: float | None = None
