@@ -26,18 +26,17 @@
 
 > 引用模式：扫描、选股(验证步骤)
 
-对每只股票并行查询：
+**优先使用批量命令**（一次调用返回全量数据）：
 
-- `stk stock quote <代码>` — 当前价格与涨跌
-- `stk stock flow <代码>` — 资金流向
+- `stk watchlist scan <名称>` — 自选股批量扫描（行情+评分+估值+资金）
+- `stk stock summary <代码> [代码...]` — 临时批量分析（同上）
+
+**需要更多细节时追加**：
+
 - `stk stock history <代码> --count 10` — 近期 K 线 + 全部技术指标
-- `stk stock score <代码>` — 综合评分 + ATR 风控
-
-**按需追加**（异动或需深入分析时）：
-
 - `stk stock fundamental <代码> --type growth` — 成长性（选股验证时追加）
 
-> `history` 已包含 MACD/RSI/KDJ/BOLL/ATR 等全部指标，无需单独调用 `indicator`。
+> scan/summary 已包含评分（7 维度：动量/MACD/BOLL/量价/趋势/背离/资金）、估值、ATR 风控、趋势强度(ADX)，大多数场景无需逐只查询。
 
 ---
 

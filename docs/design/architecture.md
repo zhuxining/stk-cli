@@ -257,23 +257,40 @@ stk stock score 600519
   → commands/stock.py: score()
   → services/score.py: calc_score(symbol, count=60)
     → services/history.get_history() → DataFrame
-    → talib.RSI/STOCH/MACD/BBANDS/ATR 逐项计算
-    → services/flow.get_stock_flow() → 资金流维度（可选）
-  → models/score.py: ScoreResult(total_score, rating, dimensions[], buy_signals[], sell_signals[], atr, stop_loss, take_profit, risk_reward_ratio)
+    → talib 计算: EMA/RSI/STOCH/MACD/BBANDS/ADX/ATR
+    → services/flow.get_stock_flow() → 资金流维度（个股独有）
+  → models/score.py: ScoreResult(total_score, rating, dimensions[], buy_signals[], sell_signals[], trend_strength, adx, atr, stop_loss, take_profit, risk_reward_ratio)
 ```
 
 评分体系（满分 100）：
 
+**个股维度**（7 维，直接加总 = 100）：
+
 | 维度 | 权重 | 判断逻辑 |
 |------|------|---------|
-| RSI  | 20 | 超卖(<30)满分，超买(>70)0分 |
-| KDJ  | 20 | 金叉满分，死叉0分 |
-| MACD | 15 | 金叉满分，死叉0分 |
-| BOLL | 15 | 下轨反弹满分，触及上轨0分 |
-| 量价 | 15 | 放量上涨满分，放量下跌0分 |
-| 资金 | 15 | 主力大幅流入满分，大幅流出0分 |
+| 动量 | 15 | RSI(60%) + KDJ(40%) 加权合并。RSI 超卖满分，超买 0 分；KDJ 金叉满分，死叉 0 分 |
+| MACD | 15 | 金叉满分，死叉 0 分，柱翻红/翻绿中间分 |
+| BOLL | 15 | 下轨反弹满分，触及上轨 0 分 |
+| 量价 | 10 | 放量上涨满分，放量下跌 0 分 |
+| 趋势 | 20 | EMA(5/10/20/60) 多头排列满分，空头排列 0 分 |
+| 背离 | 10 | MACD 柱状图底背离满分，顶背离 0 分 |
+| 资金 | 15 | 主力大幅流入满分，大幅流出 0 分 |
 
-评级：A+(≥85) / A(≥70) / B+(≥60) / B(≥50) / C(<50)
+**ETF 维度**（6 维，加总 85 → 归一化至 100）：
+
+| 维度 | 权重 | 说明 |
+|------|------|------|
+| 动量 | 10 | 同上，权重略低 |
+| MACD | 15 | 同上 |
+| BOLL | 15 | 同上 |
+| 量价 | 10 | 同上 |
+| 趋势 | 25 | 权重更高，ETF 趋势性更强 |
+| 背离 | 10 | 同上 |
+
+评级（个股）：A+(≥80) / A(≥65) / B+(≥55) / B(≥45) / C(<45)
+评级（ETF）：A+(≥75) / A(≥60) / B+(≥50) / B(≥40) / C(<40)
+
+**ADX 趋势强度标签**：ADX ≥ 25 → "trending"，< 25 → "ranging"（辅助判断，不参与评分）
 
 ATR 风控（基于 ATR×2 止损 / ATR×3 止盈）：
 
@@ -298,7 +315,7 @@ stk stock summary 600519 000001 700.HK
   → models/scan.py: ScanResult(group_name, total, items[])
 ```
 
-ScanItem 包含全量维度：行情、评分、估值（PE/PB/市值/股息率/量比）、资金流摘要。
+ScanItem 包含全量维度：行情、评分（含趋势强度 ADX）、估值（PE/PB/市值/股息率/量比）、ATR 风控（止损/止盈）、近期涨跌幅（5日/10日）、资金流摘要。
 
 **性能优化**：
 

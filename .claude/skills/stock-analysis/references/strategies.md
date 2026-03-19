@@ -7,14 +7,14 @@
 - 核心指标: MA(5/10/20/60), EMA(12/26), MACD, BOLL
 - 技术筛选: `stk stock rank --screen lxsz`（连续缩量上涨）
 - 确认条件: 成交量趋势配合、均线多头排列
-- 精排: `stk stock score` 筛选评分 A 级（≥70）以上
+- 精排: `stk stock score` 筛选评分 A 级（≥65）以上
 - 资金验证: `stk stock flow` 确认主力持续净流入
 
 ### 超跌反弹型
 
-- 核心指标: RSI, KDJ, BOLL
+- 核心指标: 动量(RSI+KDJ), BOLL, 背离
 - 技术筛选: `stk stock rank --screen cxfl`（持续放量）
-- 触发条件: RSI < 30、KDJ 金叉、价格触及布林下轨
+- 触发条件: RSI < 30（动量维度超卖）、价格触及布林下轨、MACD 底背离
 - 精排: `stk stock score` 筛选超卖信号明显者
 - 资金验证: `stk stock flow` 确认主力由流出转为流入
 
@@ -29,11 +29,11 @@
 
 ### 强势回调型
 
-- 核心指标: RSI, MA(10/20), 涨跌幅, 换手率
+- 核心指标: 动量(RSI+KDJ), MA(10/20), 涨跌幅, 换手率
 - 技术筛选: `stk stock rank --screen ljqs`（量价齐升）或 `--screen lxsz`（连续上涨），从中筛选近期有回调的标的
 - 触发条件: 近 20 日涨幅 > 15% 的强势股，回调 5-10% 至 MA10/MA20 支撑位
-- 确认条件: 回调期间 RSI 从高位回落至 40-50 区间（未破 30），KDJ 在低位金叉
-- 验证: `stk stock history` 判断回调是否到 MA10/MA20 支撑，`stk stock score` 确认评分 B+（≥60）以上
+- 确认条件: 回调期间动量维度从高位回落至中性区间（RSI 40-50，KDJ 低位金叉）
+- 验证: `stk stock history` 判断回调是否到 MA10/MA20 支撑，`stk stock score` 确认评分 B+（≥55）以上
 - 资金验证: `stk stock flow` 确认回调期间主力未大幅流出
 - 持仓周期: 5-15 天
 - 与超跌反弹的区别: 超跌反弹针对深度超卖(RSI<30)的弱势股，强势回调针对趋势完好的强势股短暂休整
@@ -51,7 +51,7 @@
 - 技术筛选: `stk stock rank --screen ljqs`（量价齐升）
 - 资金验证: 对候选逐只 `stk stock flow` 确认主力净流入
 - 消息催化: `stk market news` 获取全局新闻作为催化参考
-- 精排: `stk stock score` 筛选评分 A 级（≥70）以上且资金维度得分高
+- 精排: `stk stock score` 筛选评分 A 级（≥65）以上，关注动量+资金维度得分
 
 ---
 

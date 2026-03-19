@@ -20,7 +20,8 @@
 | `stk stock history <代码>` | OHLCV + 全部技术指标（合并输出）。`--type stock\|index` `--period day\|week\|month` `--count N` |
 | `stk stock indicator <代码> [指标名]` | 技术指标。省略指标名则计算全部 (EMA/MACD/RSI/KDJ/BOLL/ATR)。`--type stock\|index` `--period day\|week\|month` `--count N` `--timeperiod N` |
 | `stk stock flow <代码>` | 个股资金流向（大/中/小单进出 + 日内分钟级流向） |
-| `stk stock score <代码>` | 多指标共振评分 (0-100) + ATR 风控。`--count N` 历史数据量 |
+| `stk stock score <代码>` | 多指标共振评分 (0-100) + ATR 风控。7 维度：动量(RSI+KDJ)/MACD/BOLL/量价/趋势(EMA)/背离/资金。`--count N` 历史数据量 |
+| `stk stock summary <代码> [代码...]` | 批量分析：行情+评分+估值+资金，一次返回全量数据 |
 
 ## 自选
 
@@ -32,6 +33,7 @@
 | `stk watchlist add <名称> <代码>` | 添加到自选 |
 | `stk watchlist remove <名称> <代码>` | 从自选移除 |
 | `stk watchlist delete <名称>` | 删除自选组 |
+| `stk watchlist scan <名称>` | 自选股批量扫描：行情+评分+估值+资金全量返回。`--sort score\|change_pct` |
 
 ## 工具
 
