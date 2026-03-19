@@ -48,26 +48,23 @@ src/stk/
 ├── errors.py           # Custom exceptions + global error handler
 ├── deps.py             # Lazy singletons (longport ctx, etc.)
 ├── commands/           # Thin layer: parse args → call service → render output
-│   ├── market.py       # stk market — index, temp, breadth, news
-│   ├── board.py        # stk board — list, cons, flow, detail
-│   ├── stock.py        # stk stock — rank, quote, profile, fundamental, valuation, history, indicator, news, flow, chip, score
+│   ├── market.py       # stk market — index, temp, news
+│   ├── stock.py        # stk stock — rank, quote, profile, fundamental, valuation, history, indicator, flow, score
 │   ├── watchlist.py    # stk watchlist — longport watchlist group CRUD
 │   ├── doctor.py       # stk doctor — data source health check
 │   └── cache.py        # stk cache — cache management
 ├── services/           # Business logic: call APIs → return Pydantic models
-│   ├── board.py        # Sector/concept board data + sector flow
-│   ├── rank.py         # Stock technical/popularity rankings
+│   ├── rank.py         # Stock technical rankings (THS)
 │   ├── quote.py        # Real-time quotes via longport
-│   ├── market.py       # Market overview: indices, temperature, breadth
-│   ├── flow.py         # Individual stock flow + flow rankings
+│   ├── market.py       # Market overview: indices, temperature
+│   ├── flow.py         # Individual stock flow via longport
 │   ├── fundamental.py  # Valuation (via calc_indexes), industry comparison, profile
 │   ├── longport_quote.py
 │   ├── history.py
 │   ├── indicator.py    # ta-lib calculations + get_daily (OHLCV + all indicators merged)
 │   ├── score.py        # Multi-indicator resonance score + ATR risk control
-│   ├── health.py       # Data source connectivity + latency check
-│   ├── news.py
-│   ├── chip.py
+│   ├── health.py       # Data source connectivity check
+│   ├── news.py         # Global news (CLS / THS)
 │   └── watchlist.py    # Watchlist via longport API, local group ID cache
 ├── models/             # Pydantic models (data contracts, JSON schema for agents)
 │   ├── common.py       # Envelope, ErrorDetail
@@ -77,7 +74,7 @@ src/stk/
 │   └── cache.py        # API response cache
 └── utils/              # Utility functions
     ├── price.py        # Price formatting
-    └── symbol.py       # Symbol normalization + akshare data converters
+    └── symbol.py       # Symbol normalization
 ```
 
 ### Key conventions
@@ -87,10 +84,10 @@ src/stk/
 - **models/** — Data contracts between layers. Also the JSON schema agents consume.
 - **Data flow**: CLI command → commands/ → services/ → longport API → pandas DataFrame → models/ → output.py (JSON envelope to stdout).
 - **Symbol normalization** (in `utils/symbol.py`): `600519`→`600519.SH`, `000001`→`000001.SZ`, `8xxxxx`→`8xxxxx.BJ`; `.HK`/`.US`/`.` prefix → pass through.
-- **Target types**: `--type stock|sector|concept|index` (default `stock`).
+- **Target types**: `--type stock|index` (default `stock`).
 - **JSON envelope**: `{"ok": true, "data": [...], "error": null, "meta": {...}}`. All output to stdout, logs to stderr.
 - **Errors**: `StkError` → `ConfigError` / `SourceError` / `SymbolNotFoundError` / `IndicatorError` / `DataNotFoundError`. Services wrap SDK exceptions; global handler formats JSON error output.
 - **Storage**: `~/.stk/` directory for local caches (e.g. `watchlist_groups.json` for group name→id mapping). Atomic writes (tmp file + rename). Watchlist data is stored on longport server.
 
 Use `loguru` for all logging. Use `pandas` + `ta-lib` for indicator calculations in services.
-Longport is the primary data source. akshare supplements A-share features: news, chip distribution, market breadth, financial report, sector/concept quotes, sector money flow.
+Longport is the primary data source. akshare supplements A-share features: tech screening rankings (THS), industry comparison, company profile, global news (CLS/THS).

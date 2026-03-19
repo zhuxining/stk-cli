@@ -2,18 +2,17 @@
 
 > 基础架构信息（目录结构、层级职责、开发命令）见 `CLAUDE.md`。本文档仅记录深度设计决策。
 
-## 1. 命令结构（2026-03 重组后）
+## 1. 命令结构
 
-按 **市场 → 板块 → 个股** 三层逻辑组织：
+按 **市场 → 个股** 两层逻辑组织：
 
 ```
 stk
-├── market      # 市场整体：指数、温度、涨跌面、新闻
-├── board       # 行业/概念板块：列表、成分股、资金流
-├── stock       # 个股：报价、基本面、技术指标、资金流等
+├── market      # 市场整体：指数、温度、新闻
+├── stock       # 个股：报价、基本面、技术指标、资金流、评分等
 ├── watchlist   # 自选股管理
-├── doctor      # 数据源健康检查（超出原始设计）
-└── cache       # 缓存管理（超出原始设计）
+├── doctor      # 数据源健康检查
+└── cache       # 缓存管理
 ```
 
 ### 命令与服务映射
@@ -22,24 +21,17 @@ stk
 |------|-----------|------|
 | `stk market index` | `services/market.get_indices()` | 大盘指数 |
 | `stk market temp` | `services/market.get_temperature()` | 市场温度 |
-| `stk market breadth` | `services/market.get_breadth()` | 涨跌面 |
-| `stk market news` | `services/news.get_global_news()` | 全局新闻 |
-| `stk board list` | `services/board.get_board_list()` | 板块列表 |
-| `stk board cons` | `services/board.get_board_cons()` | 板块成分股 |
-| `stk board flow` | `services/board.get_sector_flow_hist()` | 板块资金流历史 |
-| `stk board detail` | `services/board.get_sector_flow_detail()` | 板块内个股资金流 |
-| `stk stock rank` | `services/rank.get_hot/tech/flow_rank()` | 统一排名入口 |
+| `stk market news` | `services/news.get_global_news()` | 全局新闻（cls/ths） |
+| `stk stock rank` | `services/rank.get_tech_rank()` | 技术选股排名（同花顺） |
 | `stk stock quote` | `services/quote.get_quote()` | 实时报价 |
 | `stk stock profile` | `services/fundamental.get_profile()` | 公司概况 |
 | `stk stock fundamental` | `services/fundamental.get_comparison()` | 同业对比 |
 | `stk stock valuation` | `services/fundamental.get_valuation()` | 估值指标 (via calc_indexes) |
 | `stk stock history` | `services/indicator.get_daily()` | K 线 + 全部技术指标（合并） |
 | `stk stock indicator` | `services/indicator.calc_indicator()` | 单个技术指标查询 |
-| `stk stock score` | `services/score.calc_score()` | 多指标共振评分 + ATR 风控  |
-| `stk stock news` | `services/news.get_news()` | 个股新闻 |
-| `stk stock flow` | `services/flow.get_stock_flow()` | 个股资金流 |
-| `stk stock chip` | `services/chip.get_chip_distribution()` | 筹码分布 |
-| `stk watchlist list` | `services/watchlist.list_watchlists()` | 列出所有分组 (longport API) |
+| `stk stock score` | `services/score.calc_score()` | 多指标共振评分 + ATR 风控 |
+| `stk stock flow` | `services/flow.get_stock_flow()` | 个股资金流（longport） |
+| `stk watchlist list` | `services/watchlist.list_watchlists()` | 列出所有分组 |
 | `stk watchlist show` | `services/watchlist.get_watchlist()` | 查看分组内标的 |
 | `stk watchlist create` | `services/watchlist.create_group()` | 创建分组 |
 | `stk watchlist add` | `services/watchlist.add_symbol()` | 添加标的到分组 |
@@ -52,10 +44,13 @@ stk
 
 ## 2. 数据源策略
 
-**Longport + akshare 双数据源**：
+**Longport 为主 + akshare（同花顺）为辅**：
 
-- **Longport**：主数据源，覆盖 A 股/港股/美股的实时行情、K 线、估值 (calc_indexes)、自选股管理
-- **akshare**：补充 A 股特色数据（新闻、筹码、市场广度、板块资金流、基本面对比）
+- **Longport**：主数据源，覆盖 A 股/港股/美股的实时行情、K 线、估值 (calc_indexes)、资金流、自选股管理
+- **akshare（同花顺）**：补充 A 股特色数据（技术选股排名、基本面对比、主营业务概况）
+- **akshare（财联社）**：全局新闻
+
+> 已移除所有东方财富（eastmoney）数据源，因其 IP 级别反爬限制导致接口不稳定。
 
 ### Symbol 规范化
 
@@ -83,11 +78,10 @@ stk
 |------|------|------|
 | `to_longport_symbol(symbol)` | 用户输入 → Longport 格式 | 所有服务 |
 | `to_em_symbol(symbol)` | 用户输入 → 东方财富格式 | `fundamental.py` |
-| `to_ak_market(symbol)` | 用户输入 → akshare (code, market) | `flow.py`, `fundamental.py` |
+| `to_ak_market(symbol)` | 用户输入 → akshare (code, market) | `fundamental.py` |
 | `is_hk(symbol)` | 是否为港股 | `fundamental.py` |
 | `to_hk_code(symbol)` | 港股代码补零 | `fundamental.py` |
-| `to_decimal(val)` | 安全 Decimal 转换 | 所有 akshare 服务 |
-| `to_metrics(row, cols, skip)` | DataFrame 行 → metrics dict | 所有 akshare 服务 |
+| `extract_code(symbol)` | 提取纯数字代码 | `fundamental.py` |
 
 ---
 
@@ -107,20 +101,13 @@ class TargetType(StrEnum):
 
 | 命令 | stock | index | sector | concept |
 |------|-------|-------|--------|---------|
-| `stock quote` | ✅ | ✅ | ✅ | ✅ |
+| `stock quote` | ✅ | ✅ | ❌ | ❌ |
 | `stock history` | ✅ | ✅ | ❌ | ❌ |
-| `stock indicator` (单指标) | ✅ | ✅ | ❌ | ❌ |
+| `stock indicator` | ✅ | ✅ | ❌ | ❌ |
 | `stock valuation` | ✅ | ❌ | ❌ | ❌ |
 | `stock fundamental` | ✅ | ❌ | ❌ | ❌ |
 | `stock flow` | ✅ | ❌ | ❌ | ❌ |
-| `stock chip` | ✅ | ❌ | ❌ | ❌ |
-| `stock news` | ✅ | ❌ | ❌ | ❌ |
-| `board list` | ❌ | ❌ | ✅ | ✅ |
-| `board cons` | ❌ | ❌ | ✅ | ✅ |
-| `board flow/detail` | ❌ | ❌ | ✅ | ✅ |
-| `market index` | ✅ (成分) | — | — | — |
-| `market temperature` | ✅ (整体) | — | — | — |
-| `market breadth` | ✅ (全市场) | — | — | — |
+| `stock score` | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
@@ -197,7 +184,70 @@ stk stock indicator 600519
   → models/indicator.py: AllIndicatorsResult(symbol, indicators)
 ```
 
-### 5.9 多指标共振评分 (`stk stock score`) 🆕
+### 5.4 基本面 (`stk stock fundamental`)
+
+```
+stk stock fundamental 600519 --type growth
+  → services/fundamental.py: get_comparison(symbol, category="growth")
+    → utils/symbol.py: to_em_symbol("600519") → "SH600519"
+    → ak.stock_zh_growth_comparison_em("SH600519")
+    → DataFrame rows → list[CompanyMetric] (行业中值/平均 + 同行 + 目标股)
+  → models/fundamental.py: IndustryComparison(symbol, category, companies)
+
+stk stock valuation 700.HK
+  → services/fundamental.py: get_valuation(symbol)
+    → ctx.calc_indexes(["700.HK"], [CalcIndex.PeTtmRatio, PbRatio, TotalMarketValue, ...])
+    → 返回全量指标：PE/PB/市值/涨跌幅/资金流/换手率/振幅/量比/股息率等
+  → models/fundamental.py: Valuation(pe_ttm_ratio, pb_ratio, total_market_value, ...)
+```
+
+支持的对比类型：`growth`（成长性）、`valuation`（估值）、`dupont`（杜邦分析，仅 A 股）
+
+### 5.5 市场概览 (`stk market`)
+
+```
+stk market index
+  → services/market.py: get_indices()
+    → ctx.quote(MAJOR_INDICES)  # 7 大指数批量查询
+    → MAJOR_INDICES = [000001.SH, 399001.SZ, 399006.SZ, HSI.HK, .IXIC, .DJI, .SPX]
+  → models/market.py: list[IndexQuote]
+
+stk market temp
+  → services/market.py: get_temperature()
+    → ctx.market_temperature(Market.CN)
+  → models/market.py: MarketTemperature(score, level, valuation, sentiment)
+
+stk market news --source cls
+  → services/news.py: get_global_news(source="cls", count=20)
+    → ak.stock_info_global_cls(symbol="全部")
+  → models/news.py: list[NewsItem]
+```
+
+全局新闻支持数据源：`cls`（财联社）、`ths`（同花顺）
+
+### 5.6 技术选股排名 (`stk stock rank`)
+
+```
+stk stock rank --screen lxsz
+  → services/rank.py: get_tech_rank(type="lxsz", ma="20日均线")
+    → ak.stock_rank_lxsz_ths()
+  → models/market.py: TechRank(type="lxsz", label="连续上涨", items[])
+```
+
+支持的筛选类型：`lxsz`（连续上涨）、`cxfl`（持续放量）、`xstp`（向上突破）、`ljqs`（量价齐升）
+
+### 5.7 个股资金流 (`stk stock flow`)
+
+```
+stk stock flow 600519
+  → services/flow.py: get_stock_flow(symbol="600519")
+    → to_longport_symbol("600519") → "600519.SH"
+    → ctx.capital_distribution("600519.SH") → 大/中/小单进出
+    → ctx.capital_flow("600519.SH") → 日内分钟级 inflow
+  → models/flow.py: StockFlow(symbol, large_in/out, medium_in/out, small_in/out, intraday[])
+```
+
+### 5.8 多指标共振评分 (`stk stock score`)
 
 ```
 stk stock score 600519
@@ -230,18 +280,17 @@ ATR 风控（基于 ATR×2 止损 / ATR×3 止盈）：
 盈亏比 = (止盈价 - 当前价) / (当前价 - 止损价)  # 理论值 ≈ 1.5
 ```
 
-### 5.10 数据源健康检查 (`stk doctor check`) 🆕
+### 5.9 数据源健康检查 (`stk doctor check`)
 
 ```
-stk doctor check [--quick]
-  → commands/doctor.py: check(quick=False)
-  → services/health.run_health_check(quick)
+stk doctor check
+  → commands/doctor.py: check()
+  → services/health.run_health_check()
     → 检查 Longport API 连通性 + 延迟
-    → 检查 akshare 各接口可用性
   → output.render(results, meta={"healthy": N, "total": M})
 ```
 
-### 5.11 缓存清除 (`stk cache clear`) 🆕
+### 5.10 缓存清除 (`stk cache clear`)
 
 ```
 stk cache clear [--prefix PREFIX]
@@ -249,109 +298,6 @@ stk cache clear [--prefix PREFIX]
   → store/cache.clear_cache(prefix)
     → 按 prefix 过滤缓存条目（prefix="" 清除全部）
   → output.render({"cleared": N, "prefix": "..."})
-```
-
-### 5.4 基本面 (`stk stock fundamental`)
-
-```
-stk stock fundamental compare 600519 --type growth
-  → services/fundamental.py: get_comparison(symbol, category="growth")
-    → utils/symbol.py: to_em_symbol("600519") → "SH600519"
-    → ak.stock_zh_growth_comparison_em("SH600519")
-    → DataFrame rows → list[CompanyMetric] (行业中值/平均 + 同行 + 目标股)
-  → models/fundamental.py: IndustryComparison(symbol, category, companies)
-
-stk stock valuation 700.HK
-  → services/fundamental.py: get_valuation(symbol)
-    → ctx.calc_indexes(["700.HK"], [CalcIndex.PeTtmRatio, PbRatio, TotalMarketValue, ...])
-    → 返回全量指标：PE/PB/市值/涨跌幅/资金流/换手率/振幅/量比/股息率等
-    → 权证/期权标的额外返回：行权价/杠杆/Delta/Gamma 等希腊字母
-  → models/fundamental.py: Valuation(pe_ttm_ratio, pb_ratio, total_market_value, ...)
-```
-
-支持的对比类型：`growth`（成长性）、`valuation`（估值）、`dupont`（杜邦分析，仅 A 股）
-
-### 5.5 市场概览 (`stk market`)
-
-```
-stk market index
-  → services/market.py: get_indices()
-    → ctx.quote(MAJOR_INDICES)  # 7 大指数批量查询
-    → MAJOR_INDICES = [000001.SH, 399001.SZ, 399006.SZ, HSI.HK, .IXIC, .DJI, .SPX]
-  → models/market.py: list[IndexQuote]
-
-stk market temperature
-  → services/market.py: get_temperature()
-    → ctx.market_temperature(Market.CN)
-  → models/market.py: MarketTemperature(score, level, valuation, sentiment)
-
-stk market breadth
-  → services/market.py: get_breadth()
-    → ak.stock_zh_a_spot_em() → 涨跌家数统计
-    → ak.stock_zt_pool_em(date) → 涨停数
-    → ak.stock_zt_pool_dtgc_em(date) → 跌停数
-  → models/market.py: MarketBreadth(up_count, down_count, flat_count, limit_up, limit_down)
-
-stk market news --source cls
-  → services/news.py: get_global_news(source="cls", count=20)
-    → ak.stock_info_global_cls(symbol="全部")
-  → models/news.py: list[NewsItem]
-```
-
-### 5.6 板块数据 (`stk board`)
-
-```
-stk board list --type sector
-  → services/board.py: get_board_list(type="sector")
-    → ak.stock_board_industry_name_em()
-    → DataFrame → list[BoardItem](code, name, metrics)
-  → models/quote.py: BoardList(type, items)
-
-stk board cons 酿酒行业 --type sector
-  → services/board.py: get_board_cons(name="酿酒行业", type="sector")
-    → ak.stock_board_industry_cons_em(symbol="酿酒行业")
-  → models/quote.py: BoardCons(board, type, items)
-
-stk board flow 酿酒行业 --type sector
-  → services/board.py: get_sector_flow_hist(name="酿酒行业", type="sector")
-    → ak.stock_sector_fund_flow_hist(symbol="酿酒行业")
-  → models/flow.py: SectorFlowHist(name, type, days[])
-
-stk board detail 酿酒行业 --period 今日
-  → services/board.py: get_sector_flow_detail(name="酿酒行业", period="今日")
-    → ak.stock_sector_fund_flow_summary(symbol="酿酒行业", indicator="今日")
-  → models/flow.py: SectorFlowDetail(sector, period, items[])
-```
-
-### 5.7 排名数据 (`stk stock rank`)
-
-```
-stk stock rank --type hot
-  → services/rank.py: get_hot_rank()
-    → ak.stock_hot_rank_em()
-  → models/market.py: TechRank(type="hot", label="人气榜", items[])
-
-stk stock rank --type tech --screen lxsz
-  → services/rank.py: get_tech_rank(type="lxsz", ma="20 日均线")
-    → ak.stock_rank_lxsz_ths()
-  → models/market.py: TechRank(type="lxsz", label="连续上涨", items[])
-
-stk stock rank --type flow --scope stock --period 今日
-  → services/flow.py: get_flow_rank(scope="stock", period="今日")
-    → ak.stock_individual_fund_flow_rank(indicator="今日")
-  → models/flow.py: FlowRank(scope, period, items[])
-```
-
-### 5.8 个股资金流 (`stk stock flow`)
-
-```
-stk stock flow 600519
-  → services/flow.py: get_stock_flow(symbol="600519")
-    → to_longport_symbol("600519") → "600519.SH"
-    → ctx.capital_distribution("600519.SH") → 大/中/小单进出
-    → ctx.capital_flow("600519.SH") → 日内分钟级 inflow
-    → (A 股) ak.stock_individual_fund_flow(stock="600519", market="sh") → 历史数据
-  → models/flow.py: StockFlow(symbol, large_in/out, medium_in/out, small_in/out, intraday[], history[])
 ```
 
 ---
@@ -383,39 +329,31 @@ stk stock flow 600519
 
 ## 8. akshare 补充功能
 
-| 功能 | 服务 | akshare API | 说明 |
-|------|------|------------|------|
-| 全局新闻 | `news.get_global_news()` | `stock_info_global_cls/ths/em` | 财联社/同花顺/东方财富 |
-| 个股新闻 | `news.get_news()` | `stock_news_em` | A 股新闻 |
-| 筹码分布 | `chip.get_chip_distribution()` | `stock_cyq_em` | A 股筹码成本 |
-| 市场广度 | `market.get_breadth()` | `stock_zh_a_spot_em` + `stock_zt_pool_em` | 涨跌家数 + 涨停跌停 |
-| 行业对比 | `fundamental.get_comparison()` | `stock_zh_growth/valuation/dupont_comparison_em` | 成长性/估值/杜邦 vs 同行 |
-| 板块行情 | `board.get_board_list/cons()` | `stock_board_industry/concept_*_em` | 行业/概念板块 |
-| 板块资金流 | `board.get_sector_flow_hist/detail()` | `stock_sector_fund_flow_hist/summary` | 板块历史/个股明细 |
-| 人气/技术排名 | `rank.get_hot_rank()/get_tech_rank()` | `stock_hot_rank_em`, `stock_rank_*_ths` | 人气榜/技术选股 |
-| 资金流排名 | `flow.get_flow_rank()` | `stock_individual/main/sector_fund_flow_rank` | 个股/主力/板块排名 |
+| 功能 | 服务 | akshare API | 数据源 |
+|------|------|------------|--------|
+| 全局新闻 | `news.get_global_news()` | `stock_info_global_cls/ths` | 财联社/同花顺 |
+| 技术选股 | `rank.get_tech_rank()` | `stock_rank_lxsz/cxfl/xstp/ljqs_ths` | 同花顺 |
+| 行业对比 | `fundamental.get_comparison()` | `stock_zh_growth/valuation/dupont_comparison_em` | 东方财富（数据中心） |
+| 主营业务 | `fundamental.get_profile()` | `stock_zyjs_ths` | 同花顺 |
 
 ---
 
-## 9. 服务层文件结构（重组后）
+## 9. 服务层文件结构
 
 ```
 services/
-├── board.py          # 板块数据：list, cons, sector_flow_hist/detail
-├── rank.py           # 排名数据：hot_rank, tech_rank
-├── quote.py          # 实时报价：get_quote (stock/index/sector/concept)
-├── market.py         # 市场概览：indices, temperature, breadth
-├── flow.py           # 资金流：stock_flow, flow_rank
+├── rank.py           # 技术选股排名（同花顺）
+├── quote.py          # 实时报价（longport）
+├── market.py         # 市场概览：indices, temperature
+├── flow.py           # 个股资金流（longport capital_distribution + capital_flow）
 ├── fundamental.py    # 基本面：valuation (calc_indexes), comparison, profile
 ├── history.py        # K 线历史（供 indicator.py 内部调用）
 ├── indicator.py      # 技术指标 (ta-lib) + get_daily (OHLCV + 全部指标合并)
-├── news.py           # 新闻资讯
-├── chip.py           # 筹码分布
+├── news.py           # 全局新闻（财联社/同花顺）
+├── score.py          # 多指标共振评分 + ATR 风控
 ├── watchlist.py      # 自选股 CRUD (longport API + 本地 group ID 缓存)
 ├── longport_quote.py # Longport 原始 API 封装
-├── score.py          # 多指标共振评分 + ATR 风控 🆕
-├── health.py         # 数据源健康检查 🆕
-└── symbol.py         # （已移至 utils/symbol.py）
+└── health.py         # 数据源健康检查
 ```
 
 ---
