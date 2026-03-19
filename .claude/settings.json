@@ -20,14 +20,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run ruff check --fix && uv run ty check",
+            "command": "uv run ruff check && uv run ty check",
             "timeout": 30
           }
         ]
       }
     ]
   },
-  "enabledPlugins": {
-    "aws-serverless@claude-plugins-official": true
-  }
+  "enabledPlugins": {}
 }
