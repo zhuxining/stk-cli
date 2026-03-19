@@ -184,30 +184,38 @@ def _to_decimal(val: object) -> Decimal | None:
     return r2(Decimal(s))
 
 
-def get_valuation(symbol: str) -> Valuation:
-    """Get valuation metrics via longport calc_indexes."""
+def _build_valuation(r, lp_symbol: str) -> Valuation:
+    """Build Valuation model from a single longport calc_indexes result."""
+    data: dict[str, str | Decimal | int | None] = {"symbol": lp_symbol}
+    for attr, field in _DECIMAL_FIELDS:
+        data[field] = _to_decimal(getattr(r, attr, None))
+    for attr, field in _INT_FIELDS:
+        val = getattr(r, attr, None)
+        data[field] = int(val) if val else None
+    data["expiry_date"] = str(r.expiry_date) if getattr(r, "expiry_date", None) else None
+    return Valuation(**data)  # type: ignore[arg-type]
+
+
+def get_valuations(symbols: list[str]) -> list[Valuation]:
+    """Get valuation metrics for multiple symbols in a single API call."""
     try:
         ctx = get_longport_ctx()
-        lp_symbol = to_longport_symbol(symbol)
+        lp_symbols = [to_longport_symbol(s) for s in symbols]
 
-        results = ctx.calc_indexes([lp_symbol], _VALUATION_INDEXES)
+        results = ctx.calc_indexes(lp_symbols, _VALUATION_INDEXES)
         if not results:
-            raise SourceError(f"No valuation data for {symbol}")
-        r = results[0]
+            raise SourceError(f"No valuation data for {symbols}")
 
-        data: dict[str, str | Decimal | int | None] = {"symbol": lp_symbol}
-        for attr, field in _DECIMAL_FIELDS:
-            data[field] = _to_decimal(getattr(r, attr, None))
-        for attr, field in _INT_FIELDS:
-            val = getattr(r, attr, None)
-            data[field] = int(val) if val else None
-        data["expiry_date"] = str(r.expiry_date) if getattr(r, "expiry_date", None) else None
-
-        return Valuation(**data)  # type: ignore[arg-type]
+        return [_build_valuation(r, lp_symbols[i]) for i, r in enumerate(results)]
     except SourceError:
         raise
     except Exception as e:
         raise SourceError(f"Longport valuation API error: {e}") from e
+
+
+def get_valuation(symbol: str) -> Valuation:
+    """Get valuation metrics for a single symbol."""
+    return get_valuations([symbol])[0]
 
 
 @cached(ttl=604800, disk=True)

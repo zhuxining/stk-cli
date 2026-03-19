@@ -71,21 +71,19 @@ def fundamental(
 
 @app.command()
 def valuation(
-    symbol: str = typer.Argument(help="Stock symbol"),
+    symbols: list[str] = typer.Argument(help="One or more stock symbols"),
 ) -> None:
-    """Get calc index metrics (PE, PB, market cap, change rates, etc)."""
-    from stk.services.fundamental import get_valuation
+    """Get calc index metrics (PE, PB, market cap, change rates, etc). Accepts multiple symbols."""
+    from stk.services.fundamental import get_valuations
 
-    result = get_valuation(symbol)
-    output.render(result)
+    results = get_valuations(symbols)
+    output.render(results if len(results) > 1 else results[0])
 
 
 @app.command()
 def indicator(
     symbol: str = typer.Argument(help="Symbol or name"),
-    name: str = typer.Argument(
-        None, help="Indicator: EMA/MACD/RSI/KDJ/BOLL/ATR (omit for all)"
-    ),
+    name: str = typer.Argument(None, help="Indicator: EMA/MACD/RSI/KDJ/BOLL/ATR (omit for all)"),
     type: TargetType = typer.Option(TargetType.STOCK, "--type", "-t", help="Target type"),
     period: str = typer.Option("day", "--period", "-p", help="K-line period"),
     count: int = typer.Option(10, "--count", "-c", help="Number of data points"),
@@ -124,12 +122,29 @@ def history(
 
 @app.command("flow")
 def flow_cmd(
-    symbol: str = typer.Argument(help="Stock symbol (e.g. 600519, 700.HK)"),
+    symbols: list[str] = typer.Argument(help="One or more stock symbols (e.g. 600519 700.HK)"),
 ) -> None:
-    """Get individual stock money flow (realtime + recent history)."""
-    from stk.services.flow import get_stock_flow
+    """Get individual stock money flow. Accepts multiple symbols."""
+    if len(symbols) == 1:
+        from stk.services.flow import get_stock_flow
 
-    result = get_stock_flow(symbol)
+        result = get_stock_flow(symbols[0])
+        output.render(result)
+    else:
+        from stk.services.flow import get_stock_flows
+
+        results = get_stock_flows(symbols)
+        output.render(list(results.values()))
+
+
+@app.command()
+def summary(
+    symbols: list[str] = typer.Argument(help="One or more symbols (e.g. 600519 000001 700.HK)"),
+) -> None:
+    """Batch analysis: quote + score + valuation + flow in one call. Accepts multiple symbols."""
+    from stk.services.scan import batch_summary
+
+    result = batch_summary(symbols)
     output.render(result)
 
 

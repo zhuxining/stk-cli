@@ -29,13 +29,14 @@ paths: "**/*.{py}"
 
 ```python
 # Good
-def process(items: list[str], limit: int | None = None) -> dict[str, int]:
-    ...
+def process(items: list[str], limit: int | None = None) -> dict[str, int]: ...
+
 
 # Bad
 from typing import Optional, List, Dict
-def process(items: List[str], limit: Optional[int] = None) -> Dict[str, int]:
-    ...
+
+
+def process(items: List[str], limit: Optional[int] = None) -> Dict[str, int]: ...
 ```
 
 ### 现代 Python 语法

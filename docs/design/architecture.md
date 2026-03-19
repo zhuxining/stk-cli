@@ -26,17 +26,19 @@ stk
 | `stk stock quote` | `services/quote.get_quote()` | 实时报价 |
 | `stk stock profile` | `services/fundamental.get_profile()` | 公司概况 |
 | `stk stock fundamental` | `services/fundamental.get_comparison()` | 同业对比 |
-| `stk stock valuation` | `services/fundamental.get_valuation()` | 估值指标 (via calc_indexes) |
+| `stk stock valuation` | `services/fundamental.get_valuations()` | 估值指标（支持多 symbol，单次 API） |
 | `stk stock history` | `services/indicator.get_daily()` | K 线 + 全部技术指标（合并） |
 | `stk stock indicator` | `services/indicator.calc_indicator()` | 单个技术指标查询 |
 | `stk stock score` | `services/score.calc_score()` | 多指标共振评分 + ATR 风控 |
-| `stk stock flow` | `services/flow.get_stock_flow()` | 个股资金流（longport） |
+| `stk stock flow` | `services/flow.get_stock_flow()` | 个股资金流（支持多 symbol，并行） |
+| `stk stock summary` | `services/scan.batch_summary()` | 批量分析：quote+score+valuation+flow |
 | `stk watchlist list` | `services/watchlist.list_watchlists()` | 列出所有分组 |
 | `stk watchlist show` | `services/watchlist.get_watchlist()` | 查看分组内标的 |
 | `stk watchlist create` | `services/watchlist.create_group()` | 创建分组 |
 | `stk watchlist add` | `services/watchlist.add_symbol()` | 添加标的到分组 |
 | `stk watchlist remove` | `services/watchlist.remove_symbol()` | 从分组移除标的 |
 | `stk watchlist delete` | `services/watchlist.delete_group()` | 删除分组 |
+| `stk watchlist scan` | `services/scan.scan_watchlist()` | 批量扫描：quote+score+valuation+flow |
 | `stk doctor check` | `services/health.run_health_check()` | 数据源健康检查 |
 | `stk cache clear` | `store/cache.clear_cache()` | 缓存清除 |
 
@@ -91,23 +93,24 @@ stk
 
 ```python
 class TargetType(StrEnum):
-    STOCK = "stock"       # 个股（默认）
-    SECTOR = "sector"     # 行业板块
-    CONCEPT = "concept"   # 概念板块
-    INDEX = "index"       # 指数
+    STOCK = "stock"  # 个股（默认）
+    SECTOR = "sector"  # 行业板块
+    CONCEPT = "concept"  # 概念板块
+    INDEX = "index"  # 指数
 ```
 
 ### 各类型支持矩阵
 
-| 命令 | stock | index | sector | concept |
-|------|-------|-------|--------|---------|
-| `stock quote` | ✅ | ✅ | ❌ | ❌ |
-| `stock history` | ✅ | ✅ | ❌ | ❌ |
-| `stock indicator` | ✅ | ✅ | ❌ | ❌ |
-| `stock valuation` | ✅ | ❌ | ❌ | ❌ |
-| `stock fundamental` | ✅ | ❌ | ❌ | ❌ |
-| `stock flow` | ✅ | ❌ | ❌ | ❌ |
-| `stock score` | ✅ | ❌ | ❌ | ❌ |
+| 命令 | stock | index | sector | concept | 多 symbol |
+|------|-------|-------|--------|---------|-----------|
+| `stock quote` | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `stock history` | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `stock indicator` | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `stock valuation` | ✅ | ❌ | ❌ | ❌ | ✅（批量 API） |
+| `stock fundamental` | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `stock flow` | ✅ | ❌ | ❌ | ❌ | ✅（并行） |
+| `stock score` | ✅ | ❌ | ❌ | ❌ | ✅ |
+| `stock summary` | ✅ | ❌ | ❌ | ❌ | ✅（全量批量） |
 
 ---
 
@@ -117,7 +120,7 @@ class TargetType(StrEnum):
 |----------|-------------|----------|
 | `stock quote` | `ctx.quote([symbols])` | 实时行情 |
 | `stock history` | `ctx.candlesticks(symbol, period, count, adjust)` | K 线 + 全部技术指标 |
-| `stock valuation` | `ctx.calc_indexes([symbol], [CalcIndex.*])` | PE/PB/市值/涨跌/资金流等全量指标 |
+| `stock valuation` | `ctx.calc_indexes([symbols], [CalcIndex.*])` | PE/PB/市值/涨跌/资金流等（支持批量） |
 | `market index` | `ctx.quote(MAJOR_INDICES)` | 批量指数行情 |
 | `market temperature` | `ctx.market_temperature(Market.CN)` | 市场温度 |
 | `stock flow` | `ctx.capital_distribution()` + `ctx.capital_flow()` | 资金分布 + 日内流向 |
@@ -194,11 +197,11 @@ stk stock fundamental 600519 --type growth
     → DataFrame rows → list[CompanyMetric] (行业中值/平均 + 同行 + 目标股)
   → models/fundamental.py: IndustryComparison(symbol, category, companies)
 
-stk stock valuation 700.HK
-  → services/fundamental.py: get_valuation(symbol)
-    → ctx.calc_indexes(["700.HK"], [CalcIndex.PeTtmRatio, PbRatio, TotalMarketValue, ...])
-    → 返回全量指标：PE/PB/市值/涨跌幅/资金流/换手率/振幅/量比/股息率等
-  → models/fundamental.py: Valuation(pe_ttm_ratio, pb_ratio, total_market_value, ...)
+stk stock valuation 700.HK 600519
+  → services/fundamental.py: get_valuations(symbols)
+    → ctx.calc_indexes(["700.HK", "600519.SH"], [CalcIndex.PeTtmRatio, ...])
+    → 单次 API 返回全量指标：PE/PB/市值/涨跌幅/资金流/换手率/振幅/量比/股息率等
+  → models/fundamental.py: list[Valuation]
 ```
 
 支持的对比类型：`growth`（成长性）、`valuation`（估值）、`dupont`（杜邦分析，仅 A 股）
@@ -280,7 +283,31 @@ ATR 风控（基于 ATR×2 止损 / ATR×3 止盈）：
 盈亏比 = (止盈价 - 当前价) / (当前价 - 止损价)  # 理论值 ≈ 1.5
 ```
 
-### 5.9 数据源健康检查 (`stk doctor check`)
+### 5.9 批量分析 (`stk watchlist scan` / `stk stock summary`)
+
+```
+stk watchlist scan ETF
+stk stock summary 600519 000001 700.HK
+  → services/scan.py: _batch_analyze(symbols, names)
+    1. get_realtime_quotes(symbols)      → 1 次批量 API
+    2. get_valuations(symbols)           → 1 次批量 API (calc_indexes)
+    3. ThreadPoolExecutor(max_workers=8)
+       ├─ calc_score(symbol) × N         → 并行（含 history + flow）
+       └─ get_stock_flows(non_etf)       → 并行 + @cached(ttl=300)
+    4. 合并 quote + valuation + score + flow → ScanItem[]
+  → models/scan.py: ScanResult(group_name, total, items[])
+```
+
+ScanItem 包含全量维度：行情、评分、估值（PE/PB/市值/股息率/量比）、资金流摘要。
+
+**性能优化**：
+
+- `get_stock_flow()` 加 `@cached(ttl=300)`：scan 后再查 flow 直接命中缓存
+- `get_valuations()` 原生批量：N 个 symbol 仅 1 次 API 调用
+- `calc_score()` 并行：30 只股票从 ~30s → ~4s
+- `get_stock_flows()` 并行 + 缓存：减少 API 调用 + 加速
+
+### 5.10 数据源健康检查 (`stk doctor check`)
 
 ```
 stk doctor check
@@ -290,7 +317,7 @@ stk doctor check
   → output.render(results, meta={"healthy": N, "total": M})
 ```
 
-### 5.10 缓存清除 (`stk cache clear`)
+### 5.11 缓存清除 (`stk cache clear`)
 
 ```
 stk cache clear [--prefix PREFIX]
@@ -345,12 +372,13 @@ services/
 ├── rank.py           # 技术选股排名（同花顺）
 ├── quote.py          # 实时报价（longport）
 ├── market.py         # 市场概览：indices, temperature
-├── flow.py           # 个股资金流（longport capital_distribution + capital_flow）
-├── fundamental.py    # 基本面：valuation (calc_indexes), comparison, profile
+├── flow.py           # 个股资金流（longport，@cached(ttl=300) + 并行批量）
+├── fundamental.py    # 基本面：valuation (批量 calc_indexes), comparison, profile
 ├── history.py        # K 线历史（供 indicator.py 内部调用）
 ├── indicator.py      # 技术指标 (ta-lib) + get_daily (OHLCV + 全部指标合并)
 ├── news.py           # 全局新闻（财联社/同花顺）
 ├── score.py          # 多指标共振评分 + ATR 风控
+├── scan.py           # 批量分析核心：_batch_analyze() + watchlist scan + summary
 ├── watchlist.py      # 自选股 CRUD (longport API + 本地 group ID 缓存)
 ├── longport_quote.py # Longport 原始 API 封装
 └── health.py         # 数据源健康检查

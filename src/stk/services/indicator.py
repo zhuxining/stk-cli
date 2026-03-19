@@ -186,9 +186,7 @@ def get_daily(
     df = _fetch_df(symbol, target_type=target_type, period=period, count=count + warmup)
 
     # Compute all indicators on full df
-    indicator_rows = {
-        name: calc_fn(df, {}) for name, calc_fn in _INDICATOR_MAP.items()
-    }
+    indicator_rows = {name: calc_fn(df, {}) for name, calc_fn in _INDICATOR_MAP.items()}
 
     # Take last `count` rows, merge OHLCV + indicators per day
     n = len(df)
@@ -208,9 +206,7 @@ def get_daily(
         if i > 0:
             prev_close = df.iloc[i - 1]["close"]
             if prev_close:
-                day["change_pct"] = round(
-                    (row["close"] - prev_close) / prev_close * 100, 2
-                )
+                day["change_pct"] = round((row["close"] - prev_close) / prev_close * 100, 2)
         # Merge indicator values (skip date key)
         for values in indicator_rows.values():
             for k, v in values[i].items():

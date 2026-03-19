@@ -19,6 +19,14 @@ class ScanItem(BaseModel):
     buy_signals: list[str] = []
     sell_signals: list[str] = []
     alerts: list[str] = []
+    # Valuation fields
+    pe_ttm: Decimal | None = None
+    pb: Decimal | None = None
+    total_market_value: Decimal | None = None
+    dividend_yield: Decimal | None = None
+    volume_ratio: Decimal | None = None
+    # Flow summary
+    net_main_flow: Decimal | None = None  # 主力净流入（万元）
 
 
 class ScanResult(BaseModel):

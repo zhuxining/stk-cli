@@ -13,6 +13,7 @@ def to_longport_symbol(symbol: str) -> str:
 
     - 700.HK / AAPL.US / HSI.HK / 000001.SH → pass through
     - .DJI / .IXIC / .SPX → pass through (US index)
+    - 515220 → 515220.SH (上交所 ETF, 5xxxxx)
     - 600519 / 688001 → 600519.SH / 688001.SH (上交所主板/科创板)
     - 000001 / 002001 / 300001 → 000001.SZ / 002001.SZ / 300001.SZ (深交所)
     - 800001 / 830001 / 430001 / 920001 → .BJ (北交所)
@@ -26,8 +27,8 @@ def to_longport_symbol(symbol: str) -> str:
         # 北交所 (4/8/9 开头)
         if symbol.startswith(("4", "8", "9")):
             return f"{symbol}.BJ"
-        # 上交所 (6 开头，含科创板 688)
-        if symbol.startswith("6"):
+        # 上交所 (5 开头 ETF, 6 开头含科创板 688)
+        if symbol.startswith(("5", "6")):
             return f"{symbol}.SH"
         # 深交所 (0/2/3 开头)
         return f"{symbol}.SZ"
