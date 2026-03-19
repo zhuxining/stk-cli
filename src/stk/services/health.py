@@ -3,8 +3,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
-import akshare as ak
-
 
 @dataclass
 class HealthResult:
@@ -38,36 +36,6 @@ def _check_api(name: str, fn: Callable[[], bool], desc: str) -> HealthResult:
         return HealthResult(name, "FAIL", error_msg[:50], 0.0)
 
 
-def check_akshare_eastmoney() -> HealthResult:
-    """Check akshare eastmoney board API."""
-
-    def fn():
-        df = ak.stock_board_industry_name_em()
-        return not df.empty
-
-    return _check_api("akshare (eastmoney)", fn, "行业板块 API")
-
-
-def check_akshare_push2() -> HealthResult:
-    """Check akshare push2 API (market fund flow)."""
-
-    def fn():
-        df = ak.stock_market_fund_flow()
-        return not df.empty
-
-    return _check_api("akshare (push2)", fn, "市场资金流 API")
-
-
-def check_akshare_news() -> HealthResult:
-    """Check akshare news API."""
-
-    def fn():
-        df = ak.stock_news_em(symbol="000001")
-        return not df.empty
-
-    return _check_api("akshare (news)", fn, "新闻 API")
-
-
 def check_longport() -> HealthResult:
     """Check longport connection."""
 
@@ -81,16 +49,6 @@ def check_longport() -> HealthResult:
 
 
 def run_health_check(*, quick: bool = False) -> list[HealthResult]:
-    """
-    Run all health checks.
-
-    Args:
-        quick: If True, only check critical APIs (eastmoney + longport)
-
-    """
-    fns = (
-        [check_akshare_eastmoney, check_longport]
-        if quick
-        else [check_akshare_eastmoney, check_akshare_push2, check_akshare_news, check_longport]
-    )
+    """Run all health checks."""
+    fns = [check_longport]
     return [fn() for fn in fns]

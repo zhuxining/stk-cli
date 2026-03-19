@@ -20,34 +20,3 @@ class Quote(BaseModel):
     volume: int | None = None
     turnover: Decimal | None = None
     timestamp: str | None = None
-
-
-class BoardItem(BaseModel):
-    """Board (sector/concept) quote item."""
-
-    code: str
-    name: str
-    metrics: dict[str, Decimal | None]
-
-
-class BoardList(BaseModel):
-    """Board listing result."""
-
-    type: str  # "sector" / "concept"
-    items: list[BoardItem]
-
-
-class ConsItem(BaseModel):
-    """A constituent stock in a board."""
-
-    code: str
-    name: str
-    metrics: dict[str, Decimal | None]
-
-
-class BoardCons(BaseModel):
-    """Board constituent stocks."""
-
-    board: str
-    type: str  # "sector" / "concept"
-    items: list[ConsItem]

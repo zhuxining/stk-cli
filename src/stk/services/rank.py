@@ -78,31 +78,3 @@ def get_tech_rank(
         raise
     except Exception as e:
         raise SourceError(f"Failed to fetch {type} rank: {e}") from e
-
-
-@cached(ttl=300)
-def get_hot_rank() -> TechRank:
-    """Get stock popularity ranking from EastMoney."""
-    try:
-        df = ak.stock_hot_rank_em()
-        if df.empty:
-            raise SourceError("No hot rank data")
-
-        items: list[TechRankItem] = []
-        skip = {"当前排名", "代码", "股票名称"}
-        cols = [c for c in df.columns if c not in skip]
-        for _, row in df.iterrows():
-            metrics = {c: str(row[c]) if row[c] is not None else None for c in cols}
-            items.append(
-                TechRankItem(
-                    code=str(row["代码"]),
-                    name=str(row["股票名称"]),
-                    metrics=metrics,
-                )
-            )
-
-        return TechRank(type="hot", label="人气榜", items=items)
-    except SourceError:
-        raise
-    except Exception as e:
-        raise SourceError(f"Failed to fetch hot rank: {e}") from e

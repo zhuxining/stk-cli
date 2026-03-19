@@ -10,8 +10,6 @@ app = typer.Typer(help="Individual stock data and analysis", no_args_is_help=Tru
 
 @app.command()
 def rank(
-    type: str = typer.Option("hot", "--type", "-t", help="Rank type: hot/tech/flow"),
-    # tech-specific
     screen: str = typer.Option(
         "lxsz",
         "--screen",
@@ -23,40 +21,11 @@ def rank(
         "--ma",
         help="MA line (xstp only): 5日均线/10日均线/20日均线/60日均线/250日均线",
     ),
-    # flow-specific
-    scope: str = typer.Option(
-        "stock",
-        "--scope",
-        help="Flow scope: stock/main/sector/concept",
-    ),
-    period: str = typer.Option(
-        "今日",
-        "--period",
-        "-p",
-        help="Flow period: 今日/3日/5日/10日",
-    ),
-    market: str = typer.Option(
-        "全部股票",
-        "--market",
-        "-m",
-        help="Market filter (flow main scope only)",
-    ),
 ) -> None:
-    """Unified ranking: hot stocks, technical screening, or fund flow ranking."""
-    if type == "hot":
-        from stk.services.rank import get_hot_rank
+    """Technical screening ranking (THS)."""
+    from stk.services.rank import get_tech_rank
 
-        result = get_hot_rank()
-    elif type == "tech":
-        from stk.services.rank import get_tech_rank
-
-        result = get_tech_rank(type=screen, ma=ma)
-    elif type == "flow":
-        from stk.services.flow import get_flow_rank
-
-        result = get_flow_rank(scope=scope, period=period, market=market)
-    else:
-        raise typer.BadParameter(f"Unknown rank type: {type}")
+    result = get_tech_rank(type=screen, ma=ma)
     output.render(result)
 
 
@@ -153,18 +122,6 @@ def history(
     output.render(result)
 
 
-@app.command("news")
-def news_cmd(
-    symbol: str = typer.Argument(help="Stock symbol (e.g. 600519)"),
-    count: int = typer.Option(10, "--count", "-c", help="Number of items"),
-) -> None:
-    """List recent news for an individual stock."""
-    from stk.services.news import get_news
-
-    result = get_news(symbol, count=count)
-    output.render(result, meta={"count": len(result)})
-
-
 @app.command("flow")
 def flow_cmd(
     symbol: str = typer.Argument(help="Stock symbol (e.g. 600519, 700.HK)"),
@@ -173,17 +130,6 @@ def flow_cmd(
     from stk.services.flow import get_stock_flow
 
     result = get_stock_flow(symbol)
-    output.render(result)
-
-
-@app.command()
-def chip(
-    symbol: str = typer.Argument(help="Stock symbol (e.g. 600519)"),
-) -> None:
-    """Get chip cost distribution."""
-    from stk.services.chip import get_chip_distribution
-
-    result = get_chip_distribution(symbol)
     output.render(result)
 
 

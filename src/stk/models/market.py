@@ -39,13 +39,3 @@ class TechRank(BaseModel):
     type: str  # lxsz / cxfl / xstp / ljqs
     label: str  # 连续上涨 / 持续放量 / 向上突破 / 量价齐升
     items: list[TechRankItem]
-
-
-class MarketBreadth(BaseModel):
-    """Market breadth data."""
-
-    up_count: int
-    down_count: int
-    flat_count: int = 0
-    limit_up: int = 0
-    limit_down: int = 0

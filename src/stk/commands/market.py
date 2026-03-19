@@ -4,7 +4,7 @@ import typer
 
 from stk import output
 
-app = typer.Typer(help="Market indices, temperature, breadth, and news", no_args_is_help=True)
+app = typer.Typer(help="Market indices, temperature, and news", no_args_is_help=True)
 
 
 @app.command()
@@ -25,22 +25,13 @@ def temp() -> None:
     output.render(result)
 
 
-@app.command()
-def breadth() -> None:
-    """Get market breadth (advance/decline stats)."""
-    from stk.services.market import get_breadth
-
-    result = get_breadth()
-    output.render(result)
-
-
 @app.command("news")
 def news_cmd(
     source: str = typer.Option(
         "cls",
         "--source",
         "-s",
-        help="Source: cls (财联社) / ths (同花顺) / em (东方财富)",
+        help="Source: cls (财联社) / ths (同花顺)",
     ),
     count: int = typer.Option(20, "--count", "-c", help="Number of items"),
     filter_: str = typer.Option(

@@ -5,7 +5,6 @@ import akshare as ak
 from stk.errors import SourceError
 from stk.models.news import NewsItem
 from stk.store.cache import cached
-from stk.utils.symbol import extract_code, to_longport_symbol
 
 # Column mapping: akshare column name → NewsItem field
 _GLOBAL_SOURCE_CONFIG = {
@@ -26,42 +25,7 @@ _GLOBAL_SOURCE_CONFIG = {
         "url": "链接",
         "source_name": "同花顺",
     },
-    "em": {
-        "api": "stock_info_global_em",
-        "kwargs_fn": lambda _: {},
-        "title": "标题",
-        "summary": "摘要",
-        "published_at": "发布时间",
-        "url": "链接",
-        "source_name": "东方财富",
-    },
 }
-
-
-@cached(ttl=300)
-def get_news(symbol: str, *, count: int = 10) -> list[NewsItem]:
-    """Get recent news for an individual stock (A-share)."""
-    lp_symbol = to_longport_symbol(symbol)
-    ak_symbol = extract_code(lp_symbol)
-
-    try:
-        df = ak.stock_news_em(symbol=ak_symbol)
-        df = df.head(count)
-
-        items = [
-            NewsItem(
-                title=row["新闻标题"],
-                summary=row["新闻内容"],
-                published_at=row["发布时间"],
-                source=row["文章来源"],
-                url=row["新闻链接"],
-            )
-            for _, row in df.iterrows()
-        ]
-        items.reverse()
-        return items
-    except Exception as e:
-        raise SourceError(f"Failed to fetch news for {symbol}: {e}") from e
 
 
 @cached(ttl=300)
