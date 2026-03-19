@@ -1,4 +1,18 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)",
+      "Bash(cd:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(uv:*)",
+      "Bash(uv run:*)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
@@ -13,19 +27,7 @@
       }
     ]
   },
-  "enabledPlugins": {},
-  "permissions": {
-    "allow": [
-      "Bash(git:*)",
-      "Bash(git commit:*)",
-      "Bash(git add:*)",
-      "Bash(cd:*)",
-      "Bash(grep:*)",
-      "Bash(find:*)",
-      "Bash(ls:*)",
-      "Bash(cat:*)",
-      "Bash(uv:*)",
-      "Bash(uv run:*)"
-    ]
+  "enabledPlugins": {
+    "aws-serverless@claude-plugins-official": true
   }
 }
