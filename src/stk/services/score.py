@@ -10,6 +10,7 @@ import talib
 from stk.errors import IndicatorError, SourceError
 from stk.models.score import ScoreDimension, ScoreResult
 from stk.services.history import candles_to_df, get_history
+from stk.utils.symbol import is_etf
 
 
 def _safe_last(series: pd.Series | np.ndarray) -> float | None:
@@ -28,7 +29,7 @@ def _prev(series: pd.Series | np.ndarray, offset: int = 1) -> float | None:
 
 def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     """
-    Calculate multi-indicator resonance score for a stock.
+    Calculate multi-indicator resonance score for a stock or ETF.
 
     Scoring system (100 points total):
     - RSI signal:      20 points
@@ -36,10 +37,12 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     - MACD signal:     15 points
     - BOLL signal:     15 points
     - Volume surge:    15 points
-    - Money flow:      15 points
+    - Money flow:      15 points (skipped for ETF, score normalized to 100)
 
     Also calculates ATR-based stop-loss/take-profit when possible.
     """
+    etf_mode = is_etf(symbol)
+
     candles = get_history(symbol, count=count)
     if not candles or len(candles) < 20:
         got = len(candles) if candles else 0
@@ -95,8 +98,12 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     kdj_signal = None
 
     if k_now is not None and d_now is not None:
-        golden_cross = k_prev is not None and d_prev is not None and k_prev <= d_prev and k_now > d_now
-        death_cross = k_prev is not None and d_prev is not None and k_prev >= d_prev and k_now < d_now
+        golden_cross = (
+            k_prev is not None and d_prev is not None and k_prev <= d_prev and k_now > d_now
+        )
+        death_cross = (
+            k_prev is not None and d_prev is not None and k_prev >= d_prev and k_now < d_now
+        )
 
         if golden_cross and (j_now is None or j_now < 50):
             kdj_score = 20
@@ -248,42 +255,49 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     total += vol_score
     dimensions.append(ScoreDimension(name="量价", score=vol_score, max_score=15, signal=vol_signal))
 
-    # --- 6. Money flow (15 points) ---
+    # --- 6. Money flow (15 points, skipped for ETF) ---
     flow_score = 0.0
     flow_signal = None
 
-    try:
-        from stk.services.flow import get_stock_flow
+    if etf_mode:
+        flow_signal = "不适用 (ETF)"
+    else:
+        try:
+            from stk.services.flow import get_stock_flow
 
-        flow = get_stock_flow(symbol)
-        if flow.large_in is not None and flow.large_out is not None:
-            net_large = flow.large_in - flow.large_out
-            net_medium = (flow.medium_in or Decimal(0)) - (flow.medium_out or Decimal(0))
-            net_main = net_large + net_medium
-            net_main_wan = float(net_main) / 10000
+            flow = get_stock_flow(symbol)
+            if flow.large_in is not None and flow.large_out is not None:
+                net_large = flow.large_in - flow.large_out
+                net_medium = (flow.medium_in or Decimal(0)) - (flow.medium_out or Decimal(0))
+                net_main = net_large + net_medium
+                net_main_wan = float(net_main) / 10000
 
-            if net_main > 5_000_000:
-                flow_score = 15
-                flow_signal = f"主力大幅流入 (+{net_main_wan:.0f}万)"
-                buy_signals.append(f"主力流入 (+{net_main_wan:.0f}万)")
-            elif net_main > 0:
-                flow_score = 8
-                flow_signal = f"主力小幅流入 (+{net_main_wan:.0f}万)"
-            elif net_main > -5_000_000:
-                flow_score = 3
-                flow_signal = f"主力小幅流出 ({net_main_wan:.0f}万)"
-            else:
-                flow_score = 0
-                flow_signal = f"主力大幅流出 ({net_main_wan:.0f}万)"
-                sell_signals.append(f"主力流出 ({net_main_wan:.0f}万)")
-    except (SourceError, Exception) as e:
-        logger.debug(f"Flow data unavailable for {symbol}: {e}")
-        flow_signal = "数据不可用"
+                if net_main > 5_000_000:
+                    flow_score = 15
+                    flow_signal = f"主力大幅流入 (+{net_main_wan:.0f}万)"
+                    buy_signals.append(f"主力流入 (+{net_main_wan:.0f}万)")
+                elif net_main > 0:
+                    flow_score = 8
+                    flow_signal = f"主力小幅流入 (+{net_main_wan:.0f}万)"
+                elif net_main > -5_000_000:
+                    flow_score = 3
+                    flow_signal = f"主力小幅流出 ({net_main_wan:.0f}万)"
+                else:
+                    flow_score = 0
+                    flow_signal = f"主力大幅流出 ({net_main_wan:.0f}万)"
+                    sell_signals.append(f"主力流出 ({net_main_wan:.0f}万)")
+        except (SourceError, Exception) as e:
+            logger.debug(f"Flow data unavailable for {symbol}: {e}")
+            flow_signal = "数据不可用"
 
     total += flow_score
+    flow_max = 0 if etf_mode else 15
     dimensions.append(
-        ScoreDimension(name="资金", score=flow_score, max_score=15, signal=flow_signal)
+        ScoreDimension(name="资金", score=flow_score, max_score=flow_max, signal=flow_signal)
     )
+
+    # Normalize ETF score to 100-point scale (tech dims sum to max 85)
+    total_score = round(total / 85 * 100, 1) if etf_mode else round(total, 1)
 
     # --- ATR stop-loss / take-profit ---
     atr_val = None
@@ -301,12 +315,13 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
         rr_ratio = round((take_profit - current_price) / risk, 1) if risk > 0 else None
 
     # --- Rating ---
-    rating = _get_rating(total)
+    rating = _get_rating(total_score)
 
     return ScoreResult(
         symbol=symbol,
-        total_score=round(total, 1),
+        total_score=total_score,
         rating=rating,
+        mode="etf" if etf_mode else "stock",
         dimensions=dimensions,
         buy_signals=buy_signals,
         sell_signals=sell_signals,

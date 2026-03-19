@@ -21,6 +21,7 @@ class ScoreResult(BaseModel):
     dimensions: list[ScoreDimension]
     buy_signals: list[str]
     sell_signals: list[str]
+    mode: str = "stock"  # "stock" | "etf"
     # ATR-based trade points (optional, A-share only when history available)
     atr: float | None = None
     stop_loss: float | None = None

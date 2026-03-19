@@ -78,3 +78,12 @@ def to_hk_code(symbol: str) -> str:
 def extract_code(symbol: str) -> str:
     """Strip market suffix: '600519.SH' → '600519', '700.HK' → '700'."""
     return symbol.split(".")[0] if "." in symbol else symbol
+
+
+def is_etf(symbol: str) -> bool:
+    """Check if symbol is an A-share ETF (SH:5xxxxx / SZ:159xxx)."""
+    lp = to_longport_symbol(symbol)
+    code = extract_code(lp)
+    if lp.endswith(".SH") and code.startswith("5"):
+        return True
+    return bool(lp.endswith(".SZ") and code.startswith("159"))

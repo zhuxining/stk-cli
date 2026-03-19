@@ -20,3 +20,4 @@ class Quote(BaseModel):
     volume: int | None = None
     turnover: Decimal | None = None
     timestamp: str | None = None
+    source: str = "realtime"  # "realtime" | "last_close"

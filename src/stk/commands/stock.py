@@ -31,14 +31,14 @@ def rank(
 
 @app.command()
 def quote(
-    symbol: str = typer.Argument(help="Symbol or name (e.g. 600519, 700.HK)"),
+    symbols: list[str] = typer.Argument(help="One or more symbols (e.g. 600519 700.HK)"),
     type: TargetType = typer.Option(TargetType.STOCK, "--type", "-t", help="Target type"),
 ) -> None:
-    """Get real-time quote for a symbol."""
-    from stk.services.quote import get_quote
+    """Get real-time quotes. Accepts multiple symbols in a single call."""
+    from stk.services.quote import get_quotes
 
-    result = get_quote(symbol, target_type=type)
-    output.render(result, meta={"source": "auto"})
+    results = get_quotes(symbols, target_type=type)
+    output.render(results, meta={"source": "auto"})
 
 
 @app.command()
@@ -110,16 +110,16 @@ def indicator(
 
 @app.command()
 def history(
-    symbol: str = typer.Argument(help="Symbol or name"),
+    symbols: list[str] = typer.Argument(help="One or more symbols"),
     type: TargetType = typer.Option(TargetType.STOCK, "--type", "-t", help="Target type"),
     period: str = typer.Option("day", "--period", "-p", help="Period: day/week/month"),
     count: int = typer.Option(10, "--count", "-c", help="Number of days"),
 ) -> None:
-    """Get OHLCV + all technical indicators (merged per day)."""
+    """Get OHLCV + all technical indicators (merged per day). Accepts multiple symbols."""
     from stk.services.indicator import get_daily
 
-    result = get_daily(symbol, target_type=type, period=period, count=count)
-    output.render(result)
+    results = [get_daily(s, target_type=type, period=period, count=count) for s in symbols]
+    output.render(results)
 
 
 @app.command("flow")
@@ -135,11 +135,11 @@ def flow_cmd(
 
 @app.command()
 def score(
-    symbol: str = typer.Argument(help="Stock symbol (e.g. 600519, 700.HK)"),
+    symbols: list[str] = typer.Argument(help="One or more symbols (e.g. 600519 700.HK)"),
     count: int = typer.Option(60, "--count", "-c", help="History data points for calculation"),
 ) -> None:
-    """Multi-indicator resonance score (RSI+KDJ+MACD+BOLL+volume+flow)."""
+    """Multi-indicator resonance score (RSI+KDJ+MACD+BOLL+volume+flow). Accepts multiple symbols."""
     from stk.services.score import calc_score
 
-    result = calc_score(symbol, count=count)
-    output.render(result)
+    results = [calc_score(s, count=count) for s in symbols]
+    output.render(results)

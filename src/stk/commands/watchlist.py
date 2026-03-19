@@ -78,3 +78,15 @@ def delete(
 
     delete_group(name)
     output.render(ActionResult(message=f"Deleted group '{name}'"))
+
+
+@app.command()
+def scan(
+    name: str = typer.Argument(help="Watchlist group name"),
+    sort: str = typer.Option("change_pct", "--sort", "-s", help="Sort by: change_pct / score"),
+) -> None:
+    """Batch scan a watchlist: quote + score all members in one call, sorted by change."""
+    from stk.services.scan import scan_watchlist
+
+    result = scan_watchlist(name, sort=sort)
+    output.render(result)
