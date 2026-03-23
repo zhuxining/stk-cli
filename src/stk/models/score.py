@@ -17,15 +17,10 @@ class ScoreResult(BaseModel):
 
     symbol: str
     total_score: float
-    rating: str  # A+ / A / B+ / B / C
     dimensions: list[ScoreDimension]
-    buy_signals: list[str]
-    sell_signals: list[str]
-    mode: str = "stock"  # "stock" | "etf"
-    # ADX trend strength context
-    trend_strength: str | None = None  # "trending" | "ranging" | None
+    signals: list[str]  # "[买] ..." / "[卖] ..."
     adx: float | None = None
-    # ATR-based trade points (optional, A-share only when history available)
+    # ATR-based trade points
     atr: float | None = None
     stop_loss: float | None = None
     take_profit: float | None = None

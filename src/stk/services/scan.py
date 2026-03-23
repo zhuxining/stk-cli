@@ -1,30 +1,20 @@
-"""Watchlist scan service — batch quote + score + valuation + flow in one call."""
+"""Watchlist scan service — batch quote + score + valuation + profile in one call."""
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from decimal import Decimal
 
 from loguru import logger
 
-from stk.models.flow import StockFlow
 from stk.models.fundamental import Valuation
 from stk.models.quote import Quote
 from stk.models.scan import ScanItem, ScanResult
 from stk.models.score import ScoreResult
-from stk.services.flow import get_stock_flows
 from stk.services.fundamental import get_valuations
 from stk.services.longport_quote import get_realtime_quotes
 from stk.services.score import calc_score
 from stk.services.watchlist import get_watchlist
 from stk.utils.price import r2
 
-
-def _calc_net_main_flow(flow: StockFlow) -> Decimal | None:
-    """Calculate net main flow in 万元 from a StockFlow object."""
-    if flow.large_in is None or flow.large_out is None:
-        return None
-    net_large = flow.large_in - flow.large_out
-    net_medium = (flow.medium_in or Decimal(0)) - (flow.medium_out or Decimal(0))
-    return r2((net_large + net_medium) / 10000)
+_ALERT = "[警] "
 
 
 def _batch_analyze(
@@ -33,7 +23,7 @@ def _batch_analyze(
     *,
     max_workers: int = 8,
 ) -> list[ScanItem]:
-    """Batch analysis: quote + score + valuation + flow, all parallelized."""
+    """Batch analysis: quote + score + valuation + profile, all parallelized."""
     if not symbols:
         return []
 
@@ -68,11 +58,22 @@ def _batch_analyze(
             except Exception as e:
                 logger.debug(f"Score failed for {symbol}: {e}")
 
-    # 4. Parallel flow (with cache) — skip ETFs
-    from stk.utils.symbol import is_etf, to_longport_symbol
+    # 4. Parallel profile (7-day disk cache, errors are non-fatal)
+    from stk.services.fundamental import get_profile
+    from stk.utils.symbol import to_longport_symbol
 
-    non_etf_symbols = [s for s in symbols if not is_etf(s)]
-    flow_map = get_stock_flows(non_etf_symbols, max_workers=max_workers) if non_etf_symbols else {}
+    profile_map: dict[str, str] = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures_p = {executor.submit(get_profile, s): s for s in symbols}
+        for future in as_completed(futures_p):
+            symbol = futures_p[future]
+            try:
+                profile = future.result()
+                if profile.main_business:
+                    lp_sym = to_longport_symbol(symbol)
+                    profile_map[lp_sym] = profile.main_business
+            except Exception as e:
+                logger.debug(f"Profile failed for {symbol}: {e}")
 
     # 5. Assemble ScanItems
     items: list[ScanItem] = []
@@ -81,27 +82,16 @@ def _batch_analyze(
         q = quote_map.get(lp_sym)
         sc = score_map.get(symbol)
         v = valuation_map.get(lp_sym)
-        fl = flow_map.get(lp_sym)
 
+        # Merge signals: score signals + price alerts
+        signals: list[str] = list(sc.signals) if sc else []
         change_pct = q.change_pct if q else None
-        is_etf_mode = sc.mode == "etf" if sc else False
-        alerts: list[str] = []
         if change_pct is not None:
             cpct = float(change_pct)
-            up_thresh, down_thresh = (2, -2) if is_etf_mode else (5, -3)
-            if cpct >= up_thresh:
-                alerts.append(f"大涨 ({cpct:+.1f}%)")
-            elif cpct <= down_thresh:
-                alerts.append(f"大跌 ({cpct:.1f}%)")
-
-        # RSI alerts from score
-        if sc:
-            for sig in sc.buy_signals:
-                if "RSI超卖" in sig:
-                    alerts.append(sig)
-            for sig in sc.sell_signals:
-                if "RSI超买" in sig:
-                    alerts.append(sig)
+            if cpct >= 5:
+                signals.append(f"{_ALERT}大涨 ({cpct:+.1f}%)")
+            elif cpct <= -3:
+                signals.append(f"{_ALERT}大跌 ({cpct:.1f}%)")
 
         items.append(
             ScanItem(
@@ -111,24 +101,24 @@ def _batch_analyze(
                 change_pct=change_pct,
                 source=q.source if q else "unknown",
                 score=sc.total_score if sc else None,
-                rating=sc.rating if sc else None,
-                mode=sc.mode if sc else "stock",
-                buy_signals=sc.buy_signals if sc else [],
-                sell_signals=sc.sell_signals if sc else [],
-                alerts=alerts,
+                signals=signals,
+                score_detail={d.name: d.signal for d in sc.dimensions if d.signal} if sc else {},
                 pe_ttm=v.pe_ttm_ratio if v else None,
                 pb=v.pb_ratio if v else None,
-                total_market_value=v.total_market_value if v else None,
                 dividend_yield=v.dividend_ratio_ttm if v else None,
                 volume_ratio=v.volume_ratio if v else None,
-                trend_strength=sc.trend_strength if sc else None,
-                adx=sc.adx if sc else None,
+                turnover_rate=v.turnover_rate if v else None,
+                amplitude=v.amplitude if v else None,
                 change_5d=v.five_day_change_rate if v else None,
                 change_10d=v.ten_day_change_rate if v else None,
+                ytd_change_rate=v.ytd_change_rate if v else None,
+                adx=sc.adx if sc else None,
                 atr=sc.atr if sc else None,
                 stop_loss=sc.stop_loss if sc else None,
                 take_profit=sc.take_profit if sc else None,
-                net_main_flow=_calc_net_main_flow(fl) if fl else None,
+                risk_reward_ratio=sc.risk_reward_ratio if sc else None,
+                capital_flow=r2(v.capital_flow / 10000) if v and v.capital_flow else None,
+                main_business=profile_map.get(lp_sym),
             )
         )
 

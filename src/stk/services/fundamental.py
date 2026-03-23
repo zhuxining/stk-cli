@@ -103,28 +103,6 @@ _VALUATION_INDEXES = [
     CalcIndex.TenDayChangeRate,
     CalcIndex.HalfYearChangeRate,
     CalcIndex.FiveMinutesChangeRate,
-    CalcIndex.ExpiryDate,
-    CalcIndex.StrikePrice,
-    CalcIndex.UpperStrikePrice,
-    CalcIndex.LowerStrikePrice,
-    CalcIndex.OutstandingQty,
-    CalcIndex.OutstandingRatio,
-    CalcIndex.Premium,
-    CalcIndex.ItmOtm,
-    CalcIndex.ImpliedVolatility,
-    CalcIndex.WarrantDelta,
-    CalcIndex.CallPrice,
-    CalcIndex.ToCallPrice,
-    CalcIndex.EffectiveLeverage,
-    CalcIndex.LeverageRatio,
-    CalcIndex.ConversionRatio,
-    CalcIndex.BalancePoint,
-    CalcIndex.OpenInterest,
-    CalcIndex.Delta,
-    CalcIndex.Gamma,
-    CalcIndex.Theta,
-    CalcIndex.Vega,
-    CalcIndex.Rho,
 ]
 
 # Mapping: (longport attr name, model field name, converter)
@@ -147,31 +125,10 @@ _DECIMAL_FIELDS = [
     ("ten_day_change_rate", "ten_day_change_rate"),
     ("half_year_change_rate", "half_year_change_rate"),
     ("five_minutes_change_rate", "five_minutes_change_rate"),
-    ("strike_price", "strike_price"),
-    ("upper_strike_price", "upper_strike_price"),
-    ("lower_strike_price", "lower_strike_price"),
-    ("outstanding_ratio", "outstanding_ratio"),
-    ("premium", "premium"),
-    ("itm_otm", "itm_otm"),
-    ("implied_volatility", "implied_volatility"),
-    ("warrant_delta", "warrant_delta"),
-    ("call_price", "call_price"),
-    ("to_call_price", "to_call_price"),
-    ("effective_leverage", "effective_leverage"),
-    ("leverage_ratio", "leverage_ratio"),
-    ("conversion_ratio", "conversion_ratio"),
-    ("balance_point", "balance_point"),
-    ("delta", "delta"),
-    ("gamma", "gamma"),
-    ("theta", "theta"),
-    ("vega", "vega"),
-    ("rho", "rho"),
 ]
 
 _INT_FIELDS = [
     ("volume", "volume"),
-    ("outstanding_qty", "outstanding_qty"),
-    ("open_interest", "open_interest"),
 ]
 
 
@@ -192,7 +149,6 @@ def _build_valuation(r, lp_symbol: str) -> Valuation:
     for attr, field in _INT_FIELDS:
         val = getattr(r, attr, None)
         data[field] = int(val) if val else None
-    data["expiry_date"] = str(r.expiry_date) if getattr(r, "expiry_date", None) else None
     return Valuation(**data)  # type: ignore[arg-type]
 
 

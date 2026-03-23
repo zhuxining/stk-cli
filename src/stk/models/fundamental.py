@@ -53,26 +53,3 @@ class Valuation(BaseModel):
     ten_day_change_rate: Decimal | None = None
     half_year_change_rate: Decimal | None = None
     five_minutes_change_rate: Decimal | None = None
-    # Warrant / Option fields
-    expiry_date: str | None = None
-    strike_price: Decimal | None = None
-    upper_strike_price: Decimal | None = None
-    lower_strike_price: Decimal | None = None
-    outstanding_qty: int | None = None
-    outstanding_ratio: Decimal | None = None
-    premium: Decimal | None = None
-    itm_otm: Decimal | None = None
-    implied_volatility: Decimal | None = None
-    warrant_delta: Decimal | None = None
-    call_price: Decimal | None = None
-    to_call_price: Decimal | None = None
-    effective_leverage: Decimal | None = None
-    leverage_ratio: Decimal | None = None
-    conversion_ratio: Decimal | None = None
-    balance_point: Decimal | None = None
-    open_interest: int | None = None
-    delta: Decimal | None = None
-    gamma: Decimal | None = None
-    theta: Decimal | None = None
-    vega: Decimal | None = None
-    rho: Decimal | None = None
