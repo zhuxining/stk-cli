@@ -10,6 +10,7 @@ class IndexQuote(BaseModel):
 
     symbol: str
     name: str
+    region: str  # "CN" / "HK" / "US"
     last: Decimal
     change: Decimal | None = None
     change_pct: Decimal | None = None
@@ -23,6 +24,13 @@ class MarketTemperature(BaseModel):
     level: str  # description from longport (e.g. 冰点/偏冷/中性/偏热/沸点)
     valuation: int | None = None
     sentiment: int | None = None
+
+
+class MarketOverview(BaseModel):
+    """Combined market indices + temperature by region."""
+
+    indices: dict[str, list[IndexQuote]]  # {"CN": [...], "HK": [...], "US": [...]}
+    temperature: dict[str, MarketTemperature]  # {"CN": ..., "HK": ..., "US": ...}
 
 
 class TechRankItem(BaseModel):

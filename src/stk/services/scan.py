@@ -9,7 +9,7 @@ from stk.models.quote import Quote
 from stk.models.scan import ScanItem, ScanResult
 from stk.models.score import ScoreResult
 from stk.services.fundamental import get_valuations
-from stk.services.longport_quote import get_realtime_quotes
+from stk.services.quote import get_realtime_quotes
 from stk.services.score import calc_score
 from stk.services.watchlist import get_watchlist
 from stk.utils.price import r2
@@ -148,3 +148,21 @@ def batch_summary(symbols: list[str]) -> ScanResult:
     items.sort(key=lambda x: x.score or 0, reverse=True)
 
     return ScanResult(group_name="ad-hoc", total=len(items), items=items)
+
+
+def kline_watchlist(name: str, *, period: str = "day", count: int = 10) -> list:
+    """Fetch K-line + all indicators for every stock in a watchlist group."""
+    from stk.services.indicator import get_daily
+
+    watchlist = get_watchlist(name)
+    symbols = [s.symbol for s in watchlist.securities]
+
+    results: list = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(get_daily, s, period=period, count=count): s for s in symbols}
+        for future in as_completed(futures):
+            try:
+                results.append(future.result())
+            except Exception as e:
+                logger.warning(f"kline failed for {futures[future]}: {e}")
+    return results

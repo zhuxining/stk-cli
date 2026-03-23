@@ -4,24 +4,18 @@ import typer
 
 from stk import output
 
-app = typer.Typer(help="Market indices, temperature, and news", no_args_is_help=True)
+app = typer.Typer(help="Market overview and news", invoke_without_command=True)
 
 
-@app.command()
-def index() -> None:
-    """Get major index quotes."""
-    from stk.services.market import get_indices
+@app.callback()
+def market_overview(ctx: typer.Context) -> None:
+    """Get market overview: indices grouped by region + temperature."""
+    if ctx.invoked_subcommand is not None:
+        return
 
-    result = get_indices()
-    output.render(result, meta={"count": len(result)})
+    from stk.services.market import get_market_overview
 
-
-@app.command()
-def temp() -> None:
-    """Get market temperature score (0-100)."""
-    from stk.services.market import get_temperature
-
-    result = get_temperature()
+    result = get_market_overview()
     output.render(result)
 
 

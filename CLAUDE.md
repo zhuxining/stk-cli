@@ -48,21 +48,20 @@ src/stk/
 ├── errors.py           # Custom exceptions + global error handler
 ├── deps.py             # Lazy singletons (longport ctx, etc.)
 ├── commands/           # Thin layer: parse args → call service → render output
-│   ├── market.py       # stk market — index, temp, news
-│   ├── stock.py        # stk stock — rank, quote, profile, fundamental, valuation, history, indicator, flow, score
-│   ├── watchlist.py    # stk watchlist — longport watchlist group CRUD
+│   ├── market.py       # stk market — grouped indices + temperature; stk market news
+│   ├── stock.py        # stk stock — scan, kline, fundamental, rank
+│   ├── watchlist.py    # stk watchlist — CRUD + scan + kline
 │   ├── doctor.py       # stk doctor — data source health check
 │   └── cache.py        # stk cache — cache management
 ├── services/           # Business logic: call APIs → return Pydantic models
 │   ├── rank.py         # Stock technical rankings (THS)
-│   ├── quote.py        # Real-time quotes via longport
-│   ├── market.py       # Market overview: indices, temperature
-│   ├── flow.py         # Individual stock flow via longport
+│   ├── market.py       # Market overview: indices (CN/HK/US), temperature
 │   ├── fundamental.py  # Valuation (via calc_indexes), industry comparison, profile
-│   ├── longport_quote.py
-│   ├── history.py
+│   ├── quote.py # Longport raw API wrapper
+│   ├── history.py      # K-line history fetch + caching
 │   ├── indicator.py    # ta-lib calculations + get_daily (OHLCV + all indicators merged)
 │   ├── score.py        # Multi-indicator resonance score + ATR risk control
+│   ├── scan.py         # Batch analysis: watchlist scan + stock scan + kline_watchlist
 │   ├── health.py       # Data source connectivity check
 │   ├── news.py         # Global news (CLS / THS)
 │   └── watchlist.py    # Watchlist via longport API, local group ID cache

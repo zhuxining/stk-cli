@@ -90,3 +90,16 @@ def scan(
 
     result = scan_watchlist(name, sort=sort)
     output.render(result)
+
+
+@app.command()
+def kline(
+    name: str = typer.Argument(help="Watchlist group name"),
+    period: str = typer.Option("day", "--period", "-p", help="Period: day/week/month"),
+    count: int = typer.Option(10, "--count", "-c", help="Number of days"),
+) -> None:
+    """Get K-line + all indicators for every stock in a watchlist group."""
+    from stk.services.scan import kline_watchlist
+
+    results = kline_watchlist(name, period=period, count=count)
+    output.render(results, meta={"group": name, "count": len(results)})

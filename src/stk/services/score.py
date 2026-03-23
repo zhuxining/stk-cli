@@ -116,8 +116,12 @@ def _calc_momentum(
 
     # KDJ sub-score (0~1)
     k, d = talib.STOCH(
-        high.to_numpy(), low.to_numpy(), close.to_numpy(),
-        fastk_period=9, slowk_period=3, slowd_period=3,
+        high.to_numpy(),
+        low.to_numpy(),
+        close.to_numpy(),
+        fastk_period=9,
+        slowk_period=3,
+        slowd_period=3,
     )
     j = 3 * k - 2 * d
     k_now, d_now, j_now = _safe_last(k), _safe_last(d), _safe_last(j)
@@ -277,9 +281,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
 
     # --- 1. Momentum (RSI + KDJ merged) ---
     mom_max = float(w["momentum"])
-    mom_score, mom_signal, mom_sigs = _calc_momentum(
-        close, high, low, max_score=mom_max
-    )
+    mom_score, mom_signal, mom_sigs = _calc_momentum(close, high, low, max_score=mom_max)
     signals.extend(mom_sigs)
     total += mom_score
     dimensions.append(
@@ -289,7 +291,10 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     # --- 2. MACD (15 points) ---
     close_arr = close.to_numpy()
     macd, macd_signal, macd_hist = talib.MACD(
-        close_arr, fastperiod=12, slowperiod=26, signalperiod=9,
+        close_arr,
+        fastperiod=12,
+        slowperiod=26,
+        signalperiod=9,
     )
     macd_now = _safe_last(macd)
     signal_now = _safe_last(macd_signal)
@@ -434,9 +439,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
 
     # --- 6. MFI (Money Flow Index) ---
     mfi_max = float(w["mfi"])
-    mfi_score, mfi_signal, mfi_sigs = _calc_mfi(
-        high, low, close, volume, max_score=mfi_max
-    )
+    mfi_score, mfi_signal, mfi_sigs = _calc_mfi(high, low, close, volume, max_score=mfi_max)
     signals.extend(mfi_sigs)
     total += mfi_score
     dimensions.append(
@@ -445,9 +448,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
 
     # --- 7. Divergence (MACD histogram) ---
     div_max = float(w["div"])
-    div_score, div_signal, div_sigs = _calc_divergence(
-        close, macd_hist, max_score=div_max
-    )
+    div_score, div_signal, div_sigs = _calc_divergence(close, macd_hist, max_score=div_max)
     signals.extend(div_sigs)
     total += div_score
     dimensions.append(

@@ -8,7 +8,7 @@ import talib
 
 from stk.errors import IndicatorError
 from stk.models.common import TargetType
-from stk.models.indicator import AllIndicatorsResult, DailyResult, IndicatorResult
+from stk.models.indicator import DailyResult
 from stk.services.history import candles_to_df, get_history
 
 _EMA_PERIODS = (5, 10, 20, 60)
@@ -127,51 +127,6 @@ def _fetch_df(
     if not candles:
         raise IndicatorError(f"No history data for {symbol}")
     return candles_to_df(candles)
-
-
-def calc_indicator(
-    symbol: str,
-    indicator_name: str,
-    *,
-    target_type: TargetType = TargetType.STOCK,
-    period: str = "day",
-    count: int = 60,
-    **params,
-) -> IndicatorResult:
-    """Calculate a single technical indicator for the given symbol."""
-    name_upper = indicator_name.upper()
-    calc_fn = _INDICATOR_MAP.get(name_upper)
-    if calc_fn is None:
-        supported = ", ".join(sorted(_INDICATOR_MAP))
-        raise IndicatorError(f"Unknown indicator: {indicator_name}. Supported: {supported}")
-
-    df = _fetch_df(symbol, target_type=target_type, period=period, count=count)
-    values = calc_fn(df, params)[::-1]
-
-    return IndicatorResult(
-        symbol=symbol,
-        indicator=name_upper,
-        params=params or None,
-        values=values,
-    )
-
-
-def calc_all_indicators(
-    symbol: str,
-    *,
-    target_type: TargetType = TargetType.STOCK,
-    period: str = "day",
-    count: int = 10,
-) -> AllIndicatorsResult:
-    """Calculate all indicators in one pass (single history fetch).
-
-    Fetches enough history for indicator warm-up, returns only the last *count* rows.
-    """
-    # MACD(26+9) and BOLL/MA(20) need warm-up; 60 extra bars is sufficient
-    warmup = 60
-    df = _fetch_df(symbol, target_type=target_type, period=period, count=count + warmup)
-    indicators = {name: calc_fn(df, {})[-count:][::-1] for name, calc_fn in _INDICATOR_MAP.items()}
-    return AllIndicatorsResult(symbol=symbol, indicators=indicators)
 
 
 def get_daily(

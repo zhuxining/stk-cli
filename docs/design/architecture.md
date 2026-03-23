@@ -4,41 +4,35 @@
 
 ## 1. 命令结构
 
-按 **市场 → 个股** 两层逻辑组织：
+按 **市场 → 个股 → 自选股** 三层逻辑组织：
 
 ```
 stk
-├── market      # 市场整体：指数、温度、新闻
-├── stock       # 个股：报价、基本面、技术指标、资金流、评分等
-├── watchlist   # 自选股管理
-├── doctor      # 数据源健康检查
-└── cache       # 缓存管理
+├── market            # 市场整体：指数(CN/HK/US分组) + 温度 + 新闻
+├── stock             # 个股：scan(综合分析), kline(K线+指标), fundamental, rank
+├── watchlist         # 自选股：CRUD + scan + kline
+├── doctor            # 数据源健康检查
+└── cache             # 缓存管理
 ```
 
 ### 命令与服务映射
 
 | 命令 | 服务层文件 | 说明 |
 |------|-----------|------|
-| `stk market index` | `services/market.get_indices()` | 大盘指数 |
-| `stk market temp` | `services/market.get_temperature()` | 市场温度 |
+| `stk market` | `services/market.get_market_overview()` | CN/HK/US 指数分组 + 三市场温度 |
 | `stk market news` | `services/news.get_global_news()` | 全局新闻（cls/ths） |
-| `stk stock rank` | `services/rank.get_tech_rank()` | 技术选股排名（同花顺） |
-| `stk stock quote` | `services/quote.get_quote()` | 实时报价 |
-| `stk stock profile` | `services/fundamental.get_profile()` | 公司概况 |
+| `stk stock scan` | `services/scan.batch_summary()` | 综合分析：quote+score+valuation（多 symbol） |
+| `stk stock kline` | `services/indicator.get_daily()` | K 线 + 全部技术指标（多 symbol） |
 | `stk stock fundamental` | `services/fundamental.get_comparison()` | 同业对比 |
-| `stk stock valuation` | `services/fundamental.get_valuations()` | 估值指标（支持多 symbol，单次 API） |
-| `stk stock history` | `services/indicator.get_daily()` | K 线 + 全部技术指标（合并） |
-| `stk stock indicator` | `services/indicator.calc_indicator()` | 单个技术指标查询 |
-| `stk stock score` | `services/score.calc_score()` | 多指标共振评分 + ATR 风控 |
-| `stk stock flow` | `services/flow.get_stock_flow()` | 个股资金流（支持多 symbol，并行） |
-| `stk stock summary` | `services/scan.batch_summary()` | 批量分析：quote+score+valuation+flow |
+| `stk stock rank` | `services/rank.get_tech_rank()` | 技术选股排名（同花顺） |
 | `stk watchlist list` | `services/watchlist.list_watchlists()` | 列出所有分组 |
 | `stk watchlist show` | `services/watchlist.get_watchlist()` | 查看分组内标的 |
 | `stk watchlist create` | `services/watchlist.create_group()` | 创建分组 |
 | `stk watchlist add` | `services/watchlist.add_symbol()` | 添加标的到分组 |
 | `stk watchlist remove` | `services/watchlist.remove_symbol()` | 从分组移除标的 |
 | `stk watchlist delete` | `services/watchlist.delete_group()` | 删除分组 |
-| `stk watchlist scan` | `services/scan.scan_watchlist()` | 批量扫描：quote+score+valuation+flow |
+| `stk watchlist scan` | `services/scan.scan_watchlist()` | 批量扫描全组：quote+score+valuation |
+| `stk watchlist kline` | `services/scan.kline_watchlist()` | 全组 K 线 + 全部技术指标（并行） |
 | `stk doctor check` | `services/health.run_health_check()` | 数据源健康检查 |
 | `stk cache clear` | `store/cache.clear_cache()` | 缓存清除 |
 
@@ -103,14 +97,10 @@ class TargetType(StrEnum):
 
 | 命令 | stock | index | sector | concept | 多 symbol |
 |------|-------|-------|--------|---------|-----------|
-| `stock quote` | ✅ | ✅ | ❌ | ❌ | ✅ |
-| `stock history` | ✅ | ✅ | ❌ | ❌ | ✅ |
-| `stock indicator` | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `stock valuation` | ✅ | ❌ | ❌ | ❌ | ✅（批量 API） |
+| `stock scan` | ✅ | ❌ | ❌ | ❌ | ✅（全量批量） |
+| `stock kline` | ✅ | ✅ | ❌ | ❌ | ✅ |
 | `stock fundamental` | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `stock flow` | ✅ | ❌ | ❌ | ❌ | ✅（并行） |
-| `stock score` | ✅ | ❌ | ❌ | ❌ | ✅ |
-| `stock summary` | ✅ | ❌ | ❌ | ❌ | ✅（全量批量） |
+| `stock rank` | ✅ | ❌ | ❌ | ❌ | — |
 
 ---
 
@@ -118,37 +108,54 @@ class TargetType(StrEnum):
 
 | stk 命令 | Longport API | 返回类型 |
 |----------|-------------|----------|
-| `stock quote` | `ctx.quote([symbols])` | 实时行情 |
-| `stock history` | `ctx.candlesticks(symbol, period, count, adjust)` | K 线 + 全部技术指标 |
-| `stock valuation` | `ctx.calc_indexes([symbols], [CalcIndex.*])` | PE/PB/市值/涨跌/资金流等（支持批量） |
-| `market index` | `ctx.quote(MAJOR_INDICES)` | 批量指数行情 |
-| `market temperature` | `ctx.market_temperature(Market.CN)` | 市场温度 |
-| `stock flow` | `ctx.capital_distribution()` + `ctx.capital_flow()` | 资金分布 + 日内流向 |
+| `market` | `ctx.quote(MAJOR_INDICES)` + `ctx.market_temperature(Market.CN/HK/US)` | 分组指数行情 + 三市场温度 |
+| `stock scan` | `ctx.quote()` + `ctx.calc_indexes()` | 实时行情 + 估值指标（批量） |
+| `stock kline` | `ctx.candlesticks(symbol, period, count, adjust)` | K 线 + 全部技术指标 |
 | `watchlist *` | `ctx.watchlist()` / `ctx.create_watchlist_group()` / `ctx.update_watchlist_group()` / `ctx.delete_watchlist_group()` | 自选股分组管理 |
 
 ---
 
 ## 5. 命令数据流
 
-### 5.1 实时行情 (`stk stock quote`)
+### 5.1 市场概览 (`stk market`)
 
 ```
-stk stock quote 600519
-  → commands/stock.py: quote()
-  → services/quote.py: get_quote(symbol, target_type)
-    → utils/symbol.py: to_longport_symbol("600519") → "600519.SH"
-    → services/longport_quote.py: get_realtime_quote("600519.SH")
-      → ctx.quote(["600519.SH"])
-      → 计算 change / change_pct
-  → models/quote.py: Quote(symbol, name, last, open, high, low, prev_close, ...)
-  → output.py: JSON envelope 输出
+stk market
+  → commands/market.py: market_overview() (callback, invoke_without_command)
+  → services/market.py: get_market_overview()
+    → get_indices(): ctx.quote(9 大指数) → 按 CN/HK/US 分组
+      → CN: 000001.SH, 399001.SZ, 399006.SZ
+      → HK: HSI.HK, HSCEI.HK, HSTECH.HK
+      → US: .IXIC, .DJI, .SPX
+    → _get_temperature_for_market("CN"/"HK"/"US") × 3
+  → models/market.py: MarketOverview(indices, temperature)
+
+stk market news --source cls
+  → services/news.py: get_global_news(source="cls", count=20)
+  → models/news.py: list[NewsItem]
 ```
 
-### 5.2 K 线 + 全部指标 (`stk stock history`)
+### 5.2 综合分析 (`stk stock scan`)
 
 ```
-stk stock history 600519 --count 10
-  → commands/stock.py: history()
+stk stock scan 600519 700.HK
+  → commands/stock.py: scan()
+  → services/scan.py: batch_summary(symbols)
+    → _batch_analyze(symbols, names):
+      1. get_realtime_quotes(symbols)      → 1 次批量 API
+      2. get_valuations(symbols)           → 1 次批量 API (calc_indexes)
+      3. ThreadPoolExecutor(max_workers=8)
+         ├─ calc_score(symbol) × N         → 并行
+         └─ get_profile(symbol) × N        → 并行 + 7天磁盘缓存
+      4. 合并 quote + valuation + score + profile → ScanItem[]
+  → models/scan.py: ScanResult(group_name, total, items[])
+```
+
+### 5.3 K 线 + 全部指标 (`stk stock kline`)
+
+```
+stk stock kline 600519 --count 10
+  → commands/stock.py: kline()
   → services/indicator.py: get_daily(symbol, count=10)
     → get_history(count=10+60) → 拉取 70 根 K 线（60 根用于指标预热）
     → 在同一 DataFrame 上计算全部指标（EMA/MACD/RSI/KDJ/BOLL/ATR）
@@ -167,26 +174,6 @@ stk stock history 600519 --count 10
 - BOLL：upper, middle, lower
 - ATR：ATR14
 
-### 5.3 单指标查询 (`stk stock indicator`)
-
-```
-stk stock indicator 600519 MACD --count 60
-  → services/indicator.py: calc_indicator(symbol, "MACD", count=60)
-    → get_history() → pandas DataFrame
-    → talib.MACD(close, 12, 26, 9) → macd, signal, hist
-  → models/indicator.py: IndicatorResult(symbol, indicator, params, values)
-```
-
-支持的指标：EMA, MACD, RSI, KDJ, BOLL, ATR
-
-省略 name 参数时计算全部指标（按指标名分组返回）：
-
-```
-stk stock indicator 600519
-  → services/indicator.py: calc_all_indicators(symbol, count=10)
-  → models/indicator.py: AllIndicatorsResult(symbol, indicators)
-```
-
 ### 5.4 基本面 (`stk stock fundamental`)
 
 ```
@@ -196,39 +183,11 @@ stk stock fundamental 600519 --type growth
     → ak.stock_zh_growth_comparison_em("SH600519")
     → DataFrame rows → list[CompanyMetric] (行业中值/平均 + 同行 + 目标股)
   → models/fundamental.py: IndustryComparison(symbol, category, companies)
-
-stk stock valuation 700.HK 600519
-  → services/fundamental.py: get_valuations(symbols)
-    → ctx.calc_indexes(["700.HK", "600519.SH"], [CalcIndex.PeTtmRatio, ...])
-    → 单次 API 返回全量指标：PE/PB/市值/涨跌幅/资金流/换手率/振幅/量比/股息率等
-  → models/fundamental.py: list[Valuation]
 ```
 
 支持的对比类型：`growth`（成长性）、`valuation`（估值）、`dupont`（杜邦分析，仅 A 股）
 
-### 5.5 市场概览 (`stk market`)
-
-```
-stk market index
-  → services/market.py: get_indices()
-    → ctx.quote(MAJOR_INDICES)  # 7 大指数批量查询
-    → MAJOR_INDICES = [000001.SH, 399001.SZ, 399006.SZ, HSI.HK, .IXIC, .DJI, .SPX]
-  → models/market.py: list[IndexQuote]
-
-stk market temp
-  → services/market.py: get_temperature()
-    → ctx.market_temperature(Market.CN)
-  → models/market.py: MarketTemperature(score, level, valuation, sentiment)
-
-stk market news --source cls
-  → services/news.py: get_global_news(source="cls", count=20)
-    → ak.stock_info_global_cls(symbol="全部")
-  → models/news.py: list[NewsItem]
-```
-
-全局新闻支持数据源：`cls`（财联社）、`ths`（同花顺）
-
-### 5.6 技术选股排名 (`stk stock rank`)
+### 5.5 技术选股排名 (`stk stock rank`)
 
 ```
 stk stock rank --screen lxsz
@@ -239,22 +198,10 @@ stk stock rank --screen lxsz
 
 支持的筛选类型：`lxsz`（连续上涨）、`cxfl`（持续放量）、`xstp`（向上突破）、`ljqs`（量价齐升）
 
-### 5.7 个股资金流 (`stk stock flow`)
+### 5.6 多指标共振评分 (内部，被 scan 调用)
 
 ```
-stk stock flow 600519
-  → services/flow.py: get_stock_flow(symbol="600519")
-    → to_longport_symbol("600519") → "600519.SH"
-    → ctx.capital_distribution("600519.SH") → 大/中/小单进出
-    → ctx.capital_flow("600519.SH") → 日内分钟级 inflow
-  → models/flow.py: StockFlow(symbol, large_in/out, medium_in/out, small_in/out, intraday[])
-```
-
-### 5.8 多指标共振评分 (`stk stock score`)
-
-```
-stk stock score 600519
-  → commands/stock.py: score()
+calc_score(symbol, count=60)
   → services/score.py: calc_score(symbol, count=60)
     → services/history.get_history() → DataFrame
     → talib 计算: EMA/RSI/STOCH/MACD/BBANDS/ADX/ATR
@@ -300,31 +247,30 @@ ATR 风控（基于 ATR×2 止损 / ATR×3 止盈）：
 盈亏比 = (止盈价 - 当前价) / (当前价 - 止损价)  # 理论值 ≈ 1.5
 ```
 
-### 5.9 批量分析 (`stk watchlist scan` / `stk stock summary`)
+### 5.7 自选股扫描与 K 线 (`stk watchlist scan` / `stk watchlist kline`)
 
 ```
 stk watchlist scan ETF
-stk stock summary 600519 000001 700.HK
-  → services/scan.py: _batch_analyze(symbols, names)
-    1. get_realtime_quotes(symbols)      → 1 次批量 API
-    2. get_valuations(symbols)           → 1 次批量 API (calc_indexes)
-    3. ThreadPoolExecutor(max_workers=8)
-       ├─ calc_score(symbol) × N         → 并行（含 history + flow）
-       └─ get_stock_flows(non_etf)       → 并行 + @cached(ttl=300)
-    4. 合并 quote + valuation + score + flow → ScanItem[]
+  → services/scan.py: scan_watchlist(name, sort)
+    → get_watchlist(name) → symbols
+    → _batch_analyze(symbols, names)  # 同 stock scan 流程
   → models/scan.py: ScanResult(group_name, total, items[])
-```
 
-ScanItem 包含全量维度：行情、评分（含趋势强度 ADX）、估值（PE/PB/市值/股息率/量比）、ATR 风控（止损/止盈）、近期涨跌幅（5日/10日）、资金流摘要。
+stk watchlist kline ETF
+  → services/scan.py: kline_watchlist(name, period, count)
+    → get_watchlist(name) → symbols
+    → ThreadPoolExecutor(max_workers=8)
+       └─ get_daily(symbol) × N  → 并行
+  → list[DailyResult]
+```
 
 **性能优化**：
 
-- `get_stock_flow()` 加 `@cached(ttl=300)`：scan 后再查 flow 直接命中缓存
 - `get_valuations()` 原生批量：N 个 symbol 仅 1 次 API 调用
 - `calc_score()` 并行：30 只股票从 ~30s → ~4s
-- `get_stock_flows()` 并行 + 缓存：减少 API 调用 + 加速
+- `kline_watchlist()` 并行获取所有成员 K 线
 
-### 5.10 数据源健康检查 (`stk doctor check`)
+### 5.8 数据源健康检查 (`stk doctor check`)
 
 ```
 stk doctor check
@@ -334,7 +280,7 @@ stk doctor check
   → output.render(results, meta={"healthy": N, "total": M})
 ```
 
-### 5.11 缓存清除 (`stk cache clear`)
+### 5.9 缓存清除 (`stk cache clear`)
 
 ```
 stk cache clear [--prefix PREFIX]
@@ -387,17 +333,15 @@ stk cache clear [--prefix PREFIX]
 ```
 services/
 ├── rank.py           # 技术选股排名（同花顺）
-├── quote.py          # 实时报价（longport）
-├── market.py         # 市场概览：indices, temperature
-├── flow.py           # 个股资金流（longport，@cached(ttl=300) + 并行批量）
+├── market.py         # 市场概览：indices (CN/HK/US) + temperature × 3
 ├── fundamental.py    # 基本面：valuation (批量 calc_indexes), comparison, profile
 ├── history.py        # K 线历史（供 indicator.py 内部调用）
 ├── indicator.py      # 技术指标 (ta-lib) + get_daily (OHLCV + 全部指标合并)
 ├── news.py           # 全局新闻（财联社/同花顺）
 ├── score.py          # 多指标共振评分 + ATR 风控
-├── scan.py           # 批量分析核心：_batch_analyze() + watchlist scan + summary
+├── scan.py           # 批量分析核心：_batch_analyze() + scan + kline_watchlist
 ├── watchlist.py      # 自选股 CRUD (longport API + 本地 group ID 缓存)
-├── longport_quote.py # Longport 原始 API 封装
+├── quote.py # Longport 原始 API 封装
 └── health.py         # 数据源健康检查
 ```
 
