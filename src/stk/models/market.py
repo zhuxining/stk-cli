@@ -47,3 +47,30 @@ class TechRank(BaseModel):
     type: str  # lxsz / cxfl / xstp / ljqs
     label: str  # 连续上涨 / 持续放量 / 向上突破 / 量价齐升
     items: list[TechRankItem]
+
+
+class IndustryStats(BaseModel):
+    """行业在多空 screen 中的出现统计。"""
+
+    industry: str
+    bull_count: int  # 出现在多方 screen 的次数
+    bear_count: int  # 出现在空方 screen 的次数
+    bull_screens: list[str]  # 哪些多方 screen
+    bear_screens: list[str]  # 哪些空方 screen
+
+
+class TechCandidate(BaseModel):
+    """在 2+ 个多方 screen 同时出现的候选股。"""
+
+    code: str
+    name: str
+    bull_screens: list[str]  # 出现在哪些多方 screen
+    bear_screens: list[str]  # 同时出现在哪些空方 screen（冲突标记）
+
+
+class TechHotspot(BaseModel):
+    """行业分析 + 技术选股候选。"""
+
+    industries: list[IndustryStats]  # 按 bull_count 降序
+    candidates: list[TechCandidate]  # 在 2+ 多方 screen 的股票
+    total_candidates: int

@@ -21,6 +21,13 @@ class IndustryComparison(BaseModel):
     companies: list[CompanyMetric]
 
 
+class FullComparison(BaseModel):
+    """All industry comparison categories for a stock."""
+
+    symbol: str
+    comparisons: list[IndustryComparison]
+
+
 class CompanyProfile(BaseModel):
     """Company main business profile."""
 

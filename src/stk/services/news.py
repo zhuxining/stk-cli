@@ -1,6 +1,10 @@
 """News service — individual stock news + global market news."""
 
+import random
+import time
+
 import akshare as ak
+from loguru import logger
 
 from stk.errors import SourceError
 from stk.models.news import NewsItem
@@ -85,3 +89,19 @@ def get_global_news(
         raise
     except Exception as e:
         raise SourceError(f"Failed to fetch global news from {source}: {e}") from e
+
+
+def get_all_news(*, count: int = 20, filter_: str = "全部") -> list[NewsItem]:
+    """Get news from all sources (cls + ths), merged and sorted by time desc."""
+    all_items: list[NewsItem] = []
+    for i, source in enumerate(["cls", "ths"]):
+        if i > 0:
+            time.sleep(random.uniform(1, 3))
+        try:
+            items = get_global_news(source=source, count=count, filter_=filter_)
+            all_items.extend(items)
+        except SourceError as e:
+            logger.warning(f"News {source} failed: {e}")
+
+    all_items.sort(key=lambda x: x.published_at, reverse=True)
+    return all_items[:count]

@@ -20,11 +20,11 @@ stk
 | 命令 | 服务层文件 | 说明 |
 |------|-----------|------|
 | `stk market` | `services/market.get_market_overview()` | CN/HK/US 指数分组 + 三市场温度 |
-| `stk market news` | `services/news.get_global_news()` | 全局新闻（cls/ths） |
+| `stk market news` | `services/news.get_all_news()` | 全局新闻（默认 cls+ths 合并；`--source` 可单查） |
 | `stk stock scan` | `services/scan.batch_summary()` | 综合分析：quote+score+valuation（多 symbol） |
 | `stk stock kline` | `services/indicator.get_daily()` | K 线 + 全部技术指标（多 symbol） |
-| `stk stock fundamental` | `services/fundamental.get_comparison()` | 同业对比 |
-| `stk stock rank` | `services/rank.get_tech_rank()` | 技术选股排名（同花顺） |
+| `stk stock fundamental` | `services/fundamental.get_full_comparison()` | 同业对比（默认全部 category；`--type` 可单查） |
+| `stk stock rank` | `services/rank.get_tech_hotspot()` | 技术热点（默认行业分析+交叉验证选股；`--screen` 可单查） |
 | `stk watchlist list` | `services/watchlist.list_watchlists()` | 列出所有分组 |
 | `stk watchlist show` | `services/watchlist.get_watchlist()` | 查看分组内标的 |
 | `stk watchlist create` | `services/watchlist.create_group()` | 创建分组 |
@@ -130,6 +130,12 @@ stk market
     → _get_temperature_for_market("CN"/"HK"/"US") × 3
   → models/market.py: MarketOverview(indices, temperature)
 
+stk market news
+  → services/news.py: get_all_news(count=20)
+    → 串行调用 get_global_news(source="cls") + get_global_news(source="ths")（间隔 1-3s）
+    → 合并按时间倒序，截取 count 条
+  → models/news.py: list[NewsItem]
+
 stk market news --source cls
   → services/news.py: get_global_news(source="cls", count=20)
   → models/news.py: list[NewsItem]
@@ -177,11 +183,15 @@ stk stock kline 600519 --count 10
 ### 5.4 基本面 (`stk stock fundamental`)
 
 ```
+stk stock fundamental 600519
+  → services/fundamental.py: get_full_comparison(symbol)
+    → 串行调用 get_comparison(symbol, category) × 3（间隔 1-3s 防风控）
+      → categories: growth, valuation, dupont（港股无 dupont）
+    → 每个 category: ak.stock_zh_{cat}_comparison_em() → IndustryComparison
+  → models/fundamental.py: FullComparison(symbol, comparisons[])
+
 stk stock fundamental 600519 --type growth
   → services/fundamental.py: get_comparison(symbol, category="growth")
-    → utils/symbol.py: to_em_symbol("600519") → "SH600519"
-    → ak.stock_zh_growth_comparison_em("SH600519")
-    → DataFrame rows → list[CompanyMetric] (行业中值/平均 + 同行 + 目标股)
   → models/fundamental.py: IndustryComparison(symbol, category, companies)
 ```
 
@@ -190,13 +200,21 @@ stk stock fundamental 600519 --type growth
 ### 5.5 技术选股排名 (`stk stock rank`)
 
 ```
+stk stock rank
+  → services/rank.py: get_tech_hotspot(ma="20日均线")
+    → 串行调用 get_tech_rank(type=screen) × 8（间隔 1-3s 防风控）
+    → 行业分析：6 个有"所属行业"的 screen 统计行业多空出现频次
+    → 技术选股：4 个多方 screen 交叉验证，取 2+ screen 重叠的候选
+  → models/market.py: TechHotspot(industries[], candidates[], total_candidates)
+
 stk stock rank --screen lxsz
   → services/rank.py: get_tech_rank(type="lxsz", ma="20日均线")
     → ak.stock_rank_lxsz_ths()
   → models/market.py: TechRank(type="lxsz", label="连续上涨", items[])
 ```
 
-支持的筛选类型：`lxsz`（连续上涨）、`cxfl`（持续放量）、`xstp`（向上突破）、`ljqs`（量价齐升）
+支持的筛选类型（上涨）：`lxsz`（连续上涨）、`cxfl`（持续放量）、`xstp`（向上突破）、`ljqs`（量价齐升）
+支持的筛选类型（下跌）：`cxsl`（连续下跌）、`lxxd`（持续缩量）、`xxtp`（向下突破）、`ljqd`（量价齐跌）
 
 ### 5.6 多指标共振评分 (内部，被 scan 调用)
 

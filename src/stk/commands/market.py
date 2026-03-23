@@ -22,10 +22,10 @@ def market_overview(ctx: typer.Context) -> None:
 @app.command("news")
 def news_cmd(
     source: str = typer.Option(
-        "cls",
+        "all",
         "--source",
         "-s",
-        help="Source: cls (财联社) / ths (同花顺)",
+        help="Source: all/cls(财联社)/ths(同花顺)",
     ),
     count: int = typer.Option(20, "--count", "-c", help="Number of items"),
     filter_: str = typer.Option(
@@ -35,8 +35,13 @@ def news_cmd(
         help="Filter (cls only): 全部/重点",
     ),
 ) -> None:
-    """Get global market news."""
-    from stk.services.news import get_global_news
+    """Global market news. Default: all sources merged."""
+    if source == "all":
+        from stk.services.news import get_all_news
 
-    result = get_global_news(source=source, count=count, filter_=filter_)
+        result = get_all_news(count=count, filter_=filter_)
+    else:
+        from stk.services.news import get_global_news
+
+        result = get_global_news(source=source, count=count, filter_=filter_)
     output.render(result, meta={"count": len(result), "source": source})

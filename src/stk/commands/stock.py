@@ -11,10 +11,10 @@ app = typer.Typer(help="Individual stock data and analysis", no_args_is_help=Tru
 @app.command()
 def rank(
     screen: str = typer.Option(
-        "lxsz",
+        "all",
         "--screen",
         "-s",
-        help="Tech screen: lxsz/cxfl/xstp/ljqs",
+        help="Tech screen: all/lxsz/cxfl/xstp/ljqs/cxsl/lxxd/xxtp/ljqd",
     ),
     ma: str = typer.Option(
         "20日均线",
@@ -22,10 +22,15 @@ def rank(
         help="MA line (xstp only): 5日均线/10日均线/20日均线/60日均线/250日均线",
     ),
 ) -> None:
-    """Technical screening ranking (THS)."""
-    from stk.services.rank import get_tech_rank
+    """Technical screening ranking (THS). Default: industry + candidates."""
+    if screen == "all":
+        from stk.services.rank import get_tech_hotspot
 
-    result = get_tech_rank(type=screen, ma=ma)
+        result = get_tech_hotspot(ma=ma)
+    else:
+        from stk.services.rank import get_tech_rank
+
+        result = get_tech_rank(type=screen, ma=ma)
     output.render(result)
 
 
@@ -33,16 +38,21 @@ def rank(
 def fundamental(
     symbol: str = typer.Argument(help="Stock symbol (e.g. 600519, 700.HK)"),
     type: str = typer.Option(
-        "growth",
+        "all",
         "--type",
         "-t",
-        help="Category: growth/valuation (A-share also: dupont)",
+        help="Category: all/growth/valuation (A-share also: dupont)",
     ),
 ) -> None:
-    """Get industry comparison (growth, valuation, or DuPont analysis)."""
-    from stk.services.fundamental import get_comparison
+    """Industry comparison. Default: all categories."""
+    if type == "all":
+        from stk.services.fundamental import get_full_comparison
 
-    result = get_comparison(symbol, category=type)
+        result = get_full_comparison(symbol)
+    else:
+        from stk.services.fundamental import get_comparison
+
+        result = get_comparison(symbol, category=type)
     output.render(result)
 
 

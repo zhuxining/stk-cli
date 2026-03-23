@@ -1,69 +1,100 @@
-# 可复用工作流模块
+# 工作流
 
-各模式通过名称引用这些模块。模块内的独立查询应并行执行。
-
----
-
-## 技术选股筛选
-
-> 引用模式：选股、扫描、复盘
-
-根据策略选择对应 screen 类型，可并行执行多个：
-
-| screen | 含义 | 对应策略 |
-|--------|------|---------|
-| `lxsz` | 连续缩量上涨 | 趋势跟踪 |
-| `cxfl` | 持续放量 | 超跌反弹 |
-| `xstp` | 向上突破 | 突破回踩 |
-| `ljqs` | 量价齐升 | 短线动量 |
-
-- 选股模式：按策略选 1-2 个 screen 并行执行，取并集作为候选池
-- 扫描/复盘模式：并行执行全部 4 个 screen，各取前 5 概览当日技术热点
+四个可复用的工作流模块，对应技能的四种模式。
 
 ---
 
-## 个股深度扫描
+## 工作流 1: 市场总览
 
-> 引用模式：扫描、选股(验证步骤)
+目标：指数行情 + 市场温度 + 新闻提炼。
 
-**优先使用批量命令**（一次调用返回全量数据）：
+```
+步骤 1 — 并行:
+  ├─ stk market               → 指数 + 温度
+  └─ stk market news --count 20 → 新闻（cls+ths 合并）
 
-- `stk watchlist scan <名称>` — 自选股批量扫描（行情+评分+估值+资金）
-- `stk stock summary <代码> [代码...]` — 临时批量分析（同上）
+步骤 2 — 按 report-templates.md 模板 1 生成报告
+  └─ 保存到 ~/.stk/reports/市场总览_{YYYY-MM-DD}_{HH-mm}.md
+```
 
-**需要更多细节时追加**：
+**注意事项：**
 
-- `stk stock history <代码> --count 10` — 近期 K 线 + 全部技术指标
-- `stk stock fundamental <代码> --type growth` — 成长性（选股验证时追加）
-
-> scan/summary 已包含评分（7 维度：动量/MACD/BOLL/量价/趋势/背离/资金）、估值、ATR 风控、趋势强度(ADX)，大多数场景无需逐只查询。
-
----
-
-## 个股快速检查
-
-> 引用模式：盯盘
-
-对每只持仓股并行查询：
-
-- `stk stock quote <代码>` — 当前价格与涨跌
-- `stk stock flow <代码>` — 实时资金流向
-- `stk stock indicator <代码>` — 全部技术指标（省略指标名 = 计算全部）
-
-> 盯盘使用 `indicator` 而非 `history`，因为只需最新指标值，不需要历史 K 线序列。
+- 两个命令完全独立，必须并行执行
 
 ---
 
-## 资讯采集
+## 工作流 2: 技术热点
 
-> 引用模式：扫描
+目标：8 screen 多空分析 + 热点行业 + Top 15 入池。
 
-- `stk market news --source cls --count 10`
+```
+步骤 1 — 采集:
+  └─ stk stock rank                           → TechHotspot（行业统计 + 候选股）
+
+步骤 2 — 批量评分:
+  └─ stk stock scan <candidates 的 code>      → 评分 + 估值（候选通常 20-40 只）
+
+步骤 3 — 取 Top 15（按 score 降序）
+
+步骤 4 — 建组:
+  └─ stk watchlist create <MMDD> --symbol S1 --symbol S2 ... --symbol S15
+
+步骤 5 — 按 report-templates.md 模板 2 生成报告
+  └─ 保存到 ~/.stk/reports/技术热点_{YYYY-MM-DD}_{HH-mm}.md
+```
+
+**注意事项：**
+
+- 步骤 4 建组前先 `stk watchlist list` 检查同名组是否已存在，存在则先 `stk watchlist delete <MMDD>` 再创建
+- candidates 已经过交叉验证（出现在 2+ 多方 screen），通常 20-40 只，scan 时全部传入即可
+- 分析时用 TechHotspot 的 industries 做行业多空判断，candidates 的 bear_screens 标记冲突
 
 ---
 
-## 策略匹配
+## 工作流 3: 个股分析
 
-> 引用模式：选股
+目标：单只股票的评分 + 技术 + 基本面深度分析。
 
-根据用户偏好或当前市场判断，参照 `references/strategies.md` 中的「市场环境与策略匹配」表确定策略方向。
+```
+步骤 1 — 全部并行:
+  ├─ stk stock scan <symbol>              → 评分 + 估值 + 信号 + ATR 风控
+  ├─ stk stock kline <symbol> --count 20  → 近 20 日 K 线 + 全部指标
+  └─ stk stock fundamental <symbol>       → 全部行业对比（growth + valuation + dupont）
+
+步骤 2 — 按 report-templates.md 模板 3 综合分析生成报告
+  └─ 保存到 ~/.stk/reports/个股分析_{symbol}_{YYYY-MM-DD}_{HH-mm}.md
+```
+
+**注意事项：**
+
+- 三个命令完全独立，必须并行执行
+- fundamental 的 dupont 仅 A 股支持，港股/美股自动跳过（服务层已处理）
+
+---
+
+## 工作流 4: 分组整体分析
+
+目标：对整个 watchlist 分组做批量扫描 + 逐只点评。
+
+```
+步骤 1 — 并行:
+  ├─ stk watchlist scan <name> --sort score  → 全组评分排名
+  └─ stk watchlist kline <name> --count 10   → 全组 K 线
+
+步骤 2 — 分析:
+  - 按评分排序，标注 A+/A 级别标的
+  - 标注异动（涨幅>5% / 跌幅>3% / RSI 超买超卖 / MACD 金叉死叉）
+  - 每只标的给出技术展望（看多/看空/中性）+ 操作建议
+
+步骤 3 — 可选深度（对评分前 3 或异动标的）:
+  └─ stk stock fundamental <symbol>  → 行业对比补充
+
+步骤 4 — 按 report-templates.md 模板 4 生成报告
+  └─ 保存到 ~/.stk/reports/分组分析_{name}_{YYYY-MM-DD}_{HH-mm}.md
+```
+
+**注意事项：**
+
+- 步骤 1 的两个命令独立，必须并行
+- 步骤 3 为可选项，仅在评分突出或异动显著时执行
+- 如用户未指定分组名称，用 `stk watchlist list` 列出供选择

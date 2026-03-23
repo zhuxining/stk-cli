@@ -1,8 +1,11 @@
 """Fundamental data service (industry comparison, valuation)."""
 
 from decimal import Decimal
+import random
+import time
 
 import akshare as ak
+from loguru import logger
 from longport.openapi import CalcIndex
 
 from stk.deps import get_longport_ctx
@@ -10,6 +13,7 @@ from stk.errors import SourceError
 from stk.models.fundamental import (
     CompanyMetric,
     CompanyProfile,
+    FullComparison,
     IndustryComparison,
     Valuation,
 )
@@ -82,6 +86,24 @@ def get_comparison(symbol: str, *, category: str = "growth") -> IndustryComparis
         raise
     except Exception as e:
         raise SourceError(f"Failed to fetch {category} comparison for {symbol}: {e}") from e
+
+
+def get_full_comparison(symbol: str) -> FullComparison:
+    """Get all available comparison categories for a stock."""
+    lp_symbol = to_longport_symbol(symbol)
+    hk = is_hk(symbol)
+    categories = ["growth", "valuation"] + ([] if hk else ["dupont"])
+
+    comparisons: list[IndustryComparison] = []
+    for i, cat in enumerate(categories):
+        if i > 0:
+            time.sleep(random.uniform(1, 3))
+        try:
+            comparisons.append(get_comparison(symbol, category=cat))
+        except SourceError as e:
+            logger.warning(f"Comparison {cat} failed for {symbol}: {e}")
+
+    return FullComparison(symbol=lp_symbol, comparisons=comparisons)
 
 
 _VALUATION_INDEXES = [

@@ -40,7 +40,7 @@ def _get_period(period: str):
     return lp_period
 
 
-@cached(ttl=3600)
+@cached(ttl=28800)
 def get_history(
     symbol: str,
     *,
