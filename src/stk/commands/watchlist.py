@@ -48,25 +48,25 @@ def create(
 @app.command()
 def add(
     name: str = typer.Argument(help="Watchlist group name"),
-    symbol: str = typer.Argument(help="Symbol to add"),
+    symbols: list[str] = typer.Argument(help="One or more symbols to add"),
 ) -> None:
-    """Add a symbol to a watchlist group."""
-    from stk.services.watchlist import add_symbol
+    """Add symbols to a watchlist group (batch)."""
+    from stk.services.watchlist import add_symbols
 
-    add_symbol(name, symbol)
-    output.render(ActionResult(message=f"Added {symbol} to {name}"))
+    add_symbols(name, symbols)
+    output.render(ActionResult(message=f"Added {len(symbols)} symbols to {name}"))
 
 
 @app.command()
 def remove(
     name: str = typer.Argument(help="Watchlist group name"),
-    symbol: str = typer.Argument(help="Symbol to remove"),
+    symbols: list[str] = typer.Argument(help="One or more symbols to remove"),
 ) -> None:
-    """Remove a symbol from a watchlist group."""
-    from stk.services.watchlist import remove_symbol
+    """Remove symbols from a watchlist group (batch)."""
+    from stk.services.watchlist import remove_symbols
 
-    remove_symbol(name, symbol)
-    output.render(ActionResult(message=f"Removed {symbol} from {name}"))
+    remove_symbols(name, symbols)
+    output.render(ActionResult(message=f"Removed {len(symbols)} symbols from {name}"))
 
 
 @app.command()
@@ -83,7 +83,7 @@ def delete(
 @app.command()
 def scan(
     name: str = typer.Argument(help="Watchlist group name"),
-    sort: str = typer.Option("change_pct", "--sort", "-s", help="Sort by: change_pct / score"),
+    sort: str = typer.Option("score", "--sort", "-s", help="Sort by: score / change_pct"),
 ) -> None:
     """Batch scan a watchlist: quote + score all members in one call, sorted by change."""
     from stk.services.scan import scan_watchlist
@@ -96,7 +96,7 @@ def scan(
 def kline(
     name: str = typer.Argument(help="Watchlist group name"),
     period: str = typer.Option("day", "--period", "-p", help="Period: day/week/month"),
-    count: int = typer.Option(10, "--count", "-c", help="Number of days"),
+    count: int = typer.Option(20, "--count", "-c", help="Number of days"),
 ) -> None:
     """Get K-line + all indicators for every stock in a watchlist group."""
     from stk.services.scan import kline_watchlist

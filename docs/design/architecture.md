@@ -28,8 +28,8 @@ stk
 | `stk watchlist list` | `services/watchlist.list_watchlists()` | 列出所有分组 |
 | `stk watchlist show` | `services/watchlist.get_watchlist()` | 查看分组内标的 |
 | `stk watchlist create` | `services/watchlist.create_group()` | 创建分组 |
-| `stk watchlist add` | `services/watchlist.add_symbol()` | 添加标的到分组 |
-| `stk watchlist remove` | `services/watchlist.remove_symbol()` | 从分组移除标的 |
+| `stk watchlist add` | `services/watchlist.add_symbols()` | 批量添加标的到分组 |
+| `stk watchlist remove` | `services/watchlist.remove_symbols()` | 批量从分组移除标的 |
 | `stk watchlist delete` | `services/watchlist.delete_group()` | 删除分组 |
 | `stk watchlist scan` | `services/scan.scan_watchlist()` | 批量扫描全组：quote+score+valuation |
 | `stk watchlist kline` | `services/scan.kline_watchlist()` | 全组 K 线 + 全部技术指标（并行） |
@@ -251,9 +251,6 @@ calc_score(symbol, count=60)
 | 量价 | 10 | 同上 |
 | 趋势 | 25 | 权重更高，ETF 趋势性更强 |
 | 背离 | 10 | 同上 |
-
-评级（个股）：A+(≥80) / A(≥65) / B+(≥55) / B(≥45) / C(<45)
-评级（ETF）：A+(≥75) / A(≥60) / B+(≥50) / B(≥40) / C(<40)
 
 **ADX 趋势强度标签**：ADX ≥ 25 → "trending"，< 25 → "ranging"（辅助判断，不参与评分）
 

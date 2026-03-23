@@ -73,31 +73,31 @@ def create_group(name: str, symbols: list[str] | None = None) -> Watchlist:
     return Watchlist(id=group_id, name=name, securities=[])
 
 
-def add_symbol(name: str, symbol: str) -> None:
-    """Add a symbol to a watchlist group."""
+def add_symbols(name: str, symbols: list[str]) -> None:
+    """Add one or more symbols to a watchlist group (batch)."""
     gid = _get_group_id(name)
     if gid is None:
-        create_group(name, symbols=[symbol])
+        create_group(name, symbols=symbols)
         return
     ctx = get_longport_ctx()
-    lp_symbol = to_longport_symbol(symbol)
+    lp_symbols = [to_longport_symbol(s) for s in symbols]
     ctx.update_watchlist_group(
         id=gid,
-        securities=[lp_symbol],
+        securities=lp_symbols,
         mode=SecuritiesUpdateMode.Add,
     )
 
 
-def remove_symbol(name: str, symbol: str) -> None:
-    """Remove a symbol from a watchlist group."""
+def remove_symbols(name: str, symbols: list[str]) -> None:
+    """Remove one or more symbols from a watchlist group (batch)."""
     gid = _get_group_id(name)
     if gid is None:
         raise SourceError(f"Watchlist group '{name}' not found")
     ctx = get_longport_ctx()
-    lp_symbol = to_longport_symbol(symbol)
+    lp_symbols = [to_longport_symbol(s) for s in symbols]
     ctx.update_watchlist_group(
         id=gid,
-        securities=[lp_symbol],
+        securities=lp_symbols,
         mode=SecuritiesUpdateMode.Remove,
     )
 

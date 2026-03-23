@@ -72,7 +72,7 @@ def kline(
     symbols: list[str] = typer.Argument(help="One or more symbols"),
     type: TargetType = typer.Option(TargetType.STOCK, "--type", "-t", help="Target type"),
     period: str = typer.Option("day", "--period", "-p", help="Period: day/week/month"),
-    count: int = typer.Option(10, "--count", "-c", help="Number of days"),
+    count: int = typer.Option(20, "--count", "-c", help="Number of days"),
 ) -> None:
     """Get OHLCV + all technical indicators (merged per day). Accepts multiple symbols."""
     from stk.services.indicator import get_daily
