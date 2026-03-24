@@ -101,7 +101,7 @@ def get_all_news(*, count: int = 20, filter_: str = "全部") -> list[NewsItem]:
             items = get_global_news(source=source, count=count, filter_=filter_)
             all_items.extend(items)
         except SourceError as e:
-            logger.warning(f"News {source} failed: {e}")
+            logger.debug(f"News {source} failed: {e}")
 
     all_items.sort(key=lambda x: x.published_at, reverse=True)
     return all_items[:count]

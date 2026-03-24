@@ -150,7 +150,7 @@ def cached(
                     if attempt < retries - 1:
                         delay = (2**attempt) + random.uniform(-0.5, 0.5)
                         delay = max(0.1, delay)
-                        logger.warning(
+                        logger.debug(
                             "Retry {}/{} for {} after {:.1f}s: {}",
                             attempt + 1,
                             retries,
@@ -164,7 +164,7 @@ def cached(
             if stale_on_error:
                 stale = _get_stale(key, disk)
                 if stale is not None:
-                    logger.warning("Cache STALE (fallback): {}", key)
+                    logger.debug("Cache STALE (fallback): {}", key)
                     return stale
 
             raise last_err  # type: ignore[misc]

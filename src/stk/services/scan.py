@@ -37,7 +37,7 @@ def _batch_analyze(
             if q.symbol not in names and q.name:
                 names[q.symbol] = q.name
     except Exception as e:
-        logger.warning(f"Batch quote failed: {e}")
+        logger.debug(f"Batch quote failed: {e}")
 
     # 2. Batch valuation — single API call
     valuation_map: dict[str, Valuation] = {}
@@ -45,7 +45,7 @@ def _batch_analyze(
         valuations = get_valuations(symbols)
         valuation_map = {v.symbol: v for v in valuations}
     except Exception as e:
-        logger.warning(f"Batch valuation failed: {e}")
+        logger.debug(f"Batch valuation failed: {e}")
 
     # 3. Parallel score calculation
     score_map: dict[str, ScoreResult] = {}
@@ -164,5 +164,5 @@ def kline_watchlist(name: str, *, period: str = "day", count: int = 10) -> list:
             try:
                 results.append(future.result())
             except Exception as e:
-                logger.warning(f"kline failed for {futures[future]}: {e}")
+                logger.debug(f"kline failed for {futures[future]}: {e}")
     return results

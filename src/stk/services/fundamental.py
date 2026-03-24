@@ -104,7 +104,7 @@ def get_full_comparison(symbol: str) -> FullComparison:
             try:
                 comparisons.append(future.result())
             except SourceError as e:
-                logger.warning(f"Comparison {cat} failed for {symbol}: {e}")
+                logger.debug(f"Comparison {cat} failed for {symbol}: {e}")
 
     return FullComparison(symbol=lp_symbol, comparisons=comparisons)
 

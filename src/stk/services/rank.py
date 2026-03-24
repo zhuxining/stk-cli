@@ -140,7 +140,7 @@ def get_tech_hotspot(ma: str = "20日均线") -> TechHotspot:
         try:
             ranks[screen] = get_tech_rank(type=screen, ma=ma)
         except SourceError as e:
-            logger.warning(f"Rank {screen} failed: {e}")
+            logger.debug(f"Rank {screen} failed: {e}")
 
     # 2. 行业分析：统计每个行业在多空 screen 中的出现
     industry_bull: dict[str, set[str]] = {}  # industry -> {screen_types}
