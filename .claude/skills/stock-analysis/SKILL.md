@@ -23,7 +23,7 @@ description: >
 | 日报/市场/盘面/新闻 | 市场总览 |
 | 热点/选股/技术形态/入池 | 技术热点 |
 | 分析 XXX/看看 XXX | 个股分析 |
-| 自选分析/分组分析/持仓检查 | 分组整体分析 |
+| 自选分析/分组分析/持仓检查/分析XX分组 | 分组整体分析 |
 | 日报（含选股意图） | 市场总览 + 技术热点（串行，两份报告） |
 
 ---
@@ -64,7 +64,7 @@ description: >
 ```
 
 **注意：**
-- 步骤 4 前先 `stk watchlist list` 检查同名组，存在则用 `stk watchlist add <name> S1 S2 ...` 批量追加
+- 步骤 4 前先 `stk watchlist list` 检查同名组，存在则用 `stk watchlist add <group> S1 S2 ...` 批量追加
 - candidates 已过交叉验证，scan 时全部传入即可
 
 **分析要点：**
@@ -108,13 +108,16 @@ description: >
 
 ```
 步骤 1 — 并行:
-  ├─ stk watchlist scan <name>   → 全组评分排名（默认按 score 排序）
-  └─ stk watchlist kline <name>  → 全组 K 线
+  ├─ stk watchlist scan <group>   → 全组评分排名（默认按 score 排序）
+  └─ stk watchlist kline <group>  → 全组 K 线
 步骤 2 — 分析（见下方要点）
 步骤 3 — 可选: 对评分前 3 或异动标的执行 stk stock fundamental
 ```
 
-**注意：** 如用户未指定分组名称，用 `stk watchlist list` 列出供选择
+**分组名解析（严格遵守）：**
+1. 从用户消息提取分组名（如"ETF分组"→`ETF`，"分析半导体组"→`半导体`），**直接用该名称请求**，禁止先 list
+2. 若请求失败（分组不存在），再 `stk watchlist list` 查找最接近的分组名，用正确名称重试
+3. 仅当用户完全未提及分组名称时，才 `stk watchlist list` 列出供选择
 
 **分析要点：**
 - 评分排名，标注高分/低分标的

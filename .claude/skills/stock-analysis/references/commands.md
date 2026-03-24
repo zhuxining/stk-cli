@@ -80,13 +80,13 @@ K 线 + 全部技术指标。
 
 ## Watchlist
 
-CRUD: `list` | `show <name>` | `create <name> [--symbol S ...]` | `add <name> <symbols...>` | `remove <name> <symbols...>` | `delete <name>`
+CRUD: `list` | `show <group>` | `create <group> [--symbol S ...]` | `add <group> <symbols...>` | `remove <group> <symbols...>` | `delete <group>`
 
-### `stk watchlist scan <name>`
+### `stk watchlist scan <group>`
 
 批量扫描全组（同 stock scan），`--sort score|change_pct`（默认 score）。
 
-### `stk watchlist kline <name>`
+### `stk watchlist kline <group>`
 
 全组 K 线 + 全部技术指标（并行），`--period`/`--count` 同 stock kline。
 
