@@ -74,3 +74,16 @@ class TechHotspot(BaseModel):
     industries: list[IndustryStats]  # 按 bull_count 降序
     candidates: list[TechCandidate]  # 在 2+ 多方 screen 的股票
     total_candidates: int
+
+
+class TechIndustries(BaseModel):
+    """行业多空分析结果。"""
+
+    industries: list[IndustryStats]
+
+
+class TechCandidates(BaseModel):
+    """交叉验证候选股。"""
+
+    candidates: list[TechCandidate]
+    total: int

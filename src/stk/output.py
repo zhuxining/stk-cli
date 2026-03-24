@@ -1,5 +1,6 @@
 """Unified JSON envelope output for agent consumption."""
 
+from datetime import datetime, timedelta, timezone
 import json
 from typing import Any
 
@@ -10,7 +11,11 @@ def render(data: Any, *, meta: dict[str, Any] | None = None) -> None:
     """Print success JSON envelope to stdout."""
     serialized = [_serialize(item) for item in data] if isinstance(data, list) else _serialize(data)
 
-    envelope = {"ok": True, "data": serialized, "error": None, "meta": meta or {}}
+    cst = timezone(timedelta(hours=8))
+    combined_meta = {"updated_at": datetime.now(cst).isoformat(timespec="seconds")}
+    if meta:
+        combined_meta.update(meta)
+    envelope = {"ok": True, "data": serialized, "error": None, "meta": combined_meta}
     print(json.dumps(envelope, ensure_ascii=False, default=str))
 
 

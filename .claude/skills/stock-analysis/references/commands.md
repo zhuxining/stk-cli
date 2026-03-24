@@ -29,15 +29,34 @@
 
 ### `stk stock rank`
 
-技术选股排名（同花顺）。
+单个 screen 技术选股排名（同花顺）。
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
-| `--screen` | all | all / 上涨: lxsz/cxfl/xstp/ljqs / 下跌: cxsl/lxxd/xxtp/ljqd |
+| `--screen` | lxsz | lxsz/cxfl/xstp/ljqs/cxsl/lxxd/xxtp/ljqd |
 | `--ma` | 20日均线 | xstp/xxtp 专用 |
 
-- `--screen all` → `TechHotspot`: industries[IndustryStats] + candidates[TechCandidate] + total_candidates
-- `--screen <单个>` → `TechRank(type, label, items[])`
+返回 `TechRank(type, label, items[])`
+
+### `stk stock hotspot`
+
+行业多空分析（6 个有"所属行业"的 screen 统计）。
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--ma` | 20日均线 | xstp/xxtp 专用 |
+
+返回 `TechIndustries(industries[IndustryStats])`，按 bull_count 降序。IndustryStats: industry/bull_count/bear_count/bull_screens/bear_screens
+
+### `stk stock candidates`
+
+交叉验证候选股（出现在 2+ 多方 screen 的股票）。
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--ma` | 20日均线 | xstp/xxtp 专用 |
+
+返回 `TechCandidates(candidates[TechCandidate], total)`。TechCandidate: code/name/bull_screens/bear_screens
 
 ### `stk stock scan <symbols...>`
 

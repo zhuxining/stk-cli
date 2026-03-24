@@ -52,12 +52,14 @@ description: >
 
 目标：分析 8 screen 多空情绪 + 归纳热点行业 + Top 15 入池。
 
-`stk stock rank` 返回 `TechHotspot`：行业多空统计（6 个有"所属行业"的 screen）+ 交叉验证候选股（出现在 2+ 个多方 screen，标记空方冲突）。
+`stk stock hotspot` 返回行业多空统计，`stk stock candidates` 返回交叉验证候选股（出现在 2+ 个多方 screen，标记空方冲突）。
 
 **步骤：**
 
 ```
-步骤 1: stk stock rank                          → TechHotspot
+步骤 1 — 并行:
+  ├─ stk stock hotspot     → TechIndustries（行业情绪）
+  └─ stk stock candidates  → TechCandidates（入池候选）
 步骤 2: stk stock scan <candidates 的 code>     → 批量评分（候选通常 20-40 只）
 步骤 3: 取 Top 15（按 score 降序）
 步骤 4: stk watchlist create <MMDD> --symbol S1 ... --symbol S15

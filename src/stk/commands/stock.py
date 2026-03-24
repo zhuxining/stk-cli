@@ -11,27 +11,49 @@ app = typer.Typer(help="Individual stock data and analysis", no_args_is_help=Tru
 @app.command()
 def rank(
     screen: str = typer.Option(
-        "all",
+        "lxsz",
         "--screen",
         "-s",
-        help="Tech screen: all/lxsz/cxfl/xstp/ljqs/cxsl/lxxd/xxtp/ljqd",
+        help="Tech screen: lxsz/cxfl/xstp/ljqs/cxsl/lxxd/xxtp/ljqd",
     ),
     ma: str = typer.Option(
         "20日均线",
         "--ma",
-        help="MA line (xstp only): 5日均线/10日均线/20日均线/60日均线/250日均线",
+        help="MA line (xstp/xxtp only): 5日均线/10日均线/20日均线/60日均线/250日均线",
     ),
 ) -> None:
-    """Technical screening ranking (THS). Default: industry + candidates."""
-    if screen == "all":
-        from stk.services.rank import get_tech_hotspot
+    """Single tech screen ranking (THS)."""
+    from stk.services.rank import get_tech_rank
 
-        result = get_tech_hotspot(ma=ma)
-    else:
-        from stk.services.rank import get_tech_rank
+    output.render(get_tech_rank(type=screen, ma=ma))
 
-        result = get_tech_rank(type=screen, ma=ma)
-    output.render(result)
+
+@app.command()
+def hotspot(
+    ma: str = typer.Option(
+        "20日均线",
+        "--ma",
+        help="MA line for xstp/xxtp: 5日均线/10日均线/20日均线/60日均线/250日均线",
+    ),
+) -> None:
+    """Industry sentiment: bull/bear screen counts per industry (THS)."""
+    from stk.services.rank import get_tech_industries
+
+    output.render(get_tech_industries(ma=ma))
+
+
+@app.command()
+def candidates(
+    ma: str = typer.Option(
+        "20日均线",
+        "--ma",
+        help="MA line for xstp/xxtp: 5日均线/10日均线/20日均线/60日均线/250日均线",
+    ),
+) -> None:
+    """Cross-screen candidates: stocks appearing in 2+ bull screens (THS)."""
+    from stk.services.rank import get_tech_candidates
+
+    output.render(get_tech_candidates(ma=ma))
 
 
 @app.command()

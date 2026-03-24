@@ -9,7 +9,9 @@ from stk.errors import SourceError
 from stk.models.market import (
     IndustryStats,
     TechCandidate,
+    TechCandidates,
     TechHotspot,
+    TechIndustries,
     TechRank,
     TechRankItem,
 )
@@ -200,3 +202,15 @@ def get_tech_hotspot(ma: str = "20日均线") -> TechHotspot:
         candidates=candidates,
         total_candidates=len(candidates),
     )
+
+
+def get_tech_industries(ma: str = "20日均线") -> TechIndustries:
+    """行业多空分析（6 个有"所属行业"的 screen 统计）。"""
+    h = get_tech_hotspot(ma=ma)
+    return TechIndustries(industries=h.industries)
+
+
+def get_tech_candidates(ma: str = "20日均线") -> TechCandidates:
+    """交叉验证候选股（出现在 2+ 多方 screen）。"""
+    h = get_tech_hotspot(ma=ma)
+    return TechCandidates(candidates=h.candidates, total=h.total_candidates)
