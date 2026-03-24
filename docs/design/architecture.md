@@ -202,7 +202,7 @@ stk stock fundamental 600519 --type growth
 ```
 stk stock rank
   → services/rank.py: get_tech_hotspot(ma="20日均线")
-    → 串行调用 get_tech_rank(type=screen) × 8（间隔 1-3s 防风控）
+    → 串行调用 get_tech_rank(type=screen) × 8（akshare THS 内部用 V8/py_mini_racer，并发初始化会 crash）
     → 行业分析：6 个有"所属行业"的 screen 统计行业多空出现频次
     → 技术选股：4 个多方 screen 交叉验证，取 2+ screen 重叠的候选
   → models/market.py: TechHotspot(industries[], candidates[], total_candidates)
