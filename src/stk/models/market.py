@@ -65,7 +65,6 @@ class TechCandidate(BaseModel):
     code: str
     name: str
     bull_screens: list[str]  # 出现在哪些多方 screen
-    bear_screens: list[str]  # 同时出现在哪些空方 screen（冲突标记）
 
 
 class TechHotspot(BaseModel):

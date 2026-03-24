@@ -182,17 +182,16 @@ def get_tech_hotspot(ma: str = "20日均线") -> TechHotspot:
             target = stock_bull if is_bull else stock_bear
             target.setdefault(item.code, set()).add(screen_type)
 
-    # 只保留出现在 2+ 个多方 screen 的股票
+    # 只保留出现在 2+ 个多方 screen 且未出现在任何空方 screen 的股票
     candidates = sorted(
         [
             TechCandidate(
                 code=code,
                 name=stock_name[code],
                 bull_screens=_to_labels(screens),
-                bear_screens=_to_labels(stock_bear.get(code, set())),
             )
             for code, screens in stock_bull.items()
-            if len(screens) >= 2
+            if len(screens) >= 3 and code not in stock_bear and "ST" not in stock_name[code]
         ],
         key=lambda x: (-len(x.bull_screens), len(x.bear_screens)),
     )
