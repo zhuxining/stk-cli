@@ -84,8 +84,9 @@ def scan(
 ) -> None:
     """Batch analysis: quote + score + valuation in one call. Accepts multiple symbols."""
     from stk.services.scan import batch_summary
+    from stk.utils.symbol import expand_symbols
 
-    result = batch_summary(symbols)
+    result = batch_summary(expand_symbols(symbols))
     output.render(result)
 
 

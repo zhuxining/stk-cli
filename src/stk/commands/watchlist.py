@@ -40,8 +40,9 @@ def create(
 ) -> None:
     """Create a new watchlist group."""
     from stk.services.watchlist import create_group
+    from stk.utils.symbol import expand_symbols
 
-    result = create_group(name, symbols=symbols or None)
+    result = create_group(name, symbols=expand_symbols(symbols) or None)
     output.render(result)
 
 
@@ -52,7 +53,9 @@ def add(
 ) -> None:
     """Add symbols to a watchlist group (batch)."""
     from stk.services.watchlist import add_symbols
+    from stk.utils.symbol import expand_symbols
 
+    symbols = expand_symbols(symbols)
     add_symbols(name, symbols)
     output.render(ActionResult(message=f"Added {len(symbols)} symbols to {name}"))
 

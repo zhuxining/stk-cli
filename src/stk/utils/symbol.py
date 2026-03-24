@@ -76,6 +76,17 @@ def to_hk_code(symbol: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def expand_symbols(symbols: list[str]) -> list[str]:
+    """展开逗号分隔的 symbol 列表，兼容空格和逗号两种分隔方式。
+
+    e.g. ['002218,600207', '688552'] → ['002218', '600207', '688552']
+    """
+    result = []
+    for s in symbols:
+        result.extend(x.strip() for x in s.split(",") if x.strip())
+    return result
+
+
 def extract_code(symbol: str) -> str:
     """Strip market suffix: '600519.SH' → '600519', '700.HK' → '700'."""
     return symbol.split(".")[0] if "." in symbol else symbol

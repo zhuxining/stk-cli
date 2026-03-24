@@ -52,7 +52,7 @@ description: >
 
 目标：分析 8 screen 多空情绪 + 归纳热点行业 + Top 15 入池。
 
-`stk stock hotspot` 返回行业多空统计，`stk stock candidates` 返回交叉验证候选股（出现在 2+ 个多方 screen，标记空方冲突）。
+`stk stock hotspot` 返回行业多空统计，`stk stock candidates` 返回交叉验证候选股（出现在 **3+** 个多方 screen、无空方信号、无 ST）。
 
 **步骤：**
 
@@ -60,12 +60,14 @@ description: >
 步骤 1 — 并行:
   ├─ stk stock hotspot     → TechIndustries（行业情绪）
   └─ stk stock candidates  → TechCandidates（入池候选）
-步骤 2: stk stock scan <candidates 的 code>     → 批量评分（候选通常 20-40 只）
+步骤 2: stk stock scan <code1> <code2> ...    → 批量评分（空格分隔，勿用逗号）
 步骤 3: 取 Top 15（按 score 降序）
-步骤 4: stk watchlist create <MMDD> --symbol S1 ... --symbol S15
+步骤 4: stk watchlist create <MMDD> --symbol S1 --symbol S2 ... --symbol S15
 ```
 
 **注意：**
+- `stk stock scan` 用**空格**分隔多个代码：`stk stock scan 002218 600207 688552`
+- `stk watchlist create/add` 每个 symbol 单独一个 `--symbol` / 空格分隔参数，纯代码即可（自动补交易所后缀）
 - 步骤 4 前先 `stk watchlist list` 检查同名组，存在则用 `stk watchlist add <group> S1 S2 ...` 批量追加
 - candidates 已过交叉验证，scan 时全部传入即可
 

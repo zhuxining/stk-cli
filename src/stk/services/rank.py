@@ -193,7 +193,7 @@ def get_tech_hotspot(ma: str = "20日均线") -> TechHotspot:
             for code, screens in stock_bull.items()
             if len(screens) >= 3 and code not in stock_bear and "ST" not in stock_name[code]
         ],
-        key=lambda x: (-len(x.bull_screens), len(x.bear_screens)),
+        key=lambda x: -len(x.bull_screens),
     )
 
     return TechHotspot(
