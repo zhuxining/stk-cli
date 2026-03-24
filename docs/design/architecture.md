@@ -25,7 +25,7 @@ stk
 | `stk stock kline` | `services/indicator.get_daily()` | K 线 + 全部技术指标（多 symbol） |
 | `stk stock fundamental` | `services/fundamental.get_full_comparison()` | 同业对比（默认全部 category；`--type` 可单查） |
 | `stk stock rank` | `services/rank.get_tech_hotspot()` | 技术热点（默认行业分析+交叉验证选股；`--screen` 可单查） |
-| `stk watchlist list` | `services/watchlist.list_watchlists()` | 列出所有分组 |
+| `stk watchlist list` | `services/watchlist.list_watchlists()` | 列出所有分组（摘要：name+count） |
 | `stk watchlist show` | `services/watchlist.get_watchlist()` | 查看分组内标的 |
 | `stk watchlist create` | `services/watchlist.create_group()` | 创建分组 |
 | `stk watchlist add` | `services/watchlist.add_symbols()` | 批量添加标的到分组 |

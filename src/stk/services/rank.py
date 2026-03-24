@@ -1,8 +1,7 @@
 """Rank service — stock technical and popularity rankings."""
 
 from collections.abc import Callable
-import random
-import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import akshare as ak
 from loguru import logger
@@ -134,15 +133,19 @@ def _to_labels(codes: set[str] | list[str]) -> list[str]:
 
 def get_tech_hotspot(ma: str = "20日均线") -> TechHotspot:
     """行业分析 + 多 screen 交叉验证选股。"""
-    # 1. 串行获取 8 个 screen
+    # 1. 并行获取 8 个 screen（已有 @cached 兜底）
     ranks: dict[str, TechRank] = {}
-    for i, screen in enumerate(_ALL_SCREENS):
-        if i > 0:
-            time.sleep(random.uniform(1, 3))
-        try:
-            ranks[screen] = get_tech_rank(type=screen, ma=ma)
-        except SourceError as e:
-            logger.warning(f"Rank {screen} failed: {e}")
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {
+            executor.submit(get_tech_rank, type=screen, ma=ma): screen
+            for screen in _ALL_SCREENS
+        }
+        for future in as_completed(futures):
+            screen = futures[future]
+            try:
+                ranks[screen] = future.result()
+            except SourceError as e:
+                logger.warning(f"Rank {screen} failed: {e}")
 
     # 2. 行业分析：统计每个行业在多空 screen 中的出现
     industry_bull: dict[str, set[str]] = {}  # industry -> {screen_types}

@@ -1,6 +1,7 @@
 """Market service — indices, temperature, market overview."""
 
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import contextlib
 from decimal import Decimal
 
@@ -91,10 +92,16 @@ def get_market_overview() -> MarketOverview:
     for idx in indices:
         grouped[idx.region].append(idx)
 
-    # Fetch temperature for each region
+    # Fetch temperature for all regions in parallel
     temps: dict[str, MarketTemperature] = {}
-    for region in _MARKET_REGIONS:
-        with contextlib.suppress(SourceError):
-            temps[region] = _get_temperature_for_market(region)
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {
+            executor.submit(_get_temperature_for_market, r): r
+            for r in _MARKET_REGIONS
+        }
+        for future in as_completed(futures):
+            region = futures[future]
+            with contextlib.suppress(SourceError):
+                temps[region] = future.result()
 
     return MarketOverview(indices=dict(grouped), temperature=temps)

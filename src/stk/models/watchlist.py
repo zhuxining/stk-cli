@@ -17,3 +17,11 @@ class Watchlist(BaseModel):
     id: int
     name: str
     securities: list[WatchlistSecurity] = []
+
+
+class WatchlistSummary(BaseModel):
+    """Watchlist group summary for list view."""
+
+    id: int
+    name: str
+    count: int

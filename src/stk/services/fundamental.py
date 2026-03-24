@@ -1,8 +1,7 @@
 """Fundamental data service (industry comparison, valuation)."""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
-import random
-import time
 
 import akshare as ak
 from loguru import logger
@@ -89,19 +88,23 @@ def get_comparison(symbol: str, *, category: str = "growth") -> IndustryComparis
 
 
 def get_full_comparison(symbol: str) -> FullComparison:
-    """Get all available comparison categories for a stock."""
+    """Get all available comparison categories for a stock (parallel)."""
     lp_symbol = to_longport_symbol(symbol)
     hk = is_hk(symbol)
     categories = ["growth", "valuation"] + ([] if hk else ["dupont"])
 
     comparisons: list[IndustryComparison] = []
-    for i, cat in enumerate(categories):
-        if i > 0:
-            time.sleep(random.uniform(1, 3))
-        try:
-            comparisons.append(get_comparison(symbol, category=cat))
-        except SourceError as e:
-            logger.warning(f"Comparison {cat} failed for {symbol}: {e}")
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {
+            executor.submit(get_comparison, symbol, category=cat): cat
+            for cat in categories
+        }
+        for future in as_completed(futures):
+            cat = futures[future]
+            try:
+                comparisons.append(future.result())
+            except SourceError as e:
+                logger.warning(f"Comparison {cat} failed for {symbol}: {e}")
 
     return FullComparison(symbol=lp_symbol, comparisons=comparisons)
 
@@ -174,6 +177,7 @@ def _build_valuation(r, lp_symbol: str) -> Valuation:
     return Valuation(**data)  # type: ignore[arg-type]
 
 
+@cached(ttl=3600)
 def get_valuations(symbols: list[str]) -> list[Valuation]:
     """Get valuation metrics for multiple symbols in a single API call."""
     try:

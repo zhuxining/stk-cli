@@ -5,6 +5,7 @@ from decimal import Decimal
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
 from stk.models.quote import Quote
+from stk.store.cache import cached
 from stk.utils.price import calc_change, r2
 from stk.utils.symbol import to_longport_symbol
 
@@ -57,6 +58,7 @@ def _fallback_quote(lp_symbol: str, prev_close: Decimal, q) -> Quote:
     )
 
 
+@cached(ttl=60, market_hours_only=True)
 def get_realtime_quotes(symbols: list[str]) -> list[Quote]:
     """Fetch real-time quotes for multiple symbols in a single API call."""
     try:
