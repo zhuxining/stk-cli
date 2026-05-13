@@ -1,16 +1,36 @@
 ---
-paths: "**/*.{py}"
+paths: 
+- "**/*.py"
 ---
 
 # Python 代码规范
 
-本项目使用 **ruff**（格式化与静态分析）和 **ty**（类型检查）作为代码质量工具链。
+使用 **ruff**（格式化与静态分析）和 **ty**（类型检查）作为代码质量工具链。
 
 ## 快速参考
 
 - **格式化代码**: `ruff format .`
 - **检查并自动修复**: `ruff check --fix .`
 - **类型检查**: `ty check`
+
+---
+
+## 不确定时参考
+
+### 权威来源
+
+| 主题 | 官方参考 |
+|------|---------|
+| 类型系统 | [typing.readthedocs.io](https://typing.readthedocs.io/) |
+| ty类型规则 | [docs.astral.sh](https://docs.astral.sh/ty/reference/rules/) |
+| 语言特性 | [docs.python.org](https://docs.python.org/3/) |
+| 标准库 | [docs.python.org/3/library](https://docs.python.org/3/library/) |
+| 版本变更 | [Python Release Notes](https://www.python.org/downloads/) |
+
+### 关键提示
+
+- 从 `pyproject.toml` 确认 Python 版本
+- 现有代码与文档冲突时，向用户确认后执行
 
 ---
 
