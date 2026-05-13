@@ -1,57 +1,99 @@
-"""Tests for multi-indicator resonance scoring service."""
+"""Tests for trend-first signal scoring service."""
 
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 
 from stk.errors import IndicatorError
+from stk.models.history import Candlestick
 from stk.services.score import calc_score
+
+
+def _candles_from_closes(closes: list[float], *, width: float = 1.0) -> list[Candlestick]:
+    candles: list[Candlestick] = []
+    for i, close in enumerate(closes):
+        candles.append(
+            Candlestick(
+                date=(datetime(2024, 1, 1, tzinfo=UTC) + timedelta(days=i)).strftime(
+                    "%Y-%m-%d"
+                ),
+                open=Decimal(str(close)),
+                high=Decimal(str(close + width)),
+                low=Decimal(str(close - width)),
+                close=Decimal(str(close)),
+                volume=1000000 + i,
+                turnover=Decimal(str(close * 1000000)),
+            )
+        )
+    return candles
+
+
+def _strong_buy_candles() -> list[Candlestick]:
+    closes = [120 - i * 0.5 for i in range(55)] + [92 + i * 4.0 for i in range(6)]
+    return _candles_from_closes(closes)
+
+
+def _strong_sell_candles() -> list[Candlestick]:
+    closes = [80 + i * 0.5 for i in range(55)] + [108 - i * 4.0 for i in range(6)]
+    return _candles_from_closes(closes)
+
+
+def _mismatch_candles() -> list[Candlestick]:
+    closes = [80 + i * 0.7 for i in range(58)] + [120, 110]
+    return _candles_from_closes(closes)
+
+
+def _stale_bullish_candles() -> list[Candlestick]:
+    closes = [80 + i * 0.5 for i in range(70)]
+    return _candles_from_closes(closes)
 
 
 @patch("stk.services.score.get_history")
 def test_calc_score_basic(mock_history, make_candles):
-    """Test basic scoring returns valid structure."""
+    """Test basic scoring returns the monitoring structure."""
     mock_history.return_value = make_candles(60)
 
     result = calc_score("600519")
 
     assert result.symbol == "600519"
-    assert 0 <= result.total_score <= 100
-    # 7 dims: 动量, MACD, BOLL, 量价, 趋势, 资金流, 背离
-    assert len(result.dimensions) == 7
-    assert isinstance(result.signals, list)
+    assert result.decision.level in {"strong_buy", "buy", "hold", "sell", "strong_sell"}
+    assert result.decision.action in {"focus_buy", "focus_sell", "watch"}
+    assert 0 <= result.decision.confidence <= 100
+    assert result.primary_signal.strategy == "ema_supertrend"
+    assert result.context.overall_bias in {"supportive", "mixed", "conflicting", "risky"}
+    assert result.risk.risk_level in {"low", "medium", "high"}
 
 
 @patch("stk.services.score.get_history")
 def test_score_dimensions_complete(mock_history, make_candles):
-    """Test all 7 dimensions are present with correct max scores."""
+    """Test context factors are present and bounded."""
     mock_history.return_value = make_candles(60)
 
     result = calc_score("600519")
 
-    dim_names = {d.name for d in result.dimensions}
-    assert dim_names == {"动量", "MACD", "BOLL", "量价", "趋势", "资金流", "背离"}
+    factor_names = {factor.name for factor in result.context.factors}
+    assert factor_names == {
+        "momentum",
+        "macd",
+        "boll",
+        "volume_price",
+        "ema_trend",
+        "money_flow",
+        "divergence",
+    }
 
-    max_scores = {d.name: d.max_score for d in result.dimensions}
-    assert max_scores["动量"] == 15
-    assert max_scores["MACD"] == 15
-    assert max_scores["BOLL"] == 15
-    assert max_scores["量价"] == 10
-    assert max_scores["趋势"] == 20
-    assert max_scores["资金流"] == 15
-    assert max_scores["背离"] == 10
-
-
-@patch("stk.services.score.get_history")
-def test_score_dimension_scores_not_exceed_max(mock_history, make_candles):
-    """Test no dimension exceeds its max score."""
-    mock_history.return_value = make_candles(60)
-
-    result = calc_score("600519")
-
-    for dim in result.dimensions:
-        assert dim.score <= dim.max_score, f"{dim.name} score {dim.score} > max {dim.max_score}"
-        assert dim.score >= 0, f"{dim.name} score {dim.score} < 0"
+    for factor in result.context.factors:
+        assert 0 <= factor.score <= 100
+        assert factor.state in {
+            "confirming",
+            "neutral",
+            "conflicting",
+            "risk",
+            "opportunity",
+            "none",
+        }
 
 
 @patch("stk.services.score.get_history")
@@ -61,13 +103,13 @@ def test_score_atr_fields(mock_history, make_candles):
 
     result = calc_score("600519")
 
-    assert result.atr is not None
-    assert result.atr > 0
-    assert result.stop_loss is not None
-    assert result.take_profit is not None
-    assert result.stop_loss < result.take_profit
-    assert result.risk_reward_ratio is not None
-    assert result.risk_reward_ratio > 0
+    assert result.risk.atr is not None
+    assert result.risk.atr > 0
+    assert result.risk.stop_loss is not None
+    assert result.risk.take_profit is not None
+    assert result.risk.stop_loss < result.risk.take_profit
+    assert result.risk.risk_reward_ratio is not None
+    assert result.risk.risk_reward_ratio > 0
 
 
 @patch("stk.services.score.get_history")
@@ -89,28 +131,77 @@ def test_score_no_data(mock_history):
 
 
 @patch("stk.services.score.get_history")
-def test_score_mfi_dimension(mock_history, make_candles):
-    """Test MFI (Money Flow Index) dimension is calculated."""
-    mock_history.return_value = make_candles(60)
+def test_strong_buy_signal(mock_history):
+    """EMA9 golden cross plus bullish Supertrend yields strong_buy."""
+    mock_history.return_value = _strong_buy_candles()
 
     result = calc_score("600519")
 
-    mfi_dim = next(d for d in result.dimensions if d.name == "资金流")
-    assert mfi_dim.score >= 0
-    assert mfi_dim.max_score == 15
-    assert mfi_dim.signal is not None
-    assert "MFI=" in mfi_dim.signal
+    assert result.decision.level == "strong_buy"
+    assert result.decision.action == "focus_buy"
+    assert result.decision.direction == "bullish"
+    assert result.decision.signal_status == "new"
+    assert result.decision.bars_since_signal == 0
+    assert result.decision.confidence >= 90
+    assert result.primary_signal.ema_cross == "golden"
 
 
 @patch("stk.services.score.get_history")
-def test_score_signals_have_prefix(mock_history, make_candles):
-    """Test signals have direction prefix [买]/[卖]."""
-    mock_history.return_value = make_candles(60)
+def test_strong_sell_signal(mock_history):
+    """EMA9 death cross plus bearish Supertrend yields strong_sell."""
+    mock_history.return_value = _strong_sell_candles()
 
     result = calc_score("600519")
 
-    for sig in result.signals:
-        assert sig.startswith("[买] ") or sig.startswith("[卖] "), f"Signal missing prefix: {sig}"
+    assert result.decision.level == "strong_sell"
+    assert result.decision.action == "focus_sell"
+    assert result.decision.direction == "bearish"
+    assert result.decision.signal_status == "new"
+    assert result.decision.bars_since_signal == 0
+    assert result.decision.confidence >= 90
+    assert result.primary_signal.ema_cross == "death"
+
+
+@patch("stk.services.score.get_history")
+def test_mismatch_holds_signal(mock_history):
+    """EMA and Supertrend disagreement stays at hold confidence."""
+    mock_history.return_value = _mismatch_candles()
+
+    result = calc_score("600519")
+
+    assert result.decision.level == "hold"
+    assert result.decision.action == "watch"
+    assert result.decision.direction == "neutral"
+    assert result.decision.confidence < 60
+    assert any("方向不一致" in reason for reason in result.primary_signal.reasons)
+
+
+@patch("stk.services.score.get_history")
+def test_old_cross_no_strong_signal(mock_history):
+    """A stale alignment without a recent trigger does not become a buy signal."""
+    mock_history.return_value = _stale_bullish_candles()
+
+    result = calc_score("600519")
+
+    assert result.decision.level == "hold"
+    assert result.decision.action == "watch"
+    assert result.decision.direction == "bullish"
+    assert result.decision.signal_status == "stale"
+    assert result.decision.bars_since_signal is None
+    assert result.decision.confidence < 60
+
+
+@patch("stk.services.score.get_history")
+def test_primary_signal_reasons_are_structured(mock_history):
+    """Test primary signal keeps machine-readable evidence and concise reasons."""
+    mock_history.return_value = _strong_buy_candles()
+
+    result = calc_score("600519")
+
+    assert result.primary_signal.reasons
+    assert result.primary_signal.ema9 is not None
+    assert result.primary_signal.ema26 is not None
+    assert result.primary_signal.supertrend is not None
 
 
 @patch("stk.services.score.get_history")
@@ -120,4 +211,4 @@ def test_score_adx(mock_history, make_candles):
 
     result = calc_score("600519")
 
-    assert result.adx is not None
+    assert result.primary_signal.adx is not None

@@ -1,49 +1,68 @@
-"""Watchlist scan models."""
+"""Daily monitoring scan models."""
 
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from stk.models.score import Decision, PrimarySignal, RiskProfile, SignalContext
+
+type FocusPriority = Literal["high", "medium", "low"]
 
 
-class ScanItem(BaseModel):
-    """Single security result in a watchlist scan."""
+class MonitorUniverse(BaseModel):
+    """Universe coverage for a monitoring run."""
+
+    name: str
+    total: int
+    scanned: int
+    failed: int
+
+
+class MonitorSummary(BaseModel):
+    """Aggregated signal counts for a monitoring run."""
+
+    focus_count: int
+    high_priority_count: int
+    entry_signal_count: int
+    exit_signal_count: int
+    watch_signal_count: int
+
+
+class FocusItem(BaseModel):
+    """One symbol selected for daily focus."""
 
     symbol: str
     name: str = ""
+    priority: FocusPriority
+    decision: Decision
+    primary_signal: PrimarySignal
+    context: SignalContext
+    risk: RiskProfile
     last: Decimal | None = None
     change_pct: Decimal | None = None
-    source: str = "realtime"  # "realtime" | "last_close"
-    score: float | None = None
-    signals: list[str] = []  # "[买] ..." / "[卖] ..." / "[警] ..."
-    score_detail: dict[str, str] = {}  # {维度名: signal文本}
-    # Valuation fields
-    pe_ttm: Decimal | None = None
-    pb: Decimal | None = None
-    dividend_yield: Decimal | None = None
-    # Market dynamics
-    volume_ratio: Decimal | None = None
-    turnover_rate: Decimal | None = None  # 换手率 (%)
-    amplitude: Decimal | None = None  # 振幅 (%)
-    # Change rates
-    change_5d: Decimal | None = None  # 5日涨跌幅 (%)
-    change_10d: Decimal | None = None  # 10日涨跌幅 (%)
-    ytd_change_rate: Decimal | None = None  # 年初至今涨幅 (%)
-    # Trend
-    adx: float | None = None
-    # ATR risk control
-    atr: float | None = None
-    stop_loss: float | None = None
-    take_profit: float | None = None
-    risk_reward_ratio: float | None = None
-    # Capital flow (from calc_indexes, 万元)
-    capital_flow: Decimal | None = None
-    # Company profile
-    main_business: str | None = None
+    source: str = "unknown"
 
 
-class ScanResult(BaseModel):
-    """Batch scan result for a watchlist group."""
+class IgnoredSummary(BaseModel):
+    """Symbols that were scanned but did not produce focus output."""
 
-    group_name: str
-    total: int
-    items: list[ScanItem]
+    no_signal_count: int
+
+
+class ScanError(BaseModel):
+    """Non-fatal per-symbol scan error."""
+
+    symbol: str
+    reason: str
+
+
+class MonitorResult(BaseModel):
+    """Daily monitoring result for a watchlist or ad-hoc universe."""
+
+    run_date: str
+    universe: MonitorUniverse
+    summary: MonitorSummary
+    focus: list[FocusItem] = Field(default_factory=list)
+    ignored: IgnoredSummary
+    errors: list[ScanError] = Field(default_factory=list)

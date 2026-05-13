@@ -8,7 +8,7 @@ from stk.services.indicator import get_daily
 @patch("stk.services.indicator.get_history")
 def test_get_daily(mock_history, make_candles):
     """Test get_daily merges OHLCV + all indicators per day."""
-    mock_history.return_value = make_candles(70)  # 10 + 60 warmup
+    mock_history.return_value = make_candles(60)  # 10 + 50 warmup
     result = get_daily("600519", count=10)
     assert result.symbol == "600519"
     assert len(result.days) == 10
@@ -22,9 +22,13 @@ def test_get_daily(mock_history, make_candles):
     assert "change_pct" in newest
     # Indicator fields
     assert "EMA5" in newest
+    assert "EMA9" in newest
+    assert "EMA26" in newest
     assert "EMA60" in newest
     assert "MACD" in newest
     assert "RSI" in newest
     assert "K" in newest
     assert "upper" in newest
     assert "ATR14" in newest
+    assert "Supertrend" in newest
+    assert "SupertrendDirection" in newest
