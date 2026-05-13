@@ -1,7 +1,9 @@
 """News service — individual stock news + global market news."""
 
+from collections.abc import Callable
 import random
 import time
+from typing import TypedDict
 
 import akshare as ak
 from loguru import logger
@@ -10,8 +12,19 @@ from stk.errors import SourceError
 from stk.models.news import NewsItem
 from stk.store.cache import cached
 
+
+class _GlobalSourceConfig(TypedDict):
+    api: str
+    kwargs_fn: Callable[[str], dict[str, str]]
+    title: str
+    summary: str
+    published_at: str
+    source_name: str
+    url: str
+
+
 # Column mapping: akshare column name → NewsItem field
-_GLOBAL_SOURCE_CONFIG = {
+_GLOBAL_SOURCE_CONFIG: dict[str, _GlobalSourceConfig] = {
     "cls": {
         "api": "stock_info_global_cls",
         "kwargs_fn": lambda f: {"symbol": f},
@@ -19,6 +32,7 @@ _GLOBAL_SOURCE_CONFIG = {
         "summary": "内容",
         "published_at": "发布时间",
         "source_name": "财联社",
+        "url": "",
     },
     "ths": {
         "api": "stock_info_global_ths",
@@ -51,8 +65,8 @@ def get_global_news(
         raise SourceError(f"Unknown source: {source}, use {valid}")
 
     try:
-        api_fn = getattr(ak, cfg["api"])  # type: ignore[arg-type]
-        kwargs = cfg["kwargs_fn"](filter_)  # type: ignore[misc]
+        api_fn = getattr(ak, cfg["api"])
+        kwargs = cfg["kwargs_fn"](filter_)
         df = api_fn(**kwargs)
 
         if df.empty:
@@ -79,8 +93,8 @@ def get_global_news(
                     title=title,
                     summary=summary,
                     published_at=pub_at,
-                    source=source_name,  # type: ignore[arg-type]
-                    url=str(row.get(cfg.get("url", ""), "")),
+                    source=source_name,
+                    url=str(row.get(cfg["url"], "")),
                 )
             )
         items.reverse()
