@@ -14,6 +14,7 @@ from stk.models.score import (
     DecisionAction,
     EmaCross,
     FactorState,
+    MetricValue,
     PrimarySignal,
     RiskLevel,
     RiskProfile,
@@ -38,6 +39,44 @@ def _safe_last(series: pd.Series | np.ndarray) -> float | None:
     """Get last non-NaN value from a series."""
     val = series.iloc[-1] if isinstance(series, pd.Series) else series[-1]
     return None if np.isnan(val) else round(float(val), 4)
+
+
+def _metric(value: float | int | None, *, digits: int = 4) -> float | None:
+    if value is None or np.isnan(value):
+        return None
+    return round(float(value), digits)
+
+
+def _clean_metrics(metrics: dict[str, MetricValue]) -> dict[str, MetricValue]:
+    return {key: value for key, value in metrics.items() if value is not None}
+
+
+def _rsi_zone(rsi: float | None) -> str | None:
+    if rsi is None:
+        return None
+    if rsi < 30:
+        return "oversold"
+    if rsi < 40:
+        return "weak"
+    if rsi <= 60:
+        return "neutral"
+    if rsi <= 70:
+        return "strong"
+    return "overbought"
+
+
+def _mfi_zone(mfi: float | None) -> str | None:
+    if mfi is None:
+        return None
+    if mfi < 20:
+        return "oversold"
+    if mfi < 40:
+        return "weak"
+    if mfi <= 60:
+        return "neutral"
+    if mfi <= 80:
+        return "strong"
+    return "overbought"
 
 
 def _direction_label(direction: TrendDirection) -> str:
@@ -114,14 +153,15 @@ def _build_reasons(
 
     reasons.append(f"Supertrend 当前为{_direction_label(st_direction)}")
 
-    if golden_age is not None and golden_age <= _RESONANCE_WINDOW:
-        reasons.append(f"EMA 金叉发生在{_format_age(golden_age)}")
-    if death_age is not None and death_age <= _RESONANCE_WINDOW:
-        reasons.append(f"EMA 死叉发生在{_format_age(death_age)}")
-    if bull_flip_age is not None and bull_flip_age <= _RESONANCE_WINDOW:
-        reasons.append(f"Supertrend 多头翻转发生在{_format_age(bull_flip_age)}")
-    if bear_flip_age is not None and bear_flip_age <= _RESONANCE_WINDOW:
-        reasons.append(f"Supertrend 空头翻转发生在{_format_age(bear_flip_age)}")
+    events = [
+        (golden_age, "EMA 金叉"),
+        (death_age, "EMA 死叉"),
+        (bull_flip_age, "Supertrend 多头翻转"),
+        (bear_flip_age, "Supertrend 空头翻转"),
+    ]
+    for age, label in events:
+        if age is not None and age <= _RESONANCE_WINDOW:
+            reasons.append(f"{label}发生在{_format_age(age)}")
 
     return reasons
 
@@ -271,20 +311,6 @@ def _decision_action(level: SignalLevel) -> DecisionAction:
             return "watch"
 
 
-def _decision_summary(level: SignalLevel) -> str:
-    match level:
-        case "strong_buy":
-            return "EMA9/26 金叉与 Supertrend 多头强共振"
-        case "buy":
-            return "EMA9/26 与 Supertrend 多头确认"
-        case "strong_sell":
-            return "EMA9/26 死叉与 Supertrend 空头强共振"
-        case "sell":
-            return "EMA9/26 与 Supertrend 空头确认"
-        case _:
-            return "趋势信号未确认"
-
-
 def _build_decision(trend_signal: TrendSignal) -> Decision:
     return Decision(
         action=_decision_action(trend_signal.level),
@@ -294,7 +320,6 @@ def _build_decision(trend_signal: TrendSignal) -> Decision:
         signal_status=_signal_status(trend_signal.bars_since_signal),
         signal_date=trend_signal.signal_date,
         bars_since_signal=trend_signal.bars_since_signal,
-        summary=_decision_summary(trend_signal.level),
     )
 
 
@@ -338,21 +363,6 @@ def _calc_momentum_factor(
 ) -> ContextFactor:
     rsi = talib.RSI(close.to_numpy(), timeperiod=14)
     rsi_now = _safe_last(rsi)
-    rsi_ratio = 0.25
-
-    signals: list[str] = []
-    if rsi_now is not None:
-        signals.append(f"RSI={rsi_now:.0f}")
-        if rsi_now < 30:
-            rsi_ratio = 1.0
-        elif rsi_now < 40:
-            rsi_ratio = 0.6
-        elif rsi_now <= 60:
-            rsi_ratio = 0.25
-        elif rsi_now <= 70:
-            rsi_ratio = 0.1
-        else:
-            rsi_ratio = 0.0
 
     k, d = talib.STOCH(
         high.to_numpy(),
@@ -364,21 +374,6 @@ def _calc_momentum_factor(
     )
     j = 3 * k - 2 * d
     k_now, d_now, j_now = _safe_last(k), _safe_last(d), _safe_last(j)
-    kdj_ratio = 0.25
-
-    if j_now is not None:
-        signals.append(f"J={j_now:.0f}")
-    if k_now is not None and d_now is not None:
-        if j_now is not None and j_now < 20:
-            kdj_ratio = 0.75
-        elif j_now is not None and j_now > 80:
-            kdj_ratio = 0.0
-        elif k_now > d_now:
-            kdj_ratio = 0.4
-        else:
-            kdj_ratio = 0.15
-
-    score = round((rsi_ratio * 0.6 + kdj_ratio * 0.4) * 100, 1)
 
     oversold = (rsi_now is not None and rsi_now < 30) or (j_now is not None and j_now < 20)
     overbought = (rsi_now is not None and rsi_now > 70) or (j_now is not None and j_now > 80)
@@ -395,7 +390,22 @@ def _calc_momentum_factor(
             direction=direction,
         )
 
-    return ContextFactor(name="momentum", state=state, score=score, signals=signals)
+    kdj_bias = None
+    if k_now is not None and d_now is not None:
+        kdj_bias = "bullish" if k_now > d_now else "bearish" if k_now < d_now else "neutral"
+    metrics = _clean_metrics({
+        "rsi14": rsi_now,
+        "rsi_zone": _rsi_zone(rsi_now),
+        "k": k_now,
+        "d": d_now,
+        "j": j_now,
+        "kdj_bias": kdj_bias,
+    })
+    return ContextFactor(
+        name="momentum",
+        state=state,
+        metrics=metrics,
+    )
 
 
 def _calc_macd_factor(
@@ -413,23 +423,28 @@ def _calc_macd_factor(
     signal_now = _safe_last(macd_signal)
     hist_now = _safe_last(macd_hist)
 
-    signals: list[str] = []
-    score = 50.0
     bullish = False
     bearish = False
     if macd_now is not None and signal_now is not None:
-        signals.append(f"DIF={macd_now:.4f}")
         bullish = macd_now > signal_now and hist_now is not None and hist_now > 0
         bearish = macd_now < signal_now and hist_now is not None and hist_now < 0
-        if bullish:
-            score = 75.0
-            signals.append("MACD多头")
-        elif bearish:
-            score = 25.0
-            signals.append("MACD空头")
 
     state = _factor_state_for_direction(bullish=bullish, bearish=bearish, direction=direction)
-    return ContextFactor(name="macd", state=state, score=score, signals=signals), macd_hist
+    macd_bias = "bullish" if bullish else "bearish" if bearish else "neutral"
+    metrics = _clean_metrics({
+        "dif": macd_now,
+        "dea": signal_now,
+        "hist": hist_now,
+        "bias": macd_bias,
+    })
+    return (
+        ContextFactor(
+            name="macd",
+            state=state,
+            metrics=metrics,
+        ),
+        macd_hist,
+    )
 
 
 def _calc_boll_factor(
@@ -444,25 +459,21 @@ def _calc_boll_factor(
     lower_now = _safe_last(lower)
 
     if upper_now is None or middle_now is None or lower_now is None:
-        return ContextFactor(name="boll", state="none", score=50, signals=[]), []
+        return ContextFactor(name="boll", state="none"), []
 
     bandwidth = upper_now - lower_now
     position_pct = ((current_price - lower_now) / bandwidth * 100) if bandwidth > 0 else 50
     bw_pct = (bandwidth / middle_now * 100) if middle_now > 0 else 999
 
     warnings: list[str] = []
-    signals = [f"BOLL位置={position_pct:.0f}%"]
     if bw_pct < 5:
         warnings.append(f"布林收窄 (带宽{bw_pct:.1f}%)")
 
     if position_pct < 10:
         state: FactorState = "opportunity"
-        score = 100.0
     elif position_pct >= 90:
         state = "risk"
-        score = 0.0
     else:
-        score = round(max(0.0, min(100.0, 100 - position_pct)), 1)
         bullish = position_pct >= 50
         bearish = position_pct < 50
         state = _factor_state_for_direction(
@@ -471,7 +482,21 @@ def _calc_boll_factor(
             direction=direction,
         )
 
-    return ContextFactor(name="boll", state=state, score=score, signals=signals), warnings
+    metrics = _clean_metrics({
+        "upper": upper_now,
+        "middle": middle_now,
+        "lower": lower_now,
+        "position_pct": round(position_pct, 1),
+        "bandwidth_pct": round(bw_pct, 1),
+    })
+    return (
+        ContextFactor(
+            name="boll",
+            state=state,
+            metrics=metrics,
+        ),
+        warnings,
+    )
 
 
 def _calc_volume_price_factor(
@@ -482,33 +507,34 @@ def _calc_volume_price_factor(
 ) -> ContextFactor:
     turnover = df["turnover"].astype(float) if "turnover" in df.columns else None
     if turnover is None or len(turnover) < 6:
-        return ContextFactor(name="volume_price", state="none", score=50, signals=[])
+        return ContextFactor(name="volume_price", state="none")
 
     avg_vol = turnover.iloc[-6:-1].mean()
     cur_vol = turnover.iloc[-1]
     vol_ratio = cur_vol / avg_vol if avg_vol > 0 else 1
     prev_close = float(close.iloc[-2])
-    price_change = (
-        (float(close.iloc[-1]) - prev_close) / prev_close * 100 if prev_close > 0 else 0
-    )
+    price_change = (float(close.iloc[-1]) - prev_close) / prev_close * 100 if prev_close > 0 else 0
 
-    signals = [f"量比={vol_ratio:.1f}x", f"涨跌={price_change:+.1f}%"]
     bullish = vol_ratio > 1.5 and price_change > 1
     bearish = vol_ratio > 1.5 and price_change < -1
     if vol_ratio > 2.0 and price_change < -3:
         state: FactorState = "risk"
-        score = 0.0
     elif bullish:
         state = _factor_state_for_direction(bullish=True, bearish=False, direction=direction)
-        score = 90.0 if vol_ratio > 2.0 and price_change > 3 else 67.0
     elif bearish:
         state = _factor_state_for_direction(bullish=False, bearish=True, direction=direction)
-        score = 20.0
     else:
         state = "neutral"
-        score = 33.0
 
-    return ContextFactor(name="volume_price", state=state, score=score, signals=signals)
+    metrics: dict[str, MetricValue] = {
+        "volume_ratio_5d": round(vol_ratio, 2),
+        "price_change_pct": round(price_change, 2),
+    }
+    return ContextFactor(
+        name="volume_price",
+        state=state,
+        metrics=metrics,
+    )
 
 
 def _calc_legacy_ema_factor(
@@ -522,22 +548,29 @@ def _calc_legacy_ema_factor(
     ema20 = talib.EMA(close_arr, timeperiod=20)
     e5, e10, e20 = _safe_last(ema5), _safe_last(ema10), _safe_last(ema20)
     if e5 is None or e10 is None or e20 is None:
-        return ContextFactor(name="ema_trend", state="none", score=50, signals=[])
+        return ContextFactor(name="ema_trend", state="none")
 
     bullish = e5 > e10 > e20 and current_price > e5
     bearish = e5 < e10 < e20 and current_price < e5
     if bullish:
-        score = 100.0
-        signals = ["EMA5>EMA10>EMA20"]
+        arrangement = "bullish"
     elif bearish:
-        score = 0.0
-        signals = ["EMA5<EMA10<EMA20"]
+        arrangement = "bearish"
     else:
-        score = 50.0
-        signals = ["EMA短周期未排列"]
+        arrangement = "none"
 
     state = _factor_state_for_direction(bullish=bullish, bearish=bearish, direction=direction)
-    return ContextFactor(name="ema_trend", state=state, score=score, signals=signals)
+    metrics = _clean_metrics({
+        "ema5": e5,
+        "ema10": e10,
+        "ema20": e20,
+        "arrangement": arrangement,
+    })
+    return ContextFactor(
+        name="ema_trend",
+        state=state,
+        metrics=metrics,
+    )
 
 
 def _calc_money_flow_factor(
@@ -555,18 +588,24 @@ def _calc_money_flow_factor(
     )
     mfi_now = _safe_last(mfi)
     if mfi_now is None:
-        return ContextFactor(name="money_flow", state="none", score=50, signals=[])
+        return ContextFactor(name="money_flow", state="none")
 
-    signals = [f"MFI={mfi_now:.0f}"]
+    metrics = _clean_metrics({"mfi14": mfi_now, "mfi_zone": _mfi_zone(mfi_now)})
     if mfi_now < 20:
-        return ContextFactor(name="money_flow", state="opportunity", score=100, signals=signals)
-    if mfi_now < 40:
-        return ContextFactor(name="money_flow", state="confirming", score=67, signals=signals)
-    if mfi_now <= 60:
-        return ContextFactor(name="money_flow", state="neutral", score=47, signals=signals)
-    if mfi_now <= 80:
-        return ContextFactor(name="money_flow", state="conflicting", score=20, signals=signals)
-    return ContextFactor(name="money_flow", state="risk", score=0, signals=signals)
+        state: FactorState = "opportunity"
+    elif mfi_now < 40:
+        state = "confirming"
+    elif mfi_now <= 60:
+        state = "neutral"
+    elif mfi_now <= 80:
+        state = "conflicting"
+    else:
+        state = "risk"
+    return ContextFactor(
+        name="money_flow",
+        state=state,
+        metrics=metrics,
+    )
 
 
 def _calc_divergence_factor(
@@ -576,14 +615,14 @@ def _calc_divergence_factor(
     lookback: int = 20,
 ) -> ContextFactor:
     if len(close) < lookback + 1 or len(macd_hist) < lookback + 1:
-        return ContextFactor(name="divergence", state="none", score=50, signals=[])
+        return ContextFactor(name="divergence", state="none")
 
     window_close = close.iloc[-(lookback + 1) : -1]
     window_hist = macd_hist[-(lookback + 1) : -1]
     cur_close = float(close.iloc[-1])
     cur_hist = float(macd_hist[-1]) if not np.isnan(macd_hist[-1]) else None
     if cur_hist is None:
-        return ContextFactor(name="divergence", state="none", score=50, signals=[])
+        return ContextFactor(name="divergence", state="none")
 
     min_idx = int(window_close.to_numpy().argmin())
     max_idx = int(window_close.to_numpy().argmax())
@@ -592,30 +631,67 @@ def _calc_divergence_factor(
     hist_at_low = float(window_hist[min_idx]) if not np.isnan(window_hist[min_idx]) else None
     hist_at_high = float(window_hist[max_idx]) if not np.isnan(window_hist[max_idx]) else None
 
+    def _divergence_metrics(
+        divergence_type: str,
+        *,
+        reference_price: float | None = None,
+        reference_hist: float | None = None,
+    ) -> dict[str, MetricValue]:
+        price_distance_pct = (
+            (cur_close - reference_price) / reference_price * 100
+            if reference_price and reference_price > 0
+            else None
+        )
+        hist_delta = cur_hist - reference_hist if reference_hist is not None else None
+        return _clean_metrics({
+            "type": divergence_type,
+            "lookback": lookback,
+            "current_close": round(cur_close, 4),
+            "reference_price": _metric(reference_price),
+            "current_hist": _metric(cur_hist),
+            "reference_hist": _metric(reference_hist),
+            "price_distance_pct": _metric(price_distance_pct, digits=2),
+            "hist_delta": _metric(hist_delta),
+        })
+
     if hist_at_low is not None and cur_close <= prev_low * 1.02 and cur_hist > hist_at_low:
         return ContextFactor(
             name="divergence",
             state="opportunity",
-            score=100,
-            signals=["MACD底背离"],
+            metrics=_divergence_metrics(
+                "macd_bullish",
+                reference_price=prev_low,
+                reference_hist=hist_at_low,
+            ),
         )
     if hist_at_high is not None and cur_close >= prev_high * 0.98 and cur_hist < hist_at_high:
-        return ContextFactor(name="divergence", state="risk", score=0, signals=["MACD顶背离"])
-    return ContextFactor(name="divergence", state="none", score=50, signals=["无背离"])
+        return ContextFactor(
+            name="divergence",
+            state="risk",
+            metrics=_divergence_metrics(
+                "macd_bearish",
+                reference_price=prev_high,
+                reference_hist=hist_at_high,
+            ),
+        )
+    return ContextFactor(
+        name="divergence",
+        state="none",
+        metrics=_divergence_metrics("none"),
+    )
 
 
 def _overall_bias(factors: list[ContextFactor]) -> ContextBias:
     confirming = sum(f.state == "confirming" for f in factors)
     conflicting = sum(f.state == "conflicting" for f in factors)
     risky = sum(f.state == "risk" for f in factors)
+
     if conflicting >= 2 or conflicting > confirming:
         return "conflicting"
-    if risky >= 2:
+    if risky >= 2 or (risky > 0 and confirming < 2):
         return "risky"
     if confirming >= 2 and conflicting == 0:
         return "supportive"
-    if risky > 0:
-        return "risky"
     return "mixed"
 
 

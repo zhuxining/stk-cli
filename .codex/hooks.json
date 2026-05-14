@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ruff check && uv run ty check",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

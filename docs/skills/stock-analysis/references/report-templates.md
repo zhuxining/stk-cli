@@ -161,7 +161,7 @@
 
 | 代码 | 名称 | 优先级 | 信号 | 置信度 | 新鲜度 | 方向 | 风控 | 说明 |
 |------|------|--------|------|--------|--------|------|------|------|
-| {symbol} | {name} | {priority} | {level} | {confidence} | {signal_status}/{bars_since_signal}K | {direction} | 止损 {stop_loss} / 风险 {risk_level} | {summary 或关键原因} |
+| {symbol} | {name} | {priority} | {level} | {confidence} | {signal_status}/{bars_since_signal}K | {direction} | 止损 {stop_loss} / 风险 {risk_level} | {primary_signal.reasons 的关键原因} |
 
 ## 高优先级提醒
 

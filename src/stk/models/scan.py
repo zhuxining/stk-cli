@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from stk.models.score import Decision, PrimarySignal, RiskProfile, SignalContext
 
 type FocusPriority = Literal["high", "medium", "low"]
+type CompactDailyValue = str | int | float | None
 
 
 class MonitorUniverse(BaseModel):
@@ -42,6 +43,7 @@ class FocusItem(BaseModel):
     last: Decimal | None = None
     change_pct: Decimal | None = None
     source: str = "unknown"
+    daily10: list[dict[str, CompactDailyValue]] | None = None
 
 
 class IgnoredSummary(BaseModel):

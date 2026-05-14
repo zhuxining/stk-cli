@@ -21,6 +21,8 @@ description: >
 - 有效窗口：最近 3 根 K 线内出现 EMA 交叉或 Supertrend 翻转，且方向一致。
 - 批量扫描：只展开 `MonitorResult.focus`；无信号标的只统计 `ignored.no_signal_count`。
 - 单标的解读：以 `decision` 下结论，以 `primary_signal` 给依据，以 `context` 和 `risk` 做补充。
+- 辅助因子读取 `context.factors[].state` 与 `context.factors[].metrics`。
+- `priority=high` 标的若包含 `daily10`，用最近 10 根压缩日线复核信号发生位置和短期指标变化。
 - `sell` / `strong_sell` 只表示减仓、退出或风险预警，不表达做空建议。
 
 - 信号级别：`strong_buy`(0-1K/多头强共振) → `buy`(2-3K) → `hold`(无效/过期/冲突) → `sell`(2-3K/空头) → `strong_sell`(0-1K/空头强)

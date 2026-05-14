@@ -8,6 +8,7 @@ from loguru import logger
 
 from stk.models.quote import Quote
 from stk.models.scan import (
+    CompactDailyValue,
     FocusItem,
     FocusPriority,
     IgnoredSummary,
@@ -17,6 +18,7 @@ from stk.models.scan import (
     ScanError,
 )
 from stk.models.score import ContextBias, ScoreResult, SignalLevel
+from stk.services.indicator import get_daily
 from stk.services.quote import get_realtime_quotes
 from stk.services.score import calc_score
 from stk.services.watchlist import get_watchlist
@@ -32,6 +34,71 @@ _BIAS_RANK: dict[ContextBias, int] = {
     "conflicting": 3,
 }
 _LOCAL_TZ = ZoneInfo("Asia/Shanghai")
+_HIGH_PRIORITY_DAILY_COUNT = 10
+
+
+def _round_daily_value(value: object, *, digits: int = 4) -> CompactDailyValue:
+    if value is None:
+        return None
+    if isinstance(value, int | str):
+        return value
+    if isinstance(value, float):
+        return round(value, digits)
+    return str(value)
+
+
+def _boll_position_pct(day: dict) -> float | None:
+    close = day.get("close")
+    upper = day.get("upper")
+    lower = day.get("lower")
+    if not isinstance(close, int | float):
+        return None
+    if not isinstance(upper, int | float) or not isinstance(lower, int | float):
+        return None
+    bandwidth = upper - lower
+    if bandwidth <= 0:
+        return None
+    return round((close - lower) / bandwidth * 100, 1)
+
+
+def _compact_daily_row(day: dict) -> dict[str, CompactDailyValue]:
+    field_map = {
+        "date": "date",
+        "open": "open",
+        "high": "high",
+        "low": "low",
+        "close": "close",
+        "volume": "volume",
+        "turnover": "turnover",
+        "change_pct": "change_pct",
+        "EMA9": "ema9",
+        "EMA26": "ema26",
+        "Supertrend": "supertrend",
+        "SupertrendDirection": "supertrend_direction",
+        "MACD": "macd",
+        "signal": "macd_signal",
+        "hist": "macd_hist",
+        "RSI": "rsi14",
+        "J": "j",
+        "ATR10": "atr10",
+    }
+    row = {
+        target: _round_daily_value(day.get(source))
+        for source, target in field_map.items()
+        if day.get(source) is not None
+    }
+    if (boll_position := _boll_position_pct(day)) is not None:
+        row["boll_position_pct"] = boll_position
+    return row
+
+
+def _get_high_priority_daily10(symbol: str) -> list[dict[str, CompactDailyValue]]:
+    try:
+        daily = get_daily(symbol, count=_HIGH_PRIORITY_DAILY_COUNT)
+    except Exception as err:
+        logger.debug(f"High priority daily supplement failed for {symbol}: {err}")
+        return []
+    return [_compact_daily_row(day) for day in daily.days]
 
 
 def _run_date() -> str:
@@ -79,10 +146,7 @@ def _has_watch_context(score: ScoreResult) -> bool:
 
 def _should_focus(score: ScoreResult) -> bool:
     decision = score.decision
-    if (
-        decision.level in _FOCUS_LEVELS
-        and decision.signal_status in _ACTIVE_SIGNAL_STATUSES
-    ):
+    if decision.level in _FOCUS_LEVELS and decision.signal_status in _ACTIVE_SIGNAL_STATUSES:
         return True
     return decision.level == "hold" and _has_watch_context(score)
 
@@ -105,10 +169,11 @@ def _focus_item(
 ) -> FocusItem:
     lp_symbol = to_longport_symbol(symbol)
     quote = quote_map.get(lp_symbol)
+    priority = _priority(score)
     return FocusItem(
         symbol=lp_symbol,
         name=names.get(lp_symbol, names.get(symbol, "")),
-        priority=_priority(score),
+        priority=priority,
         decision=score.decision,
         primary_signal=score.primary_signal,
         context=score.context,
@@ -116,13 +181,13 @@ def _focus_item(
         last=quote.last if quote else None,
         change_pct=quote.change_pct if quote else None,
         source=quote.source if quote else "unknown",
+        daily10=_get_high_priority_daily10(lp_symbol) if priority == "high" else None,
     )
 
 
 def _sort_key(item: FocusItem) -> tuple[int, int, float, int]:
-    bars_since_signal = (
-        item.decision.bars_since_signal if item.decision.bars_since_signal is not None else 999
-    )
+    bars = item.decision.bars_since_signal
+    bars_since_signal = 999 if bars is None else bars
     return (
         _PRIORITY_RANK[item.priority],
         _BIAS_RANK[item.context.overall_bias],
@@ -204,8 +269,6 @@ def batch_summary(symbols: list[str]) -> MonitorResult:
 
 def kline_watchlist(name: str, *, period: str = "day", count: int = 10) -> list:
     """Fetch K-line + all indicators for every stock in a watchlist group."""
-    from stk.services.indicator import get_daily
-
     watchlist = get_watchlist(name)
     symbols = [s.symbol for s in watchlist.securities]
 

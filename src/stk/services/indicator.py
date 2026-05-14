@@ -168,17 +168,18 @@ def _calc_supertrend(df: pd.DataFrame, params: dict) -> list[dict]:
     low = df["low"].to_numpy(dtype=float)
     close = df["close"].to_numpy(dtype=float)
 
-    supertrend, direction, _atr = _calc_supertrend_arrays(
+    supertrend, direction, atr = _calc_supertrend_arrays(
         high, low, close, period=period, multiplier=multiplier
     )
 
     rows: list[dict] = []
-    for d, st, trend in zip(df["date"], supertrend, direction, strict=False):
+    for d, st, trend, atr_value in zip(df["date"], supertrend, direction, atr, strict=False):
         trend_name = "bullish" if trend > 0 else "bearish" if trend < 0 else None
         rows.append({
             "date": d,
             "Supertrend": None if np.isnan(st) else round(float(st), 4),
             "SupertrendDirection": trend_name,
+            f"ATR{period}": None if np.isnan(atr_value) else round(float(atr_value), 4),
         })
     return rows
 
@@ -242,10 +243,11 @@ def get_daily(
             if prev_close:
                 day["change_pct"] = round((row["close"] - prev_close) / prev_close * 100, 2)
         # Merge indicator values (skip date key)
-        for values in indicator_rows.values():
-            for k, v in values[i].items():
-                if k != "date":
-                    day[k] = v
+        for indicator_values in indicator_rows.values():
+            day_data = indicator_values[i]
+            for key, value in day_data.items():
+                if key != "date":
+                    day[key] = value
         days.append(day)
 
     days.reverse()

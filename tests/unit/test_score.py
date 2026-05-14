@@ -16,9 +16,7 @@ def _candles_from_closes(closes: list[float], *, width: float = 1.0) -> list[Can
     for i, close in enumerate(closes):
         candles.append(
             Candlestick(
-                date=(datetime(2024, 1, 1, tzinfo=UTC) + timedelta(days=i)).strftime(
-                    "%Y-%m-%d"
-                ),
+                date=(datetime(2024, 1, 1, tzinfo=UTC) + timedelta(days=i)).strftime("%Y-%m-%d"),
                 open=Decimal(str(close)),
                 high=Decimal(str(close + width)),
                 low=Decimal(str(close - width)),
@@ -61,7 +59,6 @@ def test_calc_score_basic(mock_history, make_candles):
     assert result.decision.level in {"strong_buy", "buy", "hold", "sell", "strong_sell"}
     assert result.decision.action in {"focus_buy", "focus_sell", "watch"}
     assert 0 <= result.decision.confidence <= 100
-    assert result.primary_signal.strategy == "ema_supertrend"
     assert result.context.overall_bias in {"supportive", "mixed", "conflicting", "risky"}
     assert result.risk.risk_level in {"low", "medium", "high"}
 
@@ -85,7 +82,7 @@ def test_score_dimensions_complete(mock_history, make_candles):
     }
 
     for factor in result.context.factors:
-        assert 0 <= factor.score <= 100
+        assert factor.metrics
         assert factor.state in {
             "confirming",
             "neutral",

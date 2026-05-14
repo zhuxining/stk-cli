@@ -95,10 +95,11 @@ stk stock scan 600519 000001 700.HK
 `focus[]` 中每个 `FocusItem` 含：
 
 - 展示字段：`symbol`、`name`、`priority`、`last`、`change_pct`、`source`。
-- `decision`: `action`、`level`、`direction`、`confidence`、`signal_status`、`signal_date`、`bars_since_signal`、`summary`。
-- `primary_signal`: `strategy`、`ema_cross`、`ema9`、`ema26`、`supertrend`、`supertrend_direction`、`adx`、`reasons`。
-- `context`: `overall_bias`、`factors[]`、`warnings[]`。
+- `decision`: `action`、`level`、`direction`、`confidence`、`signal_status`、`signal_date`、`bars_since_signal`。
+- `primary_signal`: `ema_cross`、`ema9`、`ema26`、`supertrend`、`supertrend_direction`、`adx`、`reasons`。
+- `context`: `overall_bias`、`factors[]`、`warnings[]`；每个 factor 读取 `state` 与 `metrics`。
 - `risk`: `atr`、`stop_loss`、`take_profit`、`risk_reward_ratio`、`risk_level`。
+- `daily10`: 仅 `priority=high` 标的补充最近 10 根压缩日线，用于复核价格结构和指标变化。
 
 有效信号口径：
 
@@ -129,7 +130,7 @@ stk stock scan 600519 000001 700.HK
 - RSI：`RSI`
 - KDJ：`K`、`D`、`J`
 - BOLL：`upper`、`middle`、`lower`
-- ATR：`ATR14`
+- ATR：`ATR10`、`ATR14`
 - Supertrend：`Supertrend`、`SupertrendDirection`
 
 ### `stk stock fundamental <symbol>`

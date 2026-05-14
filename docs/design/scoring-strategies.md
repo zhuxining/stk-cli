@@ -44,11 +44,9 @@
     "confidence": 92,
     "signal_status": "new",
     "signal_date": "2026-05-12",
-    "bars_since_signal": 1,
-    "summary": "EMA9/26 金叉与 Supertrend 多头强共振"
+    "bars_since_signal": 1
   },
   "primary_signal": {
-    "strategy": "ema_supertrend",
     "ema_cross": "golden",
     "ema9": 123.45,
     "ema26": 120.12,
@@ -67,8 +65,14 @@
       {
         "name": "momentum",
         "state": "neutral",
-        "score": 42,
-        "signals": ["RSI=55", "J=48"]
+        "metrics": {
+          "rsi14": 55,
+          "rsi_zone": "neutral",
+          "k": 52,
+          "d": 54,
+          "j": 48,
+          "kdj_bias": "bearish"
+        }
       }
     ],
     "warnings": ["布林收窄 (带宽4.8%)"]
@@ -98,6 +102,7 @@
 | `decision.bars_since_signal` | 最近一次主信号距当前 K 线的根数。 |
 | `primary_signal` | 主趋势策略的指标值和触发原因。 |
 | `context` | 辅助因子、整体态度和风险提示。 |
+| `context.factors[].metrics` | 辅助因子的结构化指标值，是 Agent 分析的主要依据。 |
 | `risk` | ATR、止损、止盈、风险收益比和风险等级。 |
 
 ## 批量监控输出结构
@@ -131,7 +136,30 @@
       "risk": {},
       "last": 123.45,
       "change_pct": 1.23,
-      "source": "longport"
+      "source": "longport",
+      "daily10": [
+        {
+          "date": "2026-05-13",
+          "open": 120.1,
+          "high": 125.0,
+          "low": 119.8,
+          "close": 123.45,
+          "volume": 1000000,
+          "turnover": 123450000,
+          "change_pct": 1.23,
+          "ema9": 121.3,
+          "ema26": 118.6,
+          "supertrend": 116.2,
+          "supertrend_direction": "bullish",
+          "macd": 1.2,
+          "macd_signal": 1.0,
+          "macd_hist": 0.2,
+          "rsi14": 56,
+          "j": 70,
+          "boll_position_pct": 82.4,
+          "atr10": 2.34
+        }
+      ]
     }
   ],
   "ignored": {
@@ -161,6 +189,7 @@
 | `summary.exit_signal_count` | `decision.action=focus_sell` 的标的数量。 |
 | `summary.watch_signal_count` | `decision.action=watch` 的标的数量。 |
 | `focus` | 重点关注标的列表，默认不包含无信号标的。 |
+| `focus[].daily10` | 仅 `priority=high` 标的补充的最近 10 根压缩日线；其他标的为空。 |
 | `ignored.no_signal_count` | 成功扫描但未进入 `focus` 的标的数量。 |
 | `errors` | 非致命单标的错误列表。 |
 
@@ -171,6 +200,7 @@
 - `last`：实时最新价，行情失败时为空。
 - `change_pct`：实时涨跌幅，行情失败时为空。
 - `source`：行情来源，行情失败时为 `unknown`。
+- `daily10`：只在 `priority=high` 时补充，用于 Agent 复核信号发生位置、近期价格结构和指标变化。
 
 ## 主信号策略
 
@@ -228,6 +258,23 @@
 | `ema_trend` | `EMA5`、`EMA10`、`EMA20` | 短周期均线排列是否支持当前方向。 |
 | `money_flow` | `MFI14` | 资金流强弱、超买或超卖。 |
 | `divergence` | 最近 20 根 K 线与 MACD histogram | MACD 顶背离、底背离或无背离。 |
+
+辅助因子输出规则：
+
+- `state` 是辅助因子的结论枚举，用于排序、过滤和冲突识别。
+- `metrics` 是结构化指标明细，用于 Agent 分析和二次推理。
+
+核心 `metrics` 字段：
+
+| factor name | metrics |
+|-------------|---------|
+| `momentum` | `rsi14`、`rsi_zone`、`k`、`d`、`j`、`kdj_bias`。 |
+| `macd` | `dif`、`dea`、`hist`、`bias`。 |
+| `boll` | `upper`、`middle`、`lower`、`position_pct`、`bandwidth_pct`。 |
+| `volume_price` | `volume_ratio_5d`、`price_change_pct`。 |
+| `ema_trend` | `ema5`、`ema10`、`ema20`、`arrangement`。 |
+| `money_flow` | `mfi14`、`mfi_zone`。 |
+| `divergence` | `type`、`lookback`、`current_close`、`reference_price`、`current_hist`、`reference_hist`、`price_distance_pct`、`hist_delta`。 |
 
 辅助因子状态：
 
@@ -297,7 +344,9 @@
 
 - OHLCV：`open`、`high`、`low`、`close`、`volume`、`turnover`、`change_pct`。
 - EMA：`EMA5`、`EMA9`、`EMA10`、`EMA20`、`EMA26`、`EMA60`。
-- 趋势与波动：`Supertrend`、`SupertrendDirection`、`ATR14`。
+- 趋势与波动：`Supertrend`、`SupertrendDirection`、`ATR10`、`ATR14`。
 - 其他技术指标：`MACD`、`signal`、`hist`、`RSI`、`K`、`D`、`J`、`upper`、`middle`、`lower`。
 
 K 线指标服务只提供解释数据，不负责判断重点关注列表。
+
+`MonitorResult.focus[].daily10` 使用 `DailyResult.days` 的压缩子集，仅包含 OHLCV、`change_pct`、`EMA9`、`EMA26`、Supertrend、MACD、RSI14、J 值、BOLL 区间位置和 `ATR10`。完整指标解释仍通过 `stk stock kline` 或 `stk watchlist kline` 获取。

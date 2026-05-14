@@ -29,6 +29,7 @@ def test_get_daily(mock_history, make_candles):
     assert "RSI" in newest
     assert "K" in newest
     assert "upper" in newest
+    assert "ATR10" in newest
     assert "ATR14" in newest
     assert "Supertrend" in newest
     assert "SupertrendDirection" in newest

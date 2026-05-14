@@ -13,6 +13,7 @@ type SignalStatus = Literal["new", "active", "stale"]
 type ContextBias = Literal["supportive", "mixed", "conflicting", "risky"]
 type FactorState = Literal["confirming", "neutral", "conflicting", "risk", "opportunity", "none"]
 type RiskLevel = Literal["low", "medium", "high"]
+type MetricValue = str | int | float | bool | None
 
 
 class TrendSignal(BaseModel):
@@ -42,13 +43,11 @@ class Decision(BaseModel):
     signal_status: SignalStatus
     signal_date: str | None = None
     bars_since_signal: int | None = None
-    summary: str
 
 
 class PrimarySignal(BaseModel):
     """Raw evidence for the primary trend strategy."""
 
-    strategy: Literal["ema_supertrend"] = "ema_supertrend"
     ema_cross: EmaCross | None = None
     ema9: float | None = None
     ema26: float | None = None
@@ -63,8 +62,7 @@ class ContextFactor(BaseModel):
 
     name: str
     state: FactorState
-    score: float
-    signals: list[str] = Field(default_factory=list)
+    metrics: dict[str, MetricValue] = Field(default_factory=dict)
 
 
 class SignalContext(BaseModel):
