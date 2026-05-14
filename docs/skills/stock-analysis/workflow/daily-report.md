@@ -108,12 +108,12 @@ groups:
 本报告基于日线收盘确认信号与 `stk-cli` 当前可用数据生成，不代表盘中实时信号，也不构成投资建议。
 ```
 
-1. 通过 `obsidian-knowledge` 写入 `14_Trading/DailyReport/{YYYY-MM-DD}.md`。
+1. 通过 `obsidian-knowledge` 写入 `14_Trading/DailyReport/{YYYY-MM-DD-[report-name]}.md`。
 
 ## Obsidian 写入
 
 - 目标目录固定为 `14_Trading/DailyReport`。
-- 文件名固定为 `{YYYY-MM-DD}.md`。
+- 文件名固定为 `{YYYY-MM-DD-[report-name]}.md`。
 - 同一交易日更新同一文件，不创建重复副本。
 - Obsidian vault 根路径由 `obsidian-knowledge` 解析；本技能只传相对目录和文件名。
 
