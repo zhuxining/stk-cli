@@ -18,7 +18,13 @@ stk market
 stk market news --count 20
 ```
 
-1. 用户明确要求“热点/选股/候选”时，补充技术热点取数：
+2. 分组信号追踪取数（DailyReport 默认范围）：
+
+```bash
+stk watchlist scan <group>
+```
+
+3. 用户明确要求”热点/选股/候选”时，补充技术热点取数：
 
 ```bash
 stk stock hotspot
@@ -26,13 +32,13 @@ stk stock candidates
 stk stock scan <candidate-symbols>
 ```
 
-1. 分组信号追踪取数：
+4. 分组信号追踪取数：
 
 ```bash
 stk watchlist scan <group>
 ```
 
-1. 用户要求多股深入对比时，基于指定股票或分组 `focus` 追加：
+5. 用户要求多股深入对比时，基于指定股票或分组 `focus` 追加：
 
 ```bash
 stk stock scan <symbols...>

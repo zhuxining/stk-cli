@@ -25,8 +25,8 @@
 - 只展开 `MonitorResult.focus`；无信号标的只进入统计。
 - 数字优先：`level`、`confidence`、`signal_status`、`bars_since_signal`、`stop_loss`、`take_profit`、`risk_reward_ratio`。
 - 高优先级标的若有 `daily10`，只补 1 句复核。
-- 辅助因子只引用 `state` 和 `metrics`；不要引用已移除的 `score`、`signals`、`summary`、`strategy`。
-- `focus_sell` 中 `stop_loss` 写“上方失效线”，`take_profit` 写“下行参考”。
+- 辅助因子只引用 `state` 和 `metrics`。
+- `focus_sell` 中 `stop_loss` 写”上方失效线”，`take_profit` 写”下行参考”。
 - `hold/watch` 只写观察、等待确认、风险提示、左侧机会，不写买卖动作。
 
 ## 固定动作口径

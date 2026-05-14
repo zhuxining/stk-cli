@@ -101,8 +101,6 @@ stk stock scan 600519 000001 700.HK
 - `risk`: `atr`、`stop_loss`、`take_profit`、`risk_reward_ratio`、`risk_level`。
 - `daily10`: 仅 `priority=high` 标的补充最近 10 根压缩日线，用于复核价格结构和指标变化。
 
-已移除的旧字段不要读取：`decision.summary`、`primary_signal.strategy`、`context.factors[].score`、`context.factors[].signals`。
-
 有效信号口径：
 
 - 主策略：`EMA9/EMA26 + Supertrend(ATR10 x2.5)`。

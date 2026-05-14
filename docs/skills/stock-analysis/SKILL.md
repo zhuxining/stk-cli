@@ -37,7 +37,6 @@ compatibility:
 - `sell` / `strong_sell` 只表示减仓、退出或风险预警，不表达做空建议。
 - `hold` / `watch` 只表示风险、机会或波动提示；不写成买入、卖出或加仓建议。
 - `focus_sell` 的 `risk.stop_loss` 是上方失效线，`risk.take_profit` 是下行风险参考。
-- 不读取已废弃字段：`decision.summary`、`primary_signal.strategy`、`context.factors[].score`、`context.factors[].signals`。
 
 - 信号级别：`strong_buy`(0-1K/多头强共振) → `buy`(2-3K) → `hold`(无效/过期/冲突) → `sell`(2-3K/空头) → `strong_sell`(0-1K/空头强)
 
