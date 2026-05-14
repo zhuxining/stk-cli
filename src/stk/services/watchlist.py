@@ -67,7 +67,9 @@ def list_watchlists() -> list[WatchlistSummary]:
     groups = _fetch_groups()
     return [
         WatchlistSummary(
-            id=g.id, name=g.name, count=len(g.securities or []),
+            id=g.id,
+            name=g.name,
+            count=len(g.securities or []),
         )
         for g in groups
     ]

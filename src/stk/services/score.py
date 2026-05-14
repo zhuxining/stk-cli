@@ -324,6 +324,13 @@ def _build_decision(trend_signal: TrendSignal) -> Decision:
 
 
 def _build_primary_signal(trend_signal: TrendSignal, *, adx: float | None) -> PrimarySignal:
+    reasons = list(trend_signal.reasons)
+    if adx is not None:
+        if adx < 20:
+            reasons.append(f"ADX {adx:.1f}，趋势强度偏弱")
+        elif adx >= 25:
+            reasons.append(f"ADX {adx:.1f}，趋势强度较强")
+
     return PrimarySignal(
         ema_cross=trend_signal.ema_cross,
         ema9=trend_signal.ema9,
@@ -331,7 +338,7 @@ def _build_primary_signal(trend_signal: TrendSignal, *, adx: float | None) -> Pr
         supertrend=trend_signal.supertrend,
         supertrend_direction=trend_signal.supertrend_direction,
         adx=adx,
-        reasons=trend_signal.reasons,
+        reasons=reasons,
     )
 
 
@@ -578,6 +585,8 @@ def _calc_money_flow_factor(
     low: pd.Series,
     close: pd.Series,
     volume: pd.Series,
+    *,
+    direction: TrendDirection,
 ) -> ContextFactor:
     mfi = talib.MFI(
         high.to_numpy().astype(float),
@@ -593,12 +602,16 @@ def _calc_money_flow_factor(
     metrics = _clean_metrics({"mfi14": mfi_now, "mfi_zone": _mfi_zone(mfi_now)})
     if mfi_now < 20:
         state: FactorState = "opportunity"
+    elif mfi_now > 80:
+        state = "risk"
+    elif direction == "bullish":
+        state = "confirming" if mfi_now > 60 else "conflicting" if mfi_now < 40 else "neutral"
+    elif direction == "bearish":
+        state = "confirming" if mfi_now < 40 else "conflicting" if mfi_now > 60 else "neutral"
     elif mfi_now < 40:
-        state = "confirming"
+        state = "opportunity"
     elif mfi_now <= 60:
         state = "neutral"
-    elif mfi_now <= 80:
-        state = "conflicting"
     else:
         state = "risk"
     return ContextFactor(
@@ -719,7 +732,7 @@ def _build_context(
         boll_factor,
         _calc_volume_price_factor(df, close, direction=direction),
         _calc_legacy_ema_factor(close_arr, current_price, direction=direction),
-        _calc_money_flow_factor(high, low, close, volume),
+        _calc_money_flow_factor(high, low, close, volume, direction=direction),
         _calc_divergence_factor(close, macd_hist),
     ]
     return SignalContext(
@@ -755,6 +768,39 @@ def _build_risk_profile(
     )
 
 
+def _risk_points(
+    *,
+    current_price: float,
+    atr: float,
+    trend_signal: TrendSignal,
+) -> tuple[float, float, float | None]:
+    if trend_signal.direction == "bearish":
+        stop_loss = (
+            trend_signal.supertrend
+            if trend_signal.supertrend is not None
+            and trend_signal.supertrend_direction == "bearish"
+            and trend_signal.supertrend > current_price
+            else current_price + atr * 2.0
+        )
+        take_profit = max(current_price - atr * 3.0, 0.0)
+        risk = stop_loss - current_price
+        reward = current_price - take_profit
+    else:
+        stop_loss = (
+            trend_signal.supertrend
+            if trend_signal.supertrend is not None
+            and trend_signal.supertrend_direction == "bullish"
+            and trend_signal.supertrend < current_price
+            else current_price - atr * 2.0
+        )
+        take_profit = current_price + atr * 3.0
+        risk = current_price - stop_loss
+        reward = take_profit - current_price
+
+    rr_ratio = round(reward / risk, 1) if risk > 0 else None
+    return round(stop_loss, 4), round(take_profit, 4), rr_ratio
+
+
 def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     """Calculate trend-first signal confidence from daily closed candles."""
     candles = get_history(symbol, count=count)
@@ -782,6 +828,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
 
     adx_series = talib.ADX(high, low, close, timeperiod=14)
     adx_last = _safe_last(adx_series)
+    adx_val = None
     if adx_last is not None:
         adx_val = round(adx_last, 1)
 
@@ -793,18 +840,11 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     atr_last = _safe_last(atr_arr)
     if atr_last is not None and atr_last > 0:
         atr_val = round(atr_last, 4)
-        if (
-            trend_signal.supertrend is not None
-            and trend_signal.supertrend_direction == "bullish"
-            and trend_signal.supertrend < current_price
-        ):
-            stop_loss = round(trend_signal.supertrend, 4)
-        else:
-            stop_loss = round(current_price - atr_last * 2.0, 4)
-
-        take_profit = round(current_price + atr_last * 3.0, 4)
-        risk = current_price - stop_loss
-        rr_ratio = round((take_profit - current_price) / risk, 1) if risk > 0 else None
+        stop_loss, take_profit, rr_ratio = _risk_points(
+            current_price=current_price,
+            atr=atr_last,
+            trend_signal=trend_signal,
+        )
 
     decision = _build_decision(trend_signal)
     primary_signal = _build_primary_signal(trend_signal, adx=adx_val)

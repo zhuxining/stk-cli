@@ -4,11 +4,13 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from stk.errors import IndicatorError
 from stk.models.history import Candlestick
-from stk.services.score import calc_score
+from stk.services.score import _calc_money_flow_factor, calc_score
 
 
 def _candles_from_closes(closes: list[float], *, width: float = 1.0) -> list[Candlestick]:
@@ -160,6 +162,23 @@ def test_strong_sell_signal(mock_history):
 
 
 @patch("stk.services.score.get_history")
+def test_strong_sell_risk_points_are_bearish(mock_history):
+    """Bearish signals use an upper invalidation line and lower downside reference."""
+    candles = _strong_sell_candles()
+    mock_history.return_value = candles
+
+    result = calc_score("600519")
+    current_price = float(candles[-1].close)
+
+    assert result.risk.stop_loss is not None
+    assert result.risk.take_profit is not None
+    assert result.risk.stop_loss > current_price
+    assert result.risk.take_profit < current_price
+    assert result.risk.risk_reward_ratio is not None
+    assert result.risk.risk_reward_ratio > 0
+
+
+@patch("stk.services.score.get_history")
 def test_mismatch_holds_signal(mock_history):
     """EMA and Supertrend disagreement stays at hold confidence."""
     mock_history.return_value = _mismatch_candles()
@@ -209,3 +228,16 @@ def test_score_adx(mock_history, make_candles):
     result = calc_score("600519")
 
     assert result.primary_signal.adx is not None
+
+
+@patch("stk.services.score.talib.MFI")
+def test_money_flow_factor_respects_direction(mock_mfi):
+    """Strong MFI confirms bullish trends but conflicts with bearish trends."""
+    mock_mfi.return_value = np.array([np.nan] * 14 + [65.0])
+    series = pd.Series([10.0 + i for i in range(15)])
+
+    bullish = _calc_money_flow_factor(series, series, series, series, direction="bullish")
+    bearish = _calc_money_flow_factor(series, series, series, series, direction="bearish")
+
+    assert bullish.state == "confirming"
+    assert bearish.state == "conflicting"

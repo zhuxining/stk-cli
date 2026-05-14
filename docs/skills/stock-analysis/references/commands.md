@@ -1,6 +1,6 @@
 # 命令速查
 
-所有命令通过统一 JSON envelope 输出：`{"ok": true, "data": ..., "error": null, "meta": {...}}`。技能报告只读取 `data`。
+所有命令通过统一 JSON envelope 输出：`{"ok": true, "data": ..., "error": null, "meta": {...}}`。技能报告只读取 `data`。技术指标含义和报告解释口径见 `references/indicator-guide.md`。
 
 ---
 
@@ -101,12 +101,37 @@ stk stock scan 600519 000001 700.HK
 - `risk`: `atr`、`stop_loss`、`take_profit`、`risk_reward_ratio`、`risk_level`。
 - `daily10`: 仅 `priority=high` 标的补充最近 10 根压缩日线，用于复核价格结构和指标变化。
 
+已移除的旧字段不要读取：`decision.summary`、`primary_signal.strategy`、`context.factors[].score`、`context.factors[].signals`。
+
 有效信号口径：
 
 - 主策略：`EMA9/EMA26 + Supertrend(ATR10 x2.5)`。
 - `level`: `strong_buy` / `buy` / `hold` / `sell` / `strong_sell`。
 - `action`: `focus_buy` / `focus_sell` / `watch`。
 - `sell` 与 `strong_sell` 表示减仓、退出或风险预警，不表达做空建议。
+- `primary_signal.adx < 20` 表示趋势强度偏弱，`>=25` 表示趋势质量较好；ADX 不直接改变 `level`。
+- `focus_sell` 中的 `risk.stop_loss` 表示上方失效线，`risk.take_profit` 表示下行风险参考，不代表做空建议。
+- `hold` + `watch` 只表示风险、机会或预警观察；不要升级成买入、卖出或加仓建议。
+- 陈旧 `hold` 只有明确上下文风险或机会时才会进入 `focus`，报告中应降低优先级。
+
+辅助因子读取口径：
+
+| factor | 主要 metrics | 分析用途 |
+|--------|--------------|----------|
+| `momentum` | `rsi14`、`rsi_zone`、`k`、`d`、`j`、`kdj_bias` | 判断动量是否支持主方向，以及是否过热/过冷。 |
+| `macd` | `dif`、`dea`、`hist`、`bias` | 判断 MACD 多空状态与主信号是否一致。 |
+| `boll` | `upper`、`middle`、`lower`、`position_pct`、`bandwidth_pct` | 判断价格在布林区间中的位置，以及是否处于波动收敛。 |
+| `volume_price` | `volume_ratio_5d`、`price_change_pct` | 判断上涨/下跌是否有量能确认。 |
+| `ema_trend` | `ema5`、`ema10`、`ema20`、`arrangement` | 判断短周期均线排列是否顺势。 |
+| `money_flow` | `mfi14`、`mfi_zone` | 结合主方向判断资金流强弱和过热风险。 |
+| `divergence` | `type`、`lookback`、`price_distance_pct`、`hist_delta` | 判断 MACD 顶/底背离，只作为风险或机会提示。 |
+
+`daily10` 压缩日线字段：
+
+- 价格量能：`date`、`open`、`high`、`low`、`close`、`volume`、`turnover`、`change_pct`。
+- 主信号：`ema9`、`ema26`、`supertrend`、`supertrend_direction`。
+- 辅助指标：`macd`、`macd_signal`、`macd_hist`、`rsi14`、`j`、`boll_position_pct`、`atr10`。
+- 使用方式：复核信号出现在第几根 K 线、触发后是否延续、是否放量、是否过热，不用 `daily10` 重新计算 `decision.level`。
 
 ### `stk stock kline <symbols...>`
 

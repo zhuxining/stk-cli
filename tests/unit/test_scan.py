@@ -31,6 +31,7 @@ def _score_result(
     confidence: float,
     bias: ContextBias = "supportive",
     factor_state: FactorState = "confirming",
+    bars_since_signal: int | None = 1,
 ) -> ScoreResult:
     return ScoreResult(
         symbol=symbol,
@@ -41,7 +42,7 @@ def _score_result(
             confidence=confidence,
             signal_status=status,
             signal_date="2026-05-12",
-            bars_since_signal=1,
+            bars_since_signal=bars_since_signal,
         ),
         primary_signal=PrimarySignal(
             ema_cross="golden" if action != "focus_sell" else "death",
@@ -174,7 +175,7 @@ def test_batch_summary_returns_focus_only(mock_score, mock_daily, mock_quotes):
 @patch("stk.services.scan.get_realtime_quotes")
 @patch("stk.services.scan.calc_score")
 def test_hold_with_risk_context_enters_watch_focus(mock_score, mock_quotes):
-    """Hold decisions can still enter focus when context contains risk or opportunity."""
+    """Recent hold decisions can still enter focus when context contains actionable risk."""
     mock_quotes.return_value = []
     mock_score.return_value = _score_result(
         "000001.SZ",
@@ -184,6 +185,7 @@ def test_hold_with_risk_context_enters_watch_focus(mock_score, mock_quotes):
         confidence=35,
         bias="risky",
         factor_state="risk",
+        bars_since_signal=5,
     )
 
     result = batch_summary(["000001.SZ"])
@@ -192,3 +194,25 @@ def test_hold_with_risk_context_enters_watch_focus(mock_score, mock_quotes):
     assert result.summary.watch_signal_count == 1
     assert result.focus[0].priority == "low"
     assert result.focus[0].decision.action == "watch"
+
+
+@patch("stk.services.scan.get_realtime_quotes")
+@patch("stk.services.scan.calc_score")
+def test_old_hold_with_single_risk_context_is_ignored(mock_score, mock_quotes):
+    """Old hold decisions need stronger evidence before entering focus."""
+    mock_quotes.return_value = []
+    mock_score.return_value = _score_result(
+        "000001.SZ",
+        level="hold",
+        action="watch",
+        status="stale",
+        confidence=35,
+        bias="risky",
+        factor_state="risk",
+        bars_since_signal=20,
+    )
+
+    result = batch_summary(["000001.SZ"])
+
+    assert result.summary.focus_count == 0
+    assert result.ignored.no_signal_count == 1

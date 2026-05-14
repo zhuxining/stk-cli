@@ -25,7 +25,7 @@
 - `services/scan.py` 负责批量扫描与重点关注筛选，输出 `MonitorResult`。
 - 主信号只使用日线收盘 K 线确认，不处理盘中未确认信号。
 - 主信号由 `EMA9/EMA26 + Supertrend(ATR10 x2.5)` 决定。
-- `decision.confidence` 只表示主信号置信度，取值范围为 `0-100`。
+- `decision.confidence` 只表示主信号置信度，取值范围为 `0-100`；ADX 只作为趋势强度提示，不直接改变级别。
 - 辅助因子只解释主信号质量、冲突、风险或左侧机会，不生成单一综合分数。
 - 风控字段独立输出，不参与主信号置信度计算。
 - `sell` 与 `strong_sell` 表示减仓、退出或风险预警，不表达做空建议。
@@ -215,7 +215,7 @@
 - `EMA9`：短周期趋势线。
 - `EMA26`：慢周期趋势线。
 - `Supertrend(ATR10, multiplier=2.5)`：趋势方向与动态趋势线。
-- `ADX14`：趋势强度参考字段，只输出，不参与信号级别计算。
+- `ADX14`：趋势强度参考字段，`<20` 视为趋势偏弱，`>=25` 视为趋势较强；只补充到 `primary_signal.reasons`，不参与信号级别计算。
 
 触发事件：
 
@@ -256,7 +256,7 @@
 | `boll` | `BBANDS(20,2)` | 价格在布林区间中的位置，以及布林收窄预警。 |
 | `volume_price` | 当前成交额、前 5 根平均成交额、当日涨跌幅 | 放量上涨、放量下跌或量价中性。 |
 | `ema_trend` | `EMA5`、`EMA10`、`EMA20` | 短周期均线排列是否支持当前方向。 |
-| `money_flow` | `MFI14` | 资金流强弱、超买或超卖。 |
+| `money_flow` | `MFI14` | 结合主方向解释资金流强弱、超买或超卖。 |
 | `divergence` | 最近 20 根 K 线与 MACD histogram | MACD 顶背离、底背离或无背离。 |
 
 辅助因子输出规则：
@@ -298,6 +298,14 @@
 
 `context.warnings` 只承载不直接改变主方向的提示。当前实现会在布林带宽占中轨比例低于 5% 时输出布林收窄预警。
 
+MFI 解释规则：
+
+- `MFI14 < 20` 记为 `opportunity`，提示超卖或修复机会。
+- `MFI14 > 80` 记为 `risk`，提示过热。
+- 主方向为多头时，`MFI14 > 60` 记为 `confirming`，`MFI14 < 40` 记为 `conflicting`。
+- 主方向为空头时，`MFI14 < 40` 记为 `confirming`，`MFI14 > 60` 记为 `conflicting`。
+- 主方向为中性时，仅保留超买/超卖提示，其余多为 `neutral`。
+
 ## 风控策略
 
 风控字段由 `RiskProfile` 输出：
@@ -305,9 +313,9 @@
 | 字段 | 规则 |
 |------|------|
 | `atr` | 使用 Supertrend 同源的 `ATR10`。 |
-| `stop_loss` | 多头且 Supertrend 线低于当前价格时，优先取 Supertrend 线；其他场景回退为 `current_price - ATR10 * 2`。 |
-| `take_profit` | `current_price + ATR10 * 3`。 |
-| `risk_reward_ratio` | `(take_profit - current_price) / (current_price - stop_loss)`，仅在风险距离大于 0 时输出。 |
+| `stop_loss` | 多头时是下方止损线；空头或退出信号时是上方失效线。优先取方向一致的 Supertrend，否则回退为 `2 * ATR10`。 |
+| `take_profit` | 多头时是上行参考目标；空头或退出信号时是下行风险参考，不表达做空建议。距离固定为 `3 * ATR10`。 |
+| `risk_reward_ratio` | 多头按上行收益/下行风险计算；空头按下行空间/上方失效距离计算；仅在风险距离大于 0 时输出。 |
 | `risk_level` | `risk_reward_ratio >= 2` 为 `low`，`>= 1` 为 `medium`，其余为 `high`；无法计算时为 `medium`。 |
 
 风控字段只用于执行参考和排序后的人工复核，不参与主信号级别计算。
@@ -317,7 +325,8 @@
 入选 `focus` 的规则：
 
 - `decision.level` 为 `strong_buy`、`buy`、`sell` 或 `strong_sell`，且 `signal_status` 为 `new` 或 `active`。
-- `decision.level=hold` 时，只有 `context.factors` 中存在 `risk` 或 `opportunity`，或 `context.warnings` 非空，才进入 `focus`。
+- `decision.level=hold` 时，只有近期存在明确风险、机会或预警，才以 `watch` 进入 `focus`。
+- `hold` 标的的 watch 入选会过滤陈旧噪音：若最近主信号超过 10 根 K 线，单一风险/机会因子不再进入 `focus`；中性方向至少需要 2 个风险/机会因子。
 - `signal_status=stale` 的买卖方向标的默认不进入 `focus`。
 - 扫描失败的标的不进入 `focus`，只进入 `errors`。
 

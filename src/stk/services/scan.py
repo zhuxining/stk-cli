@@ -35,6 +35,7 @@ _BIAS_RANK: dict[ContextBias, int] = {
 }
 _LOCAL_TZ = ZoneInfo("Asia/Shanghai")
 _HIGH_PRIORITY_DAILY_COUNT = 10
+_WATCH_CONTEXT_MAX_BARS = 10
 
 
 def _round_daily_value(value: object, *, digits: int = 4) -> CompactDailyValue:
@@ -140,8 +141,21 @@ def _score_symbols(
 
 
 def _has_watch_context(score: ScoreResult) -> bool:
-    factor_states = {factor.state for factor in score.context.factors}
-    return bool({"risk", "opportunity"} & factor_states) or bool(score.context.warnings)
+    actionable_factors = sum(
+        factor.state in {"risk", "opportunity"} for factor in score.context.factors
+    )
+    if actionable_factors == 0 and not score.context.warnings:
+        return False
+
+    bars = score.decision.bars_since_signal
+    if bars is None or bars > _WATCH_CONTEXT_MAX_BARS:
+        return score.decision.direction == "neutral" and actionable_factors >= 2
+
+    return (
+        bool(score.context.warnings)
+        or actionable_factors >= 2
+        or score.context.overall_bias in {"risky", "conflicting"}
+    )
 
 
 def _should_focus(score: ScoreResult) -> bool:

@@ -6,15 +6,15 @@ for a set of queries. Outputs results as JSON.
 """
 
 import argparse
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import json
 import os
+from pathlib import Path
 import select
 import subprocess
 import sys
 import time
 import uuid
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from pathlib import Path
 
 from scripts.utils import parse_skill_md
 
@@ -69,8 +69,10 @@ def run_single_query(
 
         cmd = [
             "claude",
-            "-p", query,
-            "--output-format", "stream-json",
+            "-p",
+            query,
+            "--output-format",
+            "stream-json",
             "--verbose",
             "--include-partial-messages",
         ]
@@ -161,9 +163,12 @@ def run_single_query(
                                 continue
                             tool_name = content_item.get("name", "")
                             tool_input = content_item.get("input", {})
-                            if tool_name == "Skill" and clean_name in tool_input.get("skill", ""):
-                                triggered = True
-                            elif tool_name == "Read" and clean_name in tool_input.get("file_path", ""):
+                            if (
+                                tool_name == "Skill" and clean_name in tool_input.get("skill", "")
+                            ) or (
+                                tool_name == "Read"
+                                and clean_name in tool_input.get("file_path", "")
+                            ):
                                 triggered = True
                             return triggered
 
@@ -264,8 +269,14 @@ def main():
     parser.add_argument("--num-workers", type=int, default=10, help="Number of parallel workers")
     parser.add_argument("--timeout", type=int, default=30, help="Timeout per query in seconds")
     parser.add_argument("--runs-per-query", type=int, default=3, help="Number of runs per query")
-    parser.add_argument("--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold")
-    parser.add_argument("--model", default=None, help="Model to use for claude -p (default: user's configured model)")
+    parser.add_argument(
+        "--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold"
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Model to use for claude -p (default: user's configured model)",
+    )
     parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
     args = parser.parse_args()
 
@@ -276,7 +287,7 @@ def main():
         print(f"Error: No SKILL.md found at {skill_path}", file=sys.stderr)
         sys.exit(1)
 
-    name, original_description, content = parse_skill_md(skill_path)
+    name, original_description, _content = parse_skill_md(skill_path)
     description = args.description or original_description
     project_root = find_project_root()
 
@@ -301,7 +312,10 @@ def main():
         for r in output["results"]:
             status = "PASS" if r["pass"] else "FAIL"
             rate_str = f"{r['triggers']}/{r['runs']}"
-            print(f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:70]}", file=sys.stderr)
+            print(
+                f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:70]}",
+                file=sys.stderr,
+            )
 
     print(json.dumps(output, indent=2))
 
