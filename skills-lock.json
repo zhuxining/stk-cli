@@ -18,6 +18,12 @@
       "sourceType": "github",
       "skillPath": "code-reviewer/SKILL.md",
       "computedHash": "5b5242007485d63223f3b96cfe3f6fa17f12989698c49fb3fce86864a4d5c5ee"
+    },
+    "skill-creator": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/skill-creator/SKILL.md",
+      "computedHash": "5ea13a6d9f0d4bb694405d79acd00cadec0d21bb138c4dd10fcf3c500cb835c2"
     }
   }
 }
