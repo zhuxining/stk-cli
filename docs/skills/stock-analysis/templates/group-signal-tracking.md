@@ -26,19 +26,17 @@
 
 {一句话说明本次扫描是否有重点关注标的、高优先级数量、主要风险方向。}
 
-| 分组 | 扫描 | 重点关注 | 高优先级 | 买入信号 | 退出/风险 | 观察 | 无信号 | 失败 |
-|------|------|----------|----------|----------|-----------|------|--------|------|
-| {group_name} | {scanned}/{total} | {focus_count} | {high_priority_count} | {entry_signal_count} | {exit_signal_count} | {watch_signal_count} | {no_signal_count} | {failed} |
+**{group_name}**：扫描 {scanned}/{total} | 重点关注 {focus_count} | 高优先级 {high_priority_count} | 买入信号 {entry_signal_count} | 退出/风险 {exit_signal_count} | 观察 {watch_signal_count} | 无信号 {no_signal_count} | 失败 {failed}
 
-| 分组 | 代码 | 名称 | 优先级 | 信号 | 置信度 | 新鲜度 | 方向 | 关键依据 | 风控 | 明日动作 |
-|------|------|------|--------|------|--------|--------|------|----------|------|----------|
-| {group_name} | {symbol} | {name} | {priority} | {level} | {confidence} | {signal_status}/{bars_since_signal}K | {direction} | {1句原因} | {按风控口径} | {固定动作口径} |
+| 代码 | 名称 | 优先级 | 信号 | 置信度 | 新鲜度 | 方向 | 关键依据 | 风控 | 明日动作 |
+|------|------|--------|------|--------|--------|------|----------|------|----------|
+| {symbol} | {name} | {priority} | {level} | {confidence} | {signal_status}/{bars_since_signal}K | {direction} | {1句原因} | {按风控口径} | {固定动作口径} |
 
 ### 高优先级复核
 
-| 分组 | 代码 | 近 10 日复核 | 状态 |
+| 代码 | 名称 | 近 10 日复核 | 状态 |
 |------|------|--------------|------|
-| {group_name} | {symbol} | {1句说明延续性/过热/量能} | {延续/过热/缩量/反复} |
+| {symbol} | {name} | {1句说明延续性/过热/量能} | {延续/过热/缩量/反复} |
 
 ## 明日关注
 

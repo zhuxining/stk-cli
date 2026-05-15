@@ -38,9 +38,9 @@
 
 ## 关键差异
 
-| 代码 | 主信号质量 | 辅助确认 | 风险冲突 | 近 10 日复核 |
-|------|------------|----------|----------|--------------|
-| {symbol} | {EMA/Supertrend/ADX 1句} | {最重要 confirming metrics；无则写“无”} | {最重要 warning/conflicting/risk；无则写“无”} | {仅 high + daily10 输出 1句；否则写“无”} |
+| 代码 | 名称 | 主信号质量 | 辅助确认 | 风险冲突 | 近 10 日复核 |
+|------|------|------------|----------|----------|--------------|
+| {symbol} | {name} | {EMA/Supertrend/ADX 1句} | {最重要 confirming metrics；无则写”无”} | {最重要 warning/conflicting/risk；无则写”无”} | {仅 high + daily10 输出 1句；否则写”无”} |
 
 ## 排序建议
 
@@ -52,7 +52,5 @@
 
 ## 统计
 
-| 扫描 | 重点关注 | 高优先级 | 买入信号 | 退出/风险 | 观察 | 无信号 | 失败 |
-|------|----------|----------|----------|-----------|------|--------|------|
-| {scanned}/{total} | {focus_count} | {high_priority_count} | {entry_signal_count} | {exit_signal_count} | {watch_signal_count} | {no_signal_count} | {failed} |
+扫描 {scanned}/{total} | 重点关注 {focus_count} | 高优先级 {high_priority_count} | 买入信号 {entry_signal_count} | 退出/风险 {exit_signal_count} | 观察 {watch_signal_count} | 无信号 {no_signal_count} | 失败 {failed}
 ```
