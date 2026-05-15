@@ -60,7 +60,6 @@ def test_calc_score_basic(mock_history, make_candles):
     assert result.symbol == "600519"
     assert result.decision.level in {"strong_buy", "buy", "hold", "sell", "strong_sell"}
     assert result.decision.action in {"focus_buy", "focus_sell", "watch"}
-    assert 0 <= result.decision.confidence <= 100
     assert result.context.overall_bias in {"supportive", "mixed", "conflicting", "risky"}
     assert result.risk.risk_level in {"low", "medium", "high"}
 
@@ -138,10 +137,8 @@ def test_strong_buy_signal(mock_history):
 
     assert result.decision.level == "strong_buy"
     assert result.decision.action == "focus_buy"
-    assert result.decision.direction == "bullish"
     assert result.decision.signal_status == "new"
     assert result.decision.bars_since_signal == 0
-    assert result.decision.confidence >= 90
     assert result.primary_signal.ema_cross == "golden"
 
 
@@ -154,10 +151,8 @@ def test_strong_sell_signal(mock_history):
 
     assert result.decision.level == "strong_sell"
     assert result.decision.action == "focus_sell"
-    assert result.decision.direction == "bearish"
     assert result.decision.signal_status == "new"
     assert result.decision.bars_since_signal == 0
-    assert result.decision.confidence >= 90
     assert result.primary_signal.ema_cross == "death"
 
 
@@ -180,15 +175,13 @@ def test_strong_sell_risk_points_are_bearish(mock_history):
 
 @patch("stk.services.score.get_history")
 def test_mismatch_holds_signal(mock_history):
-    """EMA and Supertrend disagreement stays at hold confidence."""
+    """EMA and Supertrend disagreement stays at hold level."""
     mock_history.return_value = _mismatch_candles()
 
     result = calc_score("600519")
 
     assert result.decision.level == "hold"
     assert result.decision.action == "watch"
-    assert result.decision.direction == "neutral"
-    assert result.decision.confidence < 60
     assert any("方向不一致" in reason for reason in result.primary_signal.reasons)
 
 
@@ -201,10 +194,8 @@ def test_old_cross_no_strong_signal(mock_history):
 
     assert result.decision.level == "hold"
     assert result.decision.action == "watch"
-    assert result.decision.direction == "bullish"
     assert result.decision.signal_status == "stale"
     assert result.decision.bars_since_signal is None
-    assert result.decision.confidence < 60
 
 
 @patch("stk.services.score.get_history")

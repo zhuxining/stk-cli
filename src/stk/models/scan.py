@@ -1,13 +1,11 @@
 """Daily monitoring scan models."""
 
 from decimal import Decimal
-from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from stk.models.score import Decision, PrimarySignal, RiskProfile, SignalContext
 
-type FocusPriority = Literal["high", "medium", "low"]
 type CompactDailyValue = str | int | float | None
 
 
@@ -24,7 +22,7 @@ class MonitorSummary(BaseModel):
     """Aggregated signal counts for a monitoring run."""
 
     focus_count: int
-    high_priority_count: int
+    strong_signal_count: int
     entry_signal_count: int
     exit_signal_count: int
     watch_signal_count: int
@@ -35,7 +33,6 @@ class FocusItem(BaseModel):
 
     symbol: str
     name: str = ""
-    priority: FocusPriority
     decision: Decision
     primary_signal: PrimarySignal
     context: SignalContext

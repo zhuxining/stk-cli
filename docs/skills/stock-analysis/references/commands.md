@@ -87,19 +87,19 @@ stk stock scan 600519 000001 700.HK
 
 - `run_date`: 本次运行日期。
 - `universe`: `name`、`total`、`scanned`、`failed`。
-- `summary`: `focus_count`、`high_priority_count`、`entry_signal_count`、`exit_signal_count`、`watch_signal_count`。
+- `summary`: `focus_count`、`strong_signal_count`、`entry_signal_count`、`exit_signal_count`、`watch_signal_count`。
 - `focus[]`: 重点关注标的列表。
 - `ignored`: `no_signal_count`。
 - `errors[]`: 单标的非致命错误。
 
 `focus[]` 中每个 `FocusItem` 含：
 
-- 展示字段：`symbol`、`name`、`priority`、`last`、`change_pct`、`source`。
-- `decision`: `action`、`level`、`direction`、`confidence`、`signal_status`、`signal_date`、`bars_since_signal`。
+- 展示字段：`symbol`、`name`、`last`、`change_pct`、`source`。
+- `decision`: `action`、`level`、`signal_status`、`signal_date`、`bars_since_signal`。
 - `primary_signal`: `ema_cross`、`ema9`、`ema26`、`supertrend`、`supertrend_direction`、`adx`、`reasons`。
 - `context`: `overall_bias`、`factors[]`、`warnings[]`；每个 factor 读取 `state` 与 `metrics`。
 - `risk`: `atr`、`stop_loss`、`take_profit`、`risk_reward_ratio`、`risk_level`。
-- `daily10`: 仅 `priority=high` 标的补充最近 10 根压缩日线，用于复核价格结构和指标变化。
+- `daily10`: 仅强信号且辅助态度不冲突的标的补充最近 10 根压缩日线，用于复核价格结构和指标变化。
 
 有效信号口径：
 
@@ -110,7 +110,7 @@ stk stock scan 600519 000001 700.HK
 - `primary_signal.adx < 20` 表示趋势强度偏弱，`>=25` 表示趋势质量较好；ADX 不直接改变 `level`。
 - `focus_sell` 中的 `risk.stop_loss` 表示上方失效线，`risk.take_profit` 表示下行风险参考，不代表做空建议。
 - `hold` + `watch` 只表示风险、机会或预警观察；不要升级成买入、卖出或加仓建议。
-- 陈旧 `hold` 只有明确上下文风险或机会时才会进入 `focus`，报告中应降低优先级。
+- 陈旧 `hold` 只有明确上下文风险或机会时才会进入 `focus`，报告中应降为仅观察。
 
 辅助因子读取口径：
 

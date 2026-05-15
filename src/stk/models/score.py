@@ -21,7 +21,6 @@ class TrendSignal(BaseModel):
 
     level: SignalLevel
     direction: TrendDirection
-    confidence: float
     signal_date: str | None = None
     bars_since_signal: int | None = None
     ema9: float | None = None
@@ -38,8 +37,6 @@ class Decision(BaseModel):
 
     action: DecisionAction
     level: SignalLevel
-    direction: TrendDirection
-    confidence: float
     signal_status: SignalStatus
     signal_date: str | None = None
     bars_since_signal: int | None = None

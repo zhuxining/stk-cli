@@ -14,7 +14,7 @@
 - 每个分组生成一行统计。
 - 只展开 `MonitorResult.focus`；`ignored.no_signal_count` 只进入统计。
 - `关键依据` 优先取 `primary_signal.reasons` 最关键 1 条；必要时补一个 `context.factors[].metrics`。
-- `priority=high` 且存在 `daily10` 时，补一行近 10 日复核。
+- 强信号且存在 `daily10` 时，补一行近 10 日复核。
 - 明日动作从全部分组的 `focus` 合并生成，每类最多 3 只。
 - `focus_sell` 写风险退出和失效线，不写做空。
 - `watch` 只写观察或等待确认。
@@ -24,15 +24,15 @@
 ```markdown
 ## 分组信号
 
-{一句话说明本次扫描是否有重点关注标的、高优先级数量、主要风险方向。}
+{一句话说明本次扫描是否有重点关注标的、强信号数量、主要风险方向。}
 
-**{group_name}**：扫描 {scanned}/{total} | 重点关注 {focus_count} | 高优先级 {high_priority_count} | 买入信号 {entry_signal_count} | 退出/风险 {exit_signal_count} | 观察 {watch_signal_count} | 无信号 {no_signal_count} | 失败 {failed}
+**{group_name}**：扫描 {scanned}/{total} | 重点关注 {focus_count} | 强信号 {strong_signal_count} | 买入信号 {entry_signal_count} | 退出/风险 {exit_signal_count} | 观察 {watch_signal_count} | 无信号 {no_signal_count} | 失败 {failed}
 
-| 代码 | 名称 | 优先级 | 信号 | 置信度 | 新鲜度 | 方向 | 关键依据 | 风控 | 明日动作 |
-|------|------|--------|------|--------|--------|------|----------|------|----------|
-| {symbol} | {name} | {priority} | {level} | {confidence} | {signal_status}/{bars_since_signal}K | {direction} | {1句原因} | {按风控口径} | {固定动作口径} |
+| 代码 | 名称 | 信号 | 新鲜度 | 关键依据 | 风控 | 明日动作 |
+|------|------|------|--------|----------|------|----------|
+| {symbol} | {name} | {level} | {signal_status}/{bars_since_signal}K | {1句原因} | {按风控口径} | {固定动作口径} |
 
-### 高优先级复核
+### 强信号复核
 
 | 代码 | 名称 | 近 10 日复核 | 状态 |
 |------|------|--------------|------|
@@ -42,9 +42,9 @@
 
 | 动作 | 标的 | 触发条件 |
 |------|------|----------|
-| 跟踪突破 | {focus_buy 高优先级；没有写”无”} | {放量延续/站稳关键位/风险收益比合适} |
+| 跟踪突破 | {strong_buy/focus_buy；没有写”无”} | {放量延续/站稳关键位/风险收益比合适} |
 | 等待回踩 | {买入信号但过热或 RR 一般；没有写”无”} | {回踩不破止损线或 Supertrend} |
-| 风险退出 | {focus_sell 高优先级；没有写”无”} | {无法收回上方失效线} |
+| 风险退出 | {strong_sell/focus_sell；没有写”无”} | {无法收回上方失效线} |
 | 仅观察 | {watch 标的；没有写”无”} | {等待主信号确认} |
 | 暂不处理 | {低质量或冲突明显的信号；没有写”无”} | {等待信号改善或出现更明确的趋势} |
 ```

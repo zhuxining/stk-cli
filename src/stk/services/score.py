@@ -182,7 +182,6 @@ def _build_trend_signal(
         return TrendSignal(
             level="hold",
             direction="neutral",
-            confidence=25.0,
             ema9=ema9,
             ema26=ema26,
             supertrend=supertrend,
@@ -223,7 +222,6 @@ def _build_trend_signal(
 
     level: SignalLevel = "hold"
     direction: TrendDirection = "neutral"
-    confidence = 35.0
     signal_age: int | None = None
     ema_cross: EmaCross | None = None
     st_flip: SupertrendFlip | None = None
@@ -233,12 +231,9 @@ def _build_trend_signal(
         signal_age = bull_event_age
         if signal_age <= 1:
             level = "strong_buy"
-            confidence = 92.0
         elif signal_age <= _RESONANCE_WINDOW:
             level = "buy"
-            confidence = 76.0
         else:
-            confidence = 48.0
             reasons.append("多头排列存在，但最近3根K线内没有新触发")
 
         if golden_age is not None and golden_age == signal_age:
@@ -251,12 +246,9 @@ def _build_trend_signal(
         signal_age = bear_event_age
         if signal_age <= 1:
             level = "strong_sell"
-            confidence = 92.0
         elif signal_age <= _RESONANCE_WINDOW:
             level = "sell"
-            confidence = 76.0
         else:
-            confidence = 48.0
             reasons.append("空头排列存在，但最近3根K线内没有新触发")
 
         if death_age is not None and death_age == signal_age:
@@ -266,11 +258,9 @@ def _build_trend_signal(
 
     elif ema_bullish and st_bullish:
         direction = "bullish"
-        confidence = 48.0
         reasons.append("多头排列存在，但最近3根K线内没有新触发")
     elif ema_bearish and st_bearish:
         direction = "bearish"
-        confidence = 48.0
         reasons.append("空头排列存在，但最近3根K线内没有新触发")
     else:
         reasons.append("EMA 与 Supertrend 方向不一致，等待收盘确认")
@@ -278,7 +268,6 @@ def _build_trend_signal(
     return TrendSignal(
         level=level,
         direction=direction,
-        confidence=confidence,
         signal_date=_event_date(df, signal_age),
         bars_since_signal=signal_age,
         ema9=ema9,
@@ -315,8 +304,6 @@ def _build_decision(trend_signal: TrendSignal) -> Decision:
     return Decision(
         action=_decision_action(trend_signal.level),
         level=trend_signal.level,
-        direction=trend_signal.direction,
-        confidence=trend_signal.confidence,
         signal_status=_signal_status(trend_signal.bars_since_signal),
         signal_date=trend_signal.signal_date,
         bars_since_signal=trend_signal.bars_since_signal,
@@ -802,7 +789,7 @@ def _risk_points(
 
 
 def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
-    """Calculate trend-first signal confidence from daily closed candles."""
+    """Calculate trend-first signal level from daily closed candles."""
     candles = get_history(symbol, count=count)
     if not candles or len(candles) < _MIN_HISTORY:
         got = len(candles) if candles else 0
@@ -850,7 +837,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     primary_signal = _build_primary_signal(trend_signal, adx=adx_val)
     context = _build_context(
         df,
-        direction=decision.direction,
+        direction=trend_signal.direction,
         close_arr=close,
         current_price=current_price,
     )

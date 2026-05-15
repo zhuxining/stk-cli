@@ -28,7 +28,6 @@ def _score_result(
     level: SignalLevel,
     action: DecisionAction,
     status: SignalStatus,
-    confidence: float,
     bias: ContextBias = "supportive",
     factor_state: FactorState = "confirming",
     bars_since_signal: int | None = 1,
@@ -38,8 +37,6 @@ def _score_result(
         decision=Decision(
             action=action,
             level=level,
-            direction="bullish" if action != "focus_sell" else "bearish",
-            confidence=confidence,
             signal_status=status,
             signal_date="2026-05-12",
             bars_since_signal=bars_since_signal,
@@ -119,14 +116,12 @@ def test_batch_summary_returns_focus_only(mock_score, mock_daily, mock_quotes):
                 level="strong_buy",
                 action="focus_buy",
                 status="new",
-                confidence=92,
             )
         return _score_result(
             symbol,
             level="hold",
             action="watch",
             status="stale",
-            confidence=35,
             bias="mixed",
             factor_state="neutral",
         )
@@ -139,12 +134,11 @@ def test_batch_summary_returns_focus_only(mock_score, mock_daily, mock_quotes):
     assert result.universe.scanned == 2
     assert result.universe.failed == 1
     assert result.summary.focus_count == 1
-    assert result.summary.high_priority_count == 1
+    assert result.summary.strong_signal_count == 1
     assert result.summary.entry_signal_count == 1
     assert result.ignored.no_signal_count == 1
     assert result.errors[0].symbol == "300750.SZ"
     assert result.focus[0].symbol == "600519.SH"
-    assert result.focus[0].priority == "high"
     assert result.focus[0].decision.action == "focus_buy"
     assert result.focus[0].daily10 == [
         {
@@ -182,7 +176,6 @@ def test_hold_with_risk_context_enters_watch_focus(mock_score, mock_quotes):
         level="hold",
         action="watch",
         status="stale",
-        confidence=35,
         bias="risky",
         factor_state="risk",
         bars_since_signal=5,
@@ -192,7 +185,6 @@ def test_hold_with_risk_context_enters_watch_focus(mock_score, mock_quotes):
 
     assert result.summary.focus_count == 1
     assert result.summary.watch_signal_count == 1
-    assert result.focus[0].priority == "low"
     assert result.focus[0].decision.action == "watch"
 
 
@@ -206,7 +198,6 @@ def test_old_hold_with_single_risk_context_is_ignored(mock_score, mock_quotes):
         level="hold",
         action="watch",
         status="stale",
-        confidence=35,
         bias="risky",
         factor_state="risk",
         bars_since_signal=20,

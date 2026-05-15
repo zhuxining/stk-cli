@@ -33,7 +33,7 @@ compatibility:
 - 批量扫描：只展开 `MonitorResult.focus`；无信号标的只统计 `ignored.no_signal_count`。
 - 单标的解读：以 `decision` 下结论，以 `primary_signal` 给依据，以 `context` 和 `risk` 做补充。
 - 辅助因子读取 `context.factors[].state` 与 `context.factors[].metrics`。
-- `priority=high` 标的若包含 `daily10`，用最近 10 根压缩日线复核信号发生位置和短期指标变化。
+- 强信号标的若包含 `daily10`，用最近 10 根压缩日线复核信号发生位置和短期指标变化。
 - `sell` / `strong_sell` 只表示减仓、退出或风险预警，不表达做空建议。
 - `hold` / `watch` 只表示风险、机会或波动提示；不写成买入、卖出或加仓建议。
 - `focus_sell` 的 `risk.stop_loss` 是上方失效线，`risk.take_profit` 是下行风险参考。
@@ -45,10 +45,10 @@ compatibility:
 按固定证据链分析，避免只复述字段。
 
 1. **先看入选理由**：`focus` 代表需要关注；非 `focus` 不展开，不把 `ignored.no_signal_count` 解释成负面基本面。
-2. **先下结论**：用 `decision.level`、`action`、`direction`、`confidence`、`signal_status` 判断今天的动作强度。
+2. **先下结论**：用 `decision.level`、`action`、`signal_status` 判断今天的动作强度。
 3. **验证主信号**：用 `primary_signal.ema_cross`、`ema9/ema26`、`supertrend_direction`、`reasons` 说明触发来源；`bars_since_signal` 越小，信号越新。
 4. **校验辅助因子**：统计 `context.factors` 中 `confirming`、`conflicting`、`risk`、`opportunity` 的数量和名称，再读对应 `metrics` 给出原因。
-5. **复核 high 标的**：`priority=high` 且有 `daily10` 时，检查最近 10 日价格是否贴近信号日、量能是否配合、RSI/J 是否过热、BOLL 位置是否过高、ATR 风险是否放大。
+5. **复核强信号标的**：有 `daily10` 时，检查最近 10 日价格是否贴近信号日、量能是否配合、RSI/J 是否过热、BOLL 位置是否过高、ATR 风险是否放大。
 6. **给执行边界**：最后用 `risk.stop_loss`、`take_profit`、`risk_reward_ratio`、`risk_level` 判断是否值得跟踪；多头写止损/止盈，空头写上方失效线/下行参考，盈亏比差时结论降为观察。
 
 ## 指标解释口径
@@ -134,7 +134,7 @@ compatibility:
 - `stk stock kline <symbol>`
 - `stk stock fundamental <symbol>`
 
-结论必须先给 `decision.level`、`decision.action`、`confidence` 和是否进入 `focus`。未进入 `focus` 时，不要强行给买卖建议。
+结论必须先给 `decision.level`、`decision.action`、`signal_status` 和是否进入 `focus`。未进入 `focus` 时，不要强行给买卖建议。
 如果用户一次分析多只股票，使用 `templates/multi-stock-deep-comparison.md`，表格对比信号质量、辅助态度和风控，不逐只展开长段落。
 如果只分析单只股票，按“分析步骤”输出短表：结论、主信号、辅助确认、风险冲突和风控边界。
 
@@ -151,7 +151,7 @@ compatibility:
 - 使用中文，结论先行。
 - 报告默认精炼：先给 1-2 句结论，再用表格呈现结果。
 - 多只股票分析必须用表格，不逐只写长段落；只有用户明确要求详细拆解时才展开单只标的。
-- 关键数字包括：`level`、`confidence`、`signal_status`、`bars_since_signal`、`stop_loss`、`take_profit`、`risk_reward_ratio`。
+- 关键数字包括：`level`、`signal_status`、`bars_since_signal`、`stop_loss`、`take_profit`、`risk_reward_ratio`。
 - 方向性观点必须引用字段或数值，避免只写“走势较好/较差”。
 - 报告可保存到 `~/.stk/reports/` 并通过 `obsidian-knowledge` 写入 `14_Trading/DailyReport/{YYYY-MM-DD-[report-name]}.md`。
 

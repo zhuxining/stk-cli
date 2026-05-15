@@ -10,7 +10,6 @@ from stk.models.quote import Quote
 from stk.models.scan import (
     CompactDailyValue,
     FocusItem,
-    FocusPriority,
     IgnoredSummary,
     MonitorResult,
     MonitorSummary,
@@ -25,8 +24,15 @@ from stk.services.watchlist import get_watchlist
 from stk.utils.symbol import to_longport_symbol
 
 _FOCUS_LEVELS: set[SignalLevel] = {"strong_buy", "buy", "sell", "strong_sell"}
+_STRONG_LEVELS: set[SignalLevel] = {"strong_buy", "strong_sell"}
 _ACTIVE_SIGNAL_STATUSES = {"new", "active"}
-_PRIORITY_RANK: dict[FocusPriority, int] = {"high": 0, "medium": 1, "low": 2}
+_LEVEL_RANK: dict[SignalLevel, int] = {
+    "strong_buy": 0,
+    "strong_sell": 0,
+    "buy": 1,
+    "sell": 1,
+    "hold": 2,
+}
 _BIAS_RANK: dict[ContextBias, int] = {
     "supportive": 0,
     "mixed": 1,
@@ -34,7 +40,7 @@ _BIAS_RANK: dict[ContextBias, int] = {
     "conflicting": 3,
 }
 _LOCAL_TZ = ZoneInfo("Asia/Shanghai")
-_HIGH_PRIORITY_DAILY_COUNT = 10
+_STRONG_SIGNAL_DAILY_COUNT = 10
 _WATCH_CONTEXT_MAX_BARS = 10
 
 
@@ -93,11 +99,11 @@ def _compact_daily_row(day: dict) -> dict[str, CompactDailyValue]:
     return row
 
 
-def _get_high_priority_daily10(symbol: str) -> list[dict[str, CompactDailyValue]]:
+def _get_strong_signal_daily10(symbol: str) -> list[dict[str, CompactDailyValue]]:
     try:
-        daily = get_daily(symbol, count=_HIGH_PRIORITY_DAILY_COUNT)
+        daily = get_daily(symbol, count=_STRONG_SIGNAL_DAILY_COUNT)
     except Exception as err:
-        logger.debug(f"High priority daily supplement failed for {symbol}: {err}")
+        logger.debug(f"Strong signal daily supplement failed for {symbol}: {err}")
         return []
     return [_compact_daily_row(day) for day in daily.days]
 
@@ -149,7 +155,7 @@ def _has_watch_context(score: ScoreResult) -> bool:
 
     bars = score.decision.bars_since_signal
     if bars is None or bars > _WATCH_CONTEXT_MAX_BARS:
-        return score.decision.direction == "neutral" and actionable_factors >= 2
+        return actionable_factors >= 2
 
     return (
         bool(score.context.warnings)
@@ -165,14 +171,11 @@ def _should_focus(score: ScoreResult) -> bool:
     return decision.level == "hold" and _has_watch_context(score)
 
 
-def _priority(score: ScoreResult) -> FocusPriority:
-    level = score.decision.level
-    bias = score.context.overall_bias
-    if level in {"strong_buy", "strong_sell"} and bias != "conflicting":
-        return "high"
-    if level in _FOCUS_LEVELS:
-        return "medium"
-    return "low"
+def _needs_daily10(score: ScoreResult) -> bool:
+    return (
+        score.decision.level in _STRONG_LEVELS
+        and score.context.overall_bias != "conflicting"
+    )
 
 
 def _focus_item(
@@ -183,11 +186,9 @@ def _focus_item(
 ) -> FocusItem:
     lp_symbol = to_longport_symbol(symbol)
     quote = quote_map.get(lp_symbol)
-    priority = _priority(score)
     return FocusItem(
         symbol=lp_symbol,
         name=names.get(lp_symbol, names.get(symbol, "")),
-        priority=priority,
         decision=score.decision,
         primary_signal=score.primary_signal,
         context=score.context,
@@ -195,17 +196,16 @@ def _focus_item(
         last=quote.last if quote else None,
         change_pct=quote.change_pct if quote else None,
         source=quote.source if quote else "unknown",
-        daily10=_get_high_priority_daily10(lp_symbol) if priority == "high" else None,
+        daily10=_get_strong_signal_daily10(lp_symbol) if _needs_daily10(score) else None,
     )
 
 
-def _sort_key(item: FocusItem) -> tuple[int, int, float, int]:
+def _sort_key(item: FocusItem) -> tuple[int, int, int]:
     bars = item.decision.bars_since_signal
     bars_since_signal = 999 if bars is None else bars
     return (
-        _PRIORITY_RANK[item.priority],
+        _LEVEL_RANK[item.decision.level],
         _BIAS_RANK[item.context.overall_bias],
-        -item.decision.confidence,
         bars_since_signal,
     )
 
@@ -213,7 +213,7 @@ def _sort_key(item: FocusItem) -> tuple[int, int, float, int]:
 def _summary(focus: list[FocusItem]) -> MonitorSummary:
     return MonitorSummary(
         focus_count=len(focus),
-        high_priority_count=sum(item.priority == "high" for item in focus),
+        strong_signal_count=sum(item.decision.level in _STRONG_LEVELS for item in focus),
         entry_signal_count=sum(item.decision.action == "focus_buy" for item in focus),
         exit_signal_count=sum(item.decision.action == "focus_sell" for item in focus),
         watch_signal_count=sum(item.decision.action == "watch" for item in focus),
@@ -233,7 +233,7 @@ def _monitor_symbols(
             universe=MonitorUniverse(name=universe_name, total=0, scanned=0, failed=0),
             summary=MonitorSummary(
                 focus_count=0,
-                high_priority_count=0,
+                strong_signal_count=0,
                 entry_signal_count=0,
                 exit_signal_count=0,
                 watch_signal_count=0,

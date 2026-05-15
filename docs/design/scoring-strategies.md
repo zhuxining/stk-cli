@@ -12,7 +12,7 @@
 - 主信号策略
 - 辅助因子策略
 - 风控策略
-- 入选、优先级与排序
+- 入选、强信号与排序
 - 指标解释输出
 
 ## 目标与边界
@@ -25,9 +25,9 @@
 - `services/scan.py` 负责批量扫描与重点关注筛选，输出 `MonitorResult`。
 - 主信号只使用日线收盘 K 线确认，不处理盘中未确认信号。
 - 主信号由 `EMA9/EMA26 + Supertrend(ATR10 x2.5)` 决定。
-- `decision.confidence` 只表示主信号置信度，取值范围为 `0-100`；ADX 只作为趋势强度提示，不直接改变级别。
+- `decision.level` 是主信号强度与动作方向的唯一外显字段；ADX 只作为趋势强度提示，不直接改变级别。
 - 辅助因子只解释主信号质量、冲突、风险或左侧机会，不生成单一综合分数。
-- 风控字段独立输出，不参与主信号置信度计算。
+- 风控字段独立输出，不参与主信号级别计算。
 - `sell` 与 `strong_sell` 表示减仓、退出或风险预警，不表达做空建议。
 
 ## 单标的输出结构
@@ -40,8 +40,6 @@
   "decision": {
     "action": "focus_buy",
     "level": "strong_buy",
-    "direction": "bullish",
-    "confidence": 92,
     "signal_status": "new",
     "signal_date": "2026-05-12",
     "bars_since_signal": 1
@@ -95,8 +93,6 @@
 | `decision` | 面向每日监控的可执行判断。 |
 | `decision.action` | `focus_buy`、`focus_sell` 或 `watch`。 |
 | `decision.level` | `strong_buy`、`buy`、`hold`、`sell` 或 `strong_sell`。 |
-| `decision.direction` | `bullish`、`bearish` 或 `neutral`。 |
-| `decision.confidence` | 主信号置信度，只由 EMA9/26 与 Supertrend 决定。 |
 | `decision.signal_status` | `new`、`active` 或 `stale`。 |
 | `decision.signal_date` | 最近一次主信号触发日期。 |
 | `decision.bars_since_signal` | 最近一次主信号距当前 K 线的根数。 |
@@ -120,7 +116,7 @@
   },
   "summary": {
     "focus_count": 6,
-    "high_priority_count": 2,
+    "strong_signal_count": 2,
     "entry_signal_count": 4,
     "exit_signal_count": 1,
     "watch_signal_count": 1
@@ -129,7 +125,6 @@
     {
       "symbol": "600519.SH",
       "name": "贵州茅台",
-      "priority": "high",
       "decision": {},
       "primary_signal": {},
       "context": {},
@@ -184,23 +179,22 @@
 | `universe.scanned` | 成功生成 `ScoreResult` 的标的数量。 |
 | `universe.failed` | 单标的信号计算失败数量。 |
 | `summary.focus_count` | 入选 `focus` 的标的数量。 |
-| `summary.high_priority_count` | `priority=high` 的标的数量。 |
+| `summary.strong_signal_count` | `strong_buy` 或 `strong_sell` 的标的数量。 |
 | `summary.entry_signal_count` | `decision.action=focus_buy` 的标的数量。 |
 | `summary.exit_signal_count` | `decision.action=focus_sell` 的标的数量。 |
 | `summary.watch_signal_count` | `decision.action=watch` 的标的数量。 |
 | `focus` | 重点关注标的列表，默认不包含无信号标的。 |
-| `focus[].daily10` | 仅 `priority=high` 标的补充的最近 10 根压缩日线；其他标的为空。 |
+| `focus[].daily10` | 仅强信号且辅助态度不冲突的标的补充最近 10 根压缩日线；其他标的为空。 |
 | `ignored.no_signal_count` | 成功扫描但未进入 `focus` 的标的数量。 |
 | `errors` | 非致命单标的错误列表。 |
 
 `FocusItem` 在 `ScoreResult` 基础上补充展示字段：
 
 - `name`：行情或 watchlist 提供的名称。
-- `priority`：`high`、`medium` 或 `low`。
 - `last`：实时最新价，行情失败时为空。
 - `change_pct`：实时涨跌幅，行情失败时为空。
 - `source`：行情来源，行情失败时为 `unknown`。
-- `daily10`：只在 `priority=high` 时补充，用于 Agent 复核信号发生位置、近期价格结构和指标变化。
+- `daily10`：只在强信号且辅助态度不冲突时补充，用于 Agent 复核信号发生位置、近期价格结构和指标变化。
 
 ## 主信号策略
 
@@ -227,13 +221,13 @@
 
 信号级别：
 
-| level | 判定规则 | action | direction | confidence |
-|-------|----------|--------|-----------|------------|
-| `strong_buy` | `EMA9 > EMA26`，Supertrend 多头，且最近 0-1 根 K 线内出现多头触发 | `focus_buy` | `bullish` | `92` |
-| `buy` | `EMA9 > EMA26`，Supertrend 多头，且最近 2-3 根 K 线内出现多头触发 | `focus_buy` | `bullish` | `76` |
-| `hold` | 指标未形成、EMA 与 Supertrend 不一致，或趋势排列存在但最近 3 根 K 线内无新触发 | `watch` | `neutral`、`bullish` 或 `bearish` | `25`、`35` 或 `48` |
-| `sell` | `EMA9 < EMA26`，Supertrend 空头，且最近 2-3 根 K 线内出现空头触发 | `focus_sell` | `bearish` | `76` |
-| `strong_sell` | `EMA9 < EMA26`，Supertrend 空头，且最近 0-1 根 K 线内出现空头触发 | `focus_sell` | `bearish` | `92` |
+| level | 判定规则 | action |
+|-------|----------|--------|
+| `strong_buy` | `EMA9 > EMA26`，Supertrend 多头，且最近 0-1 根 K 线内出现多头触发 | `focus_buy` |
+| `buy` | `EMA9 > EMA26`，Supertrend 多头，且最近 2-3 根 K 线内出现多头触发 | `focus_buy` |
+| `hold` | 指标未形成、EMA 与 Supertrend 不一致，或趋势排列存在但最近 3 根 K 线内无新触发 | `watch` |
+| `sell` | `EMA9 < EMA26`，Supertrend 空头，且最近 2-3 根 K 线内出现空头触发 | `focus_sell` |
+| `strong_sell` | `EMA9 < EMA26`，Supertrend 空头，且最近 0-1 根 K 线内出现空头触发 | `focus_sell` |
 
 信号状态：
 
@@ -245,7 +239,7 @@
 
 ## 辅助因子策略
 
-辅助因子用于解释主信号质量，不改变 `decision.level` 和 `decision.confidence`。
+辅助因子用于解释主信号质量，不改变 `decision.level`。
 
 辅助因子列表：
 
@@ -320,30 +314,26 @@ MFI 解释规则：
 
 风控字段只用于执行参考和排序后的人工复核，不参与主信号级别计算。
 
-## 入选、优先级与排序
+## 入选、强信号与排序
 
 入选 `focus` 的规则：
 
 - `decision.level` 为 `strong_buy`、`buy`、`sell` 或 `strong_sell`，且 `signal_status` 为 `new` 或 `active`。
 - `decision.level=hold` 时，只有近期存在明确风险、机会或预警，才以 `watch` 进入 `focus`。
-- `hold` 标的的 watch 入选会过滤陈旧噪音：若最近主信号超过 10 根 K 线，单一风险/机会因子不再进入 `focus`；中性方向至少需要 2 个风险/机会因子。
-- `signal_status=stale` 的买卖方向标的默认不进入 `focus`。
+- `hold` 标的的 watch 入选会过滤陈旧噪音：若最近主信号超过 10 根 K 线，至少需要 2 个风险/机会因子才进入 `focus`。
+- `signal_status=stale` 的买卖信号默认不进入 `focus`。
 - 扫描失败的标的不进入 `focus`，只进入 `errors`。
 
-优先级规则：
+强信号规则：
 
-| priority | 判定规则 |
-|----------|----------|
-| `high` | `strong_buy` 或 `strong_sell`，且 `context.overall_bias != conflicting`。 |
-| `medium` | `buy`、`sell`、`strong_buy` 或 `strong_sell`，但未满足 `high`。 |
-| `low` | `hold` 且因风险、机会或预警进入 `focus`。 |
+- `strong_buy` 或 `strong_sell` 计入 `summary.strong_signal_count`。
+- 强信号且 `context.overall_bias != conflicting` 时补充 `daily10`，用于复核最近价格结构。
 
 排序规则：
 
-1. `priority`：`high` 优先，其次 `medium`、`low`。
+1. `decision.level`：`strong_buy` / `strong_sell` 优先，其次 `buy` / `sell`，最后 `hold`。
 2. `context.overall_bias`：`supportive`、`mixed`、`risky`、`conflicting`。
-3. `decision.confidence`：置信度高的优先。
-4. `decision.bars_since_signal`：信号越新越靠前；空值按最老处理。
+3. `decision.bars_since_signal`：信号越新越靠前；空值按最老处理。
 
 ## 指标解释输出
 
