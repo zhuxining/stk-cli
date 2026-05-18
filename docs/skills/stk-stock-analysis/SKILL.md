@@ -1,5 +1,5 @@
 ---
-name: stock-analysis
+name: stk-stock-analysis
 description: >
   stk-cli 每日股市监控技能。**当用户询问任何与股票市场相关的问题时，必须立即使用此技能。**
   包括但不限于：市场行情、技术热点、自选分组、个股信号、持仓检查、DailyReport、交易日报、每日复盘、
