@@ -1,13 +1,6 @@
 ---
 name: stk-stock-analysis
-description: >
-  stk-cli 每日股市监控技能。**当用户询问任何与股票市场相关的问题时，必须立即使用此技能。**
-  包括但不限于：市场行情、技术热点、自选分组、个股信号、持仓检查、DailyReport、交易日报、每日复盘、
-  保存到 Obsidian。即使提问是口语化的，如 "今天有没有信号"、"帮我看看XX组"、"XX股票怎么样"、
-  "今天市场如何"、"有什么热点"、"分析一下茅台"，也必须触发此技能。
-  关键词包括：scan JSON、MonitorResult、focus、daily10、技术指标、EMA、Supertrend、MACD、KDJ、RSI、
-  布林带、资金流入、趋势信号、止损止盈。输出中文技术分析报告，用 decision 下结论，
-  用 primary_signal 找触发，用 context.metrics 校验质量，用 risk 给风控。
+description: stk-cli 每日股市监控技能。**当用户询问任何与股票市场相关的问题时，必须立即使用此技能。**包括但不限于：市场行情、技术热点、自选分组、个股信号、持仓检查、DailyReport、交易日报、每日复盘、保存到 Obsidian。即使提问是口语化的，如 "今天有没有信号"、"帮我看看XX组"、"XX股票怎么样"、"今天市场如何"、"有什么热点"、"分析一下茅台"，也必须触发此技能。关键词包括：scan JSON、MonitorResult、focus、daily10、技术指标、EMA、Supertrend、MACD、KDJ、RSI、布林带、资金流入、趋势信号、止损止盈。输出中文技术分析报告，用 decision 下结论，用 primary_signal 找触发，用 context.metrics 校验质量，用 risk 给风控。
 compatibility:
   requires: [stk-cli]
   optional: [obsidian-knowledge]
