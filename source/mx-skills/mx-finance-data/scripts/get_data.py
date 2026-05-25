@@ -10,20 +10,20 @@ import argparse
 import asyncio
 import json
 import os
+from pathlib import Path
 import re
 import sys
-import uuid
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
+import uuid
 
 import httpx
 import pandas as pd
-
 
 EM_API_KEY = os.environ.get("EM_API_KEY", "em_fjFqd4YB6Cqs52LF48XWbMDdLNq6MyNg").strip()
 DEFAULT_SEARCH_API_URL = (
     "https://ai-saas.eastmoney.com/proxy/b/mcp/tool/searchData"
 )
+
 
 def _get_default_output_dir() -> Path:
     """
@@ -47,16 +47,16 @@ def _flatten_value(v: Any) -> str:
     return str(v)
 
 
-def _ordered_keys(table: Dict[str, Any], indicator_order: List[Any]) -> List[Any]:
+def _ordered_keys(table: dict[str, Any], indicator_order: list[Any]) -> list[Any]:
     """
     按 indicator_order 生成指标键的输出顺序。
     先保留接口给定顺序，再追加未覆盖的数据键。
     返回去重后的最终键列表。
     """
-    data_keys = [k for k in table.keys() if k != "headName"]
+    data_keys = [k for k in table if k != "headName"]
     key_map = {str(k): k for k in data_keys}
-    preferred: List[Any] = []
-    seen: Set[str] = set()
+    preferred: list[Any] = []
+    seen: set[str] = set()
     for key in indicator_order:
         key_str = str(key)
         if key_str in key_map and key_str not in seen:
@@ -70,7 +70,7 @@ def _ordered_keys(table: Dict[str, Any], indicator_order: List[Any]) -> List[Any
     return preferred
 
 
-def _normalize_values(raw_values: List[Any], expected_len: int) -> List[str]:
+def _normalize_values(raw_values: list[Any], expected_len: int) -> list[str]:
     """
     规范化一行指标值长度与类型。
     先将原始值转字符串，再按列数补空或截断。
@@ -82,7 +82,7 @@ def _normalize_values(raw_values: List[Any], expected_len: int) -> List[str]:
     return values[:expected_len]
 
 
-def _return_code_map(block: Dict[str, Any]) -> Dict[str, str]:
+def _return_code_map(block: dict[str, Any]) -> dict[str, str]:
     """
     从数据块中提取指标代码映射表。
     兼容 returnCodeMap/returnCodeNameMap/codeMap 三种字段名。
@@ -95,7 +95,7 @@ def _return_code_map(block: Dict[str, Any]) -> Dict[str, str]:
     return {}
 
 
-def _format_indicator_label(key: str, name_map: Dict[str, Any], code_map: Dict[str, str]) -> str:
+def _format_indicator_label(key: str, name_map: dict[str, Any], code_map: dict[str, str]) -> str:
     """
     生成指标键对应的展示名称。
     优先使用 nameMap，其次使用 codeMap，最后回退原始 key。
@@ -114,7 +114,7 @@ def _format_indicator_label(key: str, name_map: Dict[str, Any], code_map: Dict[s
     return key
 
 
-def _table_to_rows_generic(table: Any, name_map: Optional[Dict[str, str]]) -> List[Dict[str, Any]]:
+def _table_to_rows_generic(table: Any, name_map: dict[str, str] | None) -> list[dict[str, Any]]:
     """
     将通用表结构转换为行记录列表。
     兼容 list/dict 等多种 table 形态，并尽量推断列名。
@@ -128,7 +128,7 @@ def _table_to_rows_generic(table: Any, name_map: Optional[Dict[str, str]]) -> Li
             rows = table
         else:
             rows = [
-                dict(zip([f"column_{i}" for i in range(len(table[0]))], row))
+                dict(zip([f"column_{i}" for i in range(len(table[0]))], row, strict=False))
                 for row in table
             ]
     elif isinstance(table, dict):
@@ -137,7 +137,7 @@ def _table_to_rows_generic(table: Any, name_map: Optional[Dict[str, str]]) -> Li
             n = len(vals[0])
             if all(len(v) == n for v in vals):
                 cols = list(table.keys())
-                rows = [dict(zip(cols, [v[i] for v in table.values()])) for i in range(n)]
+                rows = [dict(zip(cols, [v[i] for v in table.values()], strict=False)) for i in range(n)]
             else:
                 rows = []
         else:
@@ -145,14 +145,14 @@ def _table_to_rows_generic(table: Any, name_map: Optional[Dict[str, str]]) -> Li
             rows_data = table.get("rows") or table.get("data") or []
             if not cols and rows_data:
                 cols = [f"column_{i}" for i in range(len(rows_data[0]))]
-            rows = [dict(zip(cols, r)) for r in rows_data]
+            rows = [dict(zip(cols, r, strict=False)) for r in rows_data]
     else:
         return []
 
     return [{name_map.get(k, k): _flatten_value(v) for k, v in row.items()} for row in rows]
 
 
-def _table_to_rows(block: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[str]]:
+def _table_to_rows(block: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
     """
     将单个 dataTableDTO 块转换为标准行数据与字段列表。
     优先按 headName + 指标顺序组装二维表，失败时回退通用解析。
@@ -177,8 +177,8 @@ def _table_to_rows(block: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[st
     entity_name = _flatten_value(block.get("entityName") or "") or "指标"
     code_map = _return_code_map(block)
 
-    rows: List[Dict[str, Any]] = []
-    data_key_count = len([key for key in table.keys() if key != "headName"])
+    rows: list[dict[str, Any]] = []
+    data_key_count = len([key for key in table if key != "headName"])
 
     if len(headers) > 1 and data_key_count >= 1:
         fieldnames = [entity_name] + [_flatten_value(h) for h in headers]
@@ -188,7 +188,7 @@ def _table_to_rows(block: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[st
                 raw_values = [raw_values]
             values = _normalize_values(raw_values, len(headers))
             label = _format_indicator_label(str(key), name_map, code_map)
-            rows.append(dict(zip(fieldnames, [label] + values)))
+            rows.append(dict(zip(fieldnames, [label, *values], strict=False)))
         return rows, fieldnames
 
     if len(headers) == 1 and data_key_count >= 1:
@@ -206,7 +206,7 @@ def _table_to_rows(block: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[st
     return [], []
 
 
-def _build_request_body(query: str) -> Dict[str, Any]:
+def _build_request_body(query: str) -> dict[str, Any]:
     """
     构建 searchData 接口请求体。
     自动生成 callId，并写入 userInfo.userId。
@@ -214,7 +214,7 @@ def _build_request_body(query: str) -> Dict[str, Any]:
     """
     call_id = f"call_{uuid.uuid4().hex[:8]}"
     user_id = f"user_{uuid.uuid4().hex[:8]}"
-    
+
     return {
         "query": query,
         "toolContext": {
@@ -226,7 +226,7 @@ def _build_request_body(query: str) -> Dict[str, Any]:
     }
 
 
-def _safe_sheet_name(raw_name: Any, used_names: Set[str]) -> str:
+def _safe_sheet_name(raw_name: Any, used_names: set[str]) -> str:
     """
     生成合法且唯一的 Excel sheet 名称。
     会清洗非法字符、裁剪到 31 字符并处理重名后缀。
@@ -251,7 +251,7 @@ def _safe_sheet_name(raw_name: Any, used_names: Set[str]) -> str:
     return candidate
 
 
-def _extract_data_table_dto_list(api_result: Any) -> Tuple[Optional[List[Any]], Optional[str]]:
+def _extract_data_table_dto_list(api_result: Any) -> tuple[list[Any] | None, str | None]:
     """
     从接口返回中提取 dataTableDTOList 列表。
     兼容新结构 data.searchDataResultDTO.dataTableDTOList。
@@ -279,7 +279,7 @@ def _extract_data_table_dto_list(api_result: Any) -> Tuple[Optional[List[Any]], 
     return None, "接口返回中无 data.searchDataResultDTO.dataTableDTOList"
 
 
-def _check_business_status(api_result: Any) -> Optional[str]:
+def _check_business_status(api_result: Any) -> str | None:
     """
     校验接口业务状态是否成功。
     兼容常见成功语义：code/status 为 200、0（含字符串）或缺失。
@@ -297,7 +297,7 @@ def _check_business_status(api_result: Any) -> Optional[str]:
     return None
 
 
-def _extract_preferred_message(api_result: Any) -> Optional[str]:
+def _extract_preferred_message(api_result: Any) -> str | None:
     """
     提取接口错误 message（仅使用 data.message）。
     返回去除首尾空白后的字符串；无有效内容则返回 None。
@@ -322,7 +322,7 @@ def _extract_preferred_message(api_result: Any) -> Optional[str]:
 
 def _parse_data_table_response(
         api_result: Any,
-) -> Tuple[List[Dict[str, Any]], List[str], int, Optional[str]]:
+) -> tuple[list[dict[str, Any]], list[str], int, str | None]:
     """
     解析接口返回并抽取可落盘的表格数据。
     遍历 dataTableDTOList 生成 sheet 信息、条件说明与总行数。
@@ -334,10 +334,10 @@ def _parse_data_table_response(
     if not dto_list:
         return [], [], 0, "接口返回的 dataTableDTOList 为空"
 
-    condition_parts: List[str] = []
-    tables: List[Dict[str, Any]] = []
+    condition_parts: list[str] = []
+    tables: list[dict[str, Any]] = []
     total_rows = 0
-    used_sheet_names: Set[str] = set()
+    used_sheet_names: set[str] = set()
 
     for i, dto in enumerate(dto_list):
         if not isinstance(dto, dict):
@@ -367,10 +367,10 @@ def _write_output_files(
         *,
         output_dir: Path,
         query_text: str,
-        tables: List[Dict[str, Any]],
+        tables: list[dict[str, Any]],
         total_rows: int,
-        condition_parts: List[str],
-) -> Tuple[Path, Path]:
+        condition_parts: list[str],
+) -> tuple[Path, Path]:
     """
     将解析后的查询结果写入本地文件。
     输出一个 Excel 多 sheet 文件与一个描述文本文件。
@@ -399,7 +399,7 @@ def _write_output_files(
     return file_path, desc_path
 
 
-def _make_result_base(query_text: str) -> Dict[str, Any]:
+def _make_result_base(query_text: str) -> dict[str, Any]:
     """
     构造统一的返回结果基础结构。
     初始化路径字段、行数字段与原始查询文本。
@@ -416,9 +416,9 @@ def _make_result_base(query_text: str) -> Dict[str, Any]:
 
 async def query_mx_finance_data(
         query: str,
-        output_dir: Optional[Path] = None,
-        api_base: Optional[str] = None,
-) -> Dict[str, Any]:
+        output_dir: Path | None = None,
+        api_base: str | None = None,
+) -> dict[str, Any]:
     """
     执行金融数据主查询流程并输出文件结果。
     完成接口请求、业务状态校验、表格解析与文件写入。
@@ -496,9 +496,9 @@ async def query_mx_finance_data(
 
 async def query_mx_finance_data_direct(
         query: str,
-        output_dir: Optional[Path] = None,
-        api_base: Optional[str] = None,
-) -> Dict[str, Any]:
+        output_dir: Path | None = None,
+        api_base: str | None = None,
+) -> dict[str, Any]:
     """
     直接查询入口，兼容外部旧调用方式。
     参数与返回值与 query_mx_finance_data 保持一致。

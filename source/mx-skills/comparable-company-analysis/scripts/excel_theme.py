@@ -4,16 +4,14 @@ Build themed Excel for comparable-company analysis.
 
 import argparse
 import asyncio
-import re
-import uuid
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional
-
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+import uuid
 
 from get_data import fetch_comparable_company_data
-
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 DEFAULT_OUTPUT_DIR = Path.cwd() / "miaoxiang" / "comparable_company_analysis"
 
@@ -58,7 +56,6 @@ HIGHLIGHT_ROW_NAMES = {
 }
 
 
-
 def _safe_text(value: Any, default: str = "") -> str:
     if value is None:
         return default
@@ -97,7 +94,7 @@ def _coerce_numeric(value: Any) -> Any:
     return num
 
 
-def _thousand_number_format_from_raw(value: Any) -> Optional[str]:
+def _thousand_number_format_from_raw(value: Any) -> str | None:
     """
     Build Excel number format with thousand separators and
     default two decimal places.
@@ -115,8 +112,8 @@ def _thousand_number_format_from_raw(value: Any) -> Optional[str]:
     return "#,##0.00"
 
 
-def _normalize_rows(table: Dict[str, Any], expected_cols: int) -> List[List[str]]:
-    rows: List[List[str]] = []
+def _normalize_rows(table: dict[str, Any], expected_cols: int) -> list[list[str]]:
+    rows: list[list[str]] = []
     if not isinstance(table, dict):
         return rows
 
@@ -127,7 +124,7 @@ def _normalize_rows(table: Dict[str, Any], expected_cols: int) -> List[List[str]
         normalized = [_safe_text(v, "-") for v in values[:expected_cols]]
         if len(normalized) < expected_cols:
             normalized.extend(["-"] * (expected_cols - len(normalized)))
-        rows.append([_safe_text(row_name, "-")] + normalized)
+        rows.append([_safe_text(row_name, "-"), *normalized])
     return rows
 
 
@@ -158,8 +155,8 @@ def _write_section_table(
     ws,
     start_row: int,
     section_title: str,
-    headers: List[str],
-    rows: List[List[str]],
+    headers: list[str],
+    rows: list[list[str]],
     total_cols: int,
 ) -> int:
     section_fill = PatternFill(fill_type="solid", start_color="1F4E78", end_color="1F4E78")
@@ -180,7 +177,7 @@ def _write_section_table(
     ws.row_dimensions[start_row].height = 24
 
     header_row = start_row + 1
-    table_headers = ["公司名称"] + headers
+    table_headers = ["公司名称", *headers]
     for idx, name in enumerate(table_headers, start=1):
         ws.cell(row=header_row, column=idx, value=name)
     _set_row_fill(ws, header_row, 1, total_cols, header_fill)
@@ -230,10 +227,10 @@ def _write_section_table(
 
 
 def build_themed_excel(
-    payload: Dict[str, Any],
-    output_dir: Optional[Path] = None,
-    output_filename: Optional[str] = None,
-) -> Dict[str, Any]:
+    payload: dict[str, Any],
+    output_dir: Path | None = None,
+    output_filename: str | None = None,
+) -> dict[str, Any]:
     header = payload.get("header") if isinstance(payload, dict) else {}
     section_finance = payload.get("section_finance") if isinstance(payload, dict) else {}
     section_valuation = payload.get("section_valuation") if isinstance(payload, dict) else {}
@@ -303,7 +300,7 @@ def build_themed_excel(
 
     out_dir = Path(output_dir or DEFAULT_OUTPUT_DIR)
     out_dir.mkdir(parents=True, exist_ok=True)
-    file_name = output_filename or "comparable_company_analysis_{0}.xlsx".format(uuid.uuid4().hex[:8])
+    file_name = output_filename or f"comparable_company_analysis_{uuid.uuid4().hex[:8]}.xlsx"
     output_path = out_dir / file_name
     workbook.save(str(output_path))
 
@@ -312,9 +309,9 @@ def build_themed_excel(
 
 async def generate_excel_from_query(
     query: str,
-    output_dir: Optional[Path] = None,
-    output_filename: Optional[str] = None,
-) -> Dict[str, Any]:
+    output_dir: Path | None = None,
+    output_filename: str | None = None,
+) -> dict[str, Any]:
     data = await fetch_comparable_company_data(query)
     if "error" in data:
         return {"error": data["error"], "raw": data.get("raw")}
@@ -355,9 +352,9 @@ def run_cli() -> None:
             output_filename=output_filename,
         )
         if "error" in result:
-            print("Error: {0}".format(result["error"]))
+            print("Error: {}".format(result["error"]))
             raise SystemExit(2)
-        print("Saved: {0}".format(result.get("output_path", "")))
+        print("Saved: {}".format(result.get("output_path", "")))
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)

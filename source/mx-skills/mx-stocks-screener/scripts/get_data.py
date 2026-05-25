@@ -10,19 +10,19 @@ import asyncio
 import csv
 import json
 import os
-import re
-import uuid
 from pathlib import Path
-from typing import List, Dict
-import httpx
+import re
+from typing import Dict, List
+import uuid
 
+import httpx
 
 EM_API_KEY = os.environ.get("EM_API_KEY", "em_fjFqd4YB6Cqs52LF48XWbMDdLNq6MyNg").strip()
 
 
 TOOL_NAME = "股票基金筛选"
 DEFAULT_OUTPUT_DIR = Path.cwd() / "miaoxiang" / "mx_stocks_screener"
-print('默认输出目录为：',DEFAULT_OUTPUT_DIR.absolute())
+print('默认输出目录为：', DEFAULT_OUTPUT_DIR.absolute())
 # MCP 服务器地址
 MCP_URL = "https://ai-saas.eastmoney.com/proxy/b/mcp/tool/selectSecurity"
 
@@ -53,14 +53,16 @@ def get_metadata(
             },
         },
     }
-def _build_column_map(columns: List[Dict]) -> Dict:
+
+
+def _build_column_map(columns: list[dict]) -> dict:
     """
     从 MCP 返回的 columns 构建 英文列名 -> 中文列名 的映射。
     支持常见字段名：field/name/key -> displayName/title/label。
     """
     name_map = {}
     for col in columns or []:
-        if not isinstance(col, Dict):
+        if not isinstance(col, dict):
             continue
         en_key = col.get("field", "") or col.get("name", "") or col.get("key", "")
         cn_name = col.get("displayName", "") or col.get("title", "") or col.get("label", "")
@@ -70,11 +72,11 @@ def _build_column_map(columns: List[Dict]) -> Dict:
     return name_map
 
 
-def _columns_order(columns: List[Dict]) -> List[str]:
+def _columns_order(columns: list[dict]) -> list[str]:
     """按 columns 顺序返回英文列名列表，用于 CSV 表头顺序。"""
     order = []
     for col in columns or []:
-        if not isinstance(col, Dict):
+        if not isinstance(col, dict):
             continue
         en_key = col.get("field") or col.get("name") or col.get("key")
         if en_key is not None:
@@ -82,7 +84,7 @@ def _columns_order(columns: List[Dict]) -> List[str]:
     return order
 
 
-def _parse_partial_results_table(partial_results: str) -> List[Dict]:
+def _parse_partial_results_table(partial_results: str) -> list[dict]:
     """
     将 partialResults 的 Markdown 表格字符串解析为行字典列表。
     格式: "|序号|代码|名称|...|\\n|---|\\n|1|000001|平安银行|...|"
@@ -94,7 +96,7 @@ def _parse_partial_results_table(partial_results: str) -> List[Dict]:
         return []
 
     # 表头行：按 | 分割，去掉首尾空
-    def split_cells(line: str) -> List[str]:
+    def split_cells(line: str) -> list[str]:
         return [c.strip() for c in line.split("|") if c.strip() != ""]
 
     header_cells = split_cells(lines[0])
@@ -113,15 +115,15 @@ def _parse_partial_results_table(partial_results: str) -> List[Dict]:
                 cells.extend([""] * (len(header_cells) - len(cells)))
             else:
                 cells = cells[: len(header_cells)]
-        rows.append(dict(zip(header_cells, cells)))
+        rows.append(dict(zip(header_cells, cells, strict=False)))
     return rows
 
 
 def _datalist_to_rows(
-        datalist: List[Dict],
-        column_map: Dict,
-        column_order: List[str],
-) -> List[Dict]:
+        datalist: list[dict],
+        column_map: dict,
+        column_order: list[str],
+) -> list[dict]:
     """
     将 datalist 中每行的英文键按 column_map 替换为中文键，保证顺序与 partialResults 风格一致。
     覆盖全部 datalist 数据。
@@ -131,7 +133,7 @@ def _datalist_to_rows(
 
     rows = []
     for row in datalist:
-        if not isinstance(row, Dict):
+        if not isinstance(row, dict):
             continue
         cn_row = {}
         for en_key in column_order:
@@ -141,7 +143,7 @@ def _datalist_to_rows(
             val = row[en_key]
             if val is None:
                 cn_row[cn_name] = ""
-            elif isinstance(val, (Dict, List)):
+            elif isinstance(val, (dict, list)):
                 cn_row[cn_name] = json.dumps(val, ensure_ascii=False)
             else:
                 cn_row[cn_name] = str(val)
@@ -150,7 +152,7 @@ def _datalist_to_rows(
     return rows
 
 
-def _drop_columns_for_sector(rows: List[Dict], select_type: str) -> List[Dict]:
+def _drop_columns_for_sector(rows: list[dict], select_type: str) -> list[dict]:
     """
     当选择类型为“板块”时，移除不需要输出的列。
     目前按需求移除：
@@ -163,7 +165,7 @@ def _drop_columns_for_sector(rows: List[Dict], select_type: str) -> List[Dict]:
     blocked = {"板块编码", "指数内码"}
     cleaned_rows = []
     for row in rows:
-        if not isinstance(row, Dict):
+        if not isinstance(row, dict):
             continue
         cleaned_row = {
             k: v
@@ -178,7 +180,7 @@ async def query_mx_stocks_screener(
         query: str,
         selectType: str,
         output_dir: Path
-) -> Dict:
+) -> dict:
     """
     通过自然语言查询进行选股（A股/港股/美股）、选板块、选基金；
     使用 MCP 股票基金筛选工具，将返回的 datalist 按 columns 转为中文列名 CSV 并生成描述文件。
@@ -209,7 +211,7 @@ async def query_mx_stocks_screener(
         result["error"] = f"MCP 调用失败: {e!s}"
         return result
 
-    if not raw or not isinstance(raw, Dict):
+    if not raw or not isinstance(raw, dict):
         result["error"] = "MCP 返回为空或非 JSON 对象"
         result["raw_preview"] = str(raw)[:500] if raw else ""
         return result
@@ -217,7 +219,7 @@ async def query_mx_stocks_screener(
     # 若 MCP 返回了非空 message，优先透传该错误信息
     raw_message = raw.get("message")
     if isinstance(raw_message, str) and raw_message.strip():
-        result["error"] = raw_message.strip()+"\n您的请求数据量已达到上限，如需继续使用，请联系客服电话400-620-1818"
+        result["error"] = raw_message.strip() + "\n您的请求数据量已达到上限，如需继续使用，请联系客服电话400-620-1818"
         return result
 
     # 使用 datalist（全量），兼容 allResults/result 为 None 的场景
@@ -254,7 +256,7 @@ async def query_mx_stocks_screener(
 
     if not rows:
         if raw.get("securityCount", -1) == 0:
-            result["error"] = "无符合问句要求的"+selectType
+            result["error"] = "无符合问句要求的" + selectType
         else:
             result["error"] = "返回中无有效 datalist 且 partialResults 无法解析或为空"
         return result
@@ -269,7 +271,7 @@ async def query_mx_stocks_screener(
     csv_path = output_dir / f"mx_stocks_screener_{unique_suffix}.csv"
     desc_path = output_dir / f"mx_stocks_screener_{unique_suffix}_description.txt"
 
-    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+    with Path(csv_path).open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         for row in rows:

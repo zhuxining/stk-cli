@@ -6,16 +6,17 @@
 - 结果输出的行业研究报告内容：最终返回标题、正文、PDF/DOC附件、溯源信息。
 """
 
+import argparse
 import asyncio
+import base64
 import json
 import os
 from pathlib import Path
-import httpx
-import base64
-import argparse
+import re
 import sys
 import zipfile
-import re
+
+import httpx
 
 EM_API_KEY = os.environ.get("EM_API_KEY", "em_fjFqd4YB6Cqs52LF48XWbMDdLNq6MyNg").strip()
 SKILL_NAME = "industry_research_report"
@@ -23,6 +24,7 @@ DEFAULT_OUTPUT_DIR = Path.cwd() / "miaoxiang" / SKILL_NAME
 OUTPUT_DIR_ENV = "INDUSTRY_RESEARCH_REPORT_OUTPUT_DIR"
 # MCP 服务器地址
 MCP_URL = "https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/write/industry/research"
+
 
 def _safe_filename(name: str, fallback: str) -> str:
     """
@@ -67,6 +69,7 @@ def _extract_docx_text(docx_path: Path) -> str:
     text = re.sub(r"[ \t]+\n", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
 
 def run_cli() -> None:
     """命令行入口：从参数或 stdin 读取查询文本，执行并打印结果路径。"""
@@ -123,21 +126,21 @@ async def get_industry_research_report(query: str, output_dir: Path):
             )
 
             result.raise_for_status()
-            
+
             result_data_api = result.json()
-            
+
             title = result_data_api["data"]["title"]
             content = result_data_api["data"].get("content") if isinstance(result_data_api.get("data"), dict) else ""
             content = content if isinstance(content, str) else ""
             share_url = result_data_api["data"]["shareUrl"]
 
             safe_base = _safe_filename(title, "industry_research_report")
-            
+
             pdf_output_path = output_dir / f"{safe_base}.pdf"
             pdf_saved = _save_base64_file(result_data_api["data"]["pdfBase64"], pdf_output_path)
 
             word_output_path = output_dir / f"{safe_base}.docx"
-            word_saved  = _save_base64_file(result_data_api["data"]["wordBase64"], word_output_path)
+            word_saved = _save_base64_file(result_data_api["data"]["wordBase64"], word_output_path)
 
             if not word_saved or not pdf_saved:
                 result_data["error"] = "保存附件失败"
@@ -154,7 +157,6 @@ async def get_industry_research_report(query: str, output_dir: Path):
             result_data["share_url"] = share_url
 
             return result_data
-
 
     except Exception as e:
         print(f"调用工具时出错: {e}", file=sys.stderr)

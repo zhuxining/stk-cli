@@ -11,12 +11,11 @@ import asyncio
 import base64
 import json
 import os
-import re
-import uuid
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional
-from urllib import error as urllib_error
-from urllib import request as urllib_request
+from urllib import error as urllib_error, request as urllib_request
+import uuid
 
 EM_API_KEY = os.environ.get("EM_API_KEY", "em_fjFqd4YB6Cqs52LF48XWbMDdLNq6MyNg").strip()
 DEFAULT_OUTPUT_DIR = Path.cwd() / "miaoxiang" / "topic_research_report"
@@ -43,7 +42,7 @@ def _extract_error_message(body: str) -> str:
     return body[:200]
 
 
-def _extract_content(raw: Dict[str, Any]) -> str:
+def _extract_content(raw: dict[str, Any]) -> str:
     """
     Extract readable report body from API response.
     Prioritize data.content for this thematic research API.
@@ -70,7 +69,7 @@ def _extract_content(raw: Dict[str, Any]) -> str:
     return json.dumps(raw, ensure_ascii=False, indent=2)
 
 
-def _has_valid_report(raw: Dict[str, Any]) -> bool:
+def _has_valid_report(raw: dict[str, Any]) -> bool:
     """
     Determine whether API response contains a successful report payload.
     Used to avoid saving md files for unsupported/failed scenarios.
@@ -112,8 +111,8 @@ def _safe_article_id(value: Any) -> str:
     return re.sub(r"[^a-zA-Z0-9_-]+", "_", article_id)
 
 
-def _decode_attachment_base64(data: Dict[str, Any], output_dir: Path) -> List[Dict[str, str]]:
-    attachments: List[Dict[str, str]] = []
+def _decode_attachment_base64(data: dict[str, Any], output_dir: Path) -> list[dict[str, str]]:
+    attachments: list[dict[str, str]] = []
     output_dir.mkdir(parents=True, exist_ok=True)
 
     file_map = [
@@ -131,14 +130,14 @@ def _decode_attachment_base64(data: Dict[str, Any], output_dir: Path) -> List[Di
             raw = base64.b64decode(b64_str)
         except Exception:
             continue
-        file_name = "{0}_{1}.{2}".format(safe_article_id, ftype.lower(), ext)
+        file_name = f"{safe_article_id}_{ftype.lower()}.{ext}"
         file_path = output_dir / file_name
         file_path.write_bytes(raw)
         attachments.append({"type": ftype, "path": str(file_path)})
     return attachments
 
 
-def _http_call_topic_research(query: str) -> Dict[str, Any]:
+def _http_call_topic_research(query: str) -> dict[str, Any]:
     payload = {"query": query}
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib_request.Request(
@@ -156,10 +155,10 @@ def _http_call_topic_research(query: str) -> Dict[str, Any]:
             raw_body = resp.read().decode("utf-8", errors="replace")
     except urllib_error.HTTPError as exc:
         err_body = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
-        message = _extract_error_message(err_body) or "http status {0}".format(exc.code)
-        raise RuntimeError("Topic research API request failed: {0}".format(message))
+        message = _extract_error_message(err_body) or f"http status {exc.code}"
+        raise RuntimeError(f"Topic research API request failed: {message}")
     except urllib_error.URLError as exc:
-        raise RuntimeError("Topic research API request failed: {0}".format(exc.reason))
+        raise RuntimeError(f"Topic research API request failed: {exc.reason}")
 
     try:
         parsed = json.loads(raw_body)
@@ -173,9 +172,9 @@ def _http_call_topic_research(query: str) -> Dict[str, Any]:
 
 async def generate_topic_research_report(
     query: str,
-    output_dir: Optional[Path] = None,
+    output_dir: Path | None = None,
     save_to_file: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     query = (query or "").strip()
     if not query:
         return {
@@ -192,7 +191,7 @@ async def generate_topic_research_report(
     out_dir = Path(output_dir or DEFAULT_OUTPUT_DIR)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "query": query,
         "title": "",
         "article_id": "",
@@ -258,17 +257,17 @@ def run_cli() -> None:
     async def _main() -> None:
         result = await generate_topic_research_report(query=query, save_to_file=not args.no_save)
         if "error" in result:
-            print("Error: {0}".format(result["error"]))
+            print("Error: {}".format(result["error"]))
             raise SystemExit(2)
         if result.get("title"):
-            print("Title: {0}".format(result["title"]))
+            print("Title: {}".format(result["title"]))
         if result.get("share_url"):
-            print("ShareUrl: {0}".format(result["share_url"]))
+            print("ShareUrl: {}".format(result["share_url"]))
         for attachment in result.get("attachments", []):
             atype = attachment.get("type", "")
             apath = attachment.get("path", "")
             if apath:
-                print("{0}: {1}".format(atype, apath))
+                print(f"{atype}: {apath}")
         print(result.get("content", ""))
 
     loop = asyncio.new_event_loop()

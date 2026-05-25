@@ -10,20 +10,19 @@ import argparse
 import asyncio
 import json
 import os
-import uuid
 from pathlib import Path
-from urllib import error as urllib_error
-from urllib import request as urllib_request
-from typing import Dict, Any, Optional
-
+from typing import Any, Dict, Optional
+from urllib import error as urllib_error, request as urllib_request
+import uuid
 
 EM_API_KEY = os.environ.get("EM_API_KEY", "em_fjFqd4YB6Cqs52LF48XWbMDdLNq6MyNg").strip()
 DEFAULT_OUTPUT_DIR = Path.cwd() / "miaoxiang" / "mx_finance_search"
 
-print('默认输出目录为：',DEFAULT_OUTPUT_DIR.absolute())
+print('默认输出目录为：', DEFAULT_OUTPUT_DIR.absolute())
 TIMEOUT_SECONDS = 15
 # MCP 服务器地址
 MCP_URL = "https://ai-saas.eastmoney.com/proxy/b/mcp/tool/searchNews"
+
 
 def get_metadata(
         query: str = "",
@@ -48,7 +47,8 @@ def get_metadata(
         },
     }
 
-def _extract_content(raw: Dict[str, Any]) -> str:
+
+def _extract_content(raw: dict[str, Any]) -> str:
     """
     从新闻接口返回数据中提取可读文本内容。
     优先读取常见文本字段，兼容 data/result 包裹结构。
@@ -75,7 +75,7 @@ def _extract_content(raw: Dict[str, Any]) -> str:
     return json.dumps(raw, ensure_ascii=False, indent=2)
 
 
-def _load_optional_tool_context() -> Dict[str, Any]:
+def _load_optional_tool_context() -> dict[str, Any]:
     """
     构造请求所需的 toolContext 默认值。
     目前仅生成可追踪的 callId 字段。
@@ -105,7 +105,7 @@ def _extract_error_message(body: str) -> str:
     return body[:200]
 
 
-def _http_call_search_news(query: str) -> Dict[str, Any]:
+def _http_call_search_news(query: str) -> dict[str, Any]:
     """
     调用 searchNews 接口并返回解析后的 JSON 数据。
     负责构建请求头、超时控制和 HTTP 异常处理。
@@ -155,9 +155,9 @@ def _http_call_search_news(query: str) -> Dict[str, Any]:
 
 async def query_financial_news(
     query: str,
-    output_dir: Optional[Path] = None,
+    output_dir: Path | None = None,
     save_to_file: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     按自然语言查询金融资讯并整理统一结果结构。
     内部异步执行 HTTP 请求，提取文本内容并按需落盘。
@@ -176,7 +176,7 @@ async def query_financial_news(
     out_dir = Path(output_dir or DEFAULT_OUTPUT_DIR)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    result: Dict[str, Any] = {"query": query, "content": "", "output_path": None, "raw": None}
+    result: dict[str, Any] = {"query": query, "content": "", "output_path": None, "raw": None}
     try:
         loop = asyncio.get_event_loop()
         raw = await loop.run_in_executor(None, _http_call_search_news, query)

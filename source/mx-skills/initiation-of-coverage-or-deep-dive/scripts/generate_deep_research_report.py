@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 首次覆盖报告 / 深度研究报告生成脚本。
 
@@ -12,10 +11,11 @@ import asyncio
 import base64
 import json
 import os
-import sys
-import uuid
 from pathlib import Path
+import sys
 from typing import Any, Dict
+import uuid
+
 import httpx
 
 EM_API_KEY = os.environ.get("EM_API_KEY", "em_fjFqd4YB6Cqs52LF48XWbMDdLNq6MyNg").strip()
@@ -47,7 +47,7 @@ def _save_base64_file(b64_str: str, file_path: Path) -> bool:
         return False
 
 
-async def generate_report(query: str, output_dir: Path) -> Dict:
+async def generate_report(query: str, output_dir: Path) -> dict:
     """
     调用首次覆盖写作接口生成报告，并将 PDF / Word 附件保存到本地。
 
@@ -55,7 +55,7 @@ async def generate_report(query: str, output_dir: Path) -> Dict:
         始终包含 query / pdf_file_path / word_file_path 三个字段；
         成功时额外含 title, content 等；失败时额外含 error。
     """
-    result_base: Dict[str, Any] = {
+    result_base: dict[str, Any] = {
         "query": query,
         "pdf_file_path": None,
         "word_file_path": None,
@@ -94,7 +94,7 @@ async def generate_report(query: str, output_dir: Path) -> Dict:
     output_dir.mkdir(parents=True, exist_ok=True)
     unique_suffix = uuid.uuid4().hex[:8]
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "query": query,
         "pdf_file_path": None,
         "word_file_path": None,
@@ -116,7 +116,7 @@ async def generate_report(query: str, output_dir: Path) -> Dict:
         word_path = output_dir / f"initiation_of_coverage_or_deep_dive_{unique_suffix}.docx"
         if _save_base64_file(word_b64, word_path):
             result["word_file_path"] = str(word_path)
-    
+
     return result
 
 
@@ -164,6 +164,7 @@ def run_cli() -> None:
 
     # stdout must be a single JSON object for the skill contract
     print(json.dumps(result, ensure_ascii=False))
+
 
 if __name__ == "__main__":
     run_cli()

@@ -8,11 +8,12 @@ import asyncio
 import csv
 import json
 import os
+from pathlib import Path
 import re
 import time
+from typing import Any, Dict, List, Optional, Tuple
 import uuid
-from pathlib import Path
-from typing import Any, Dict, List, Tuple, Optional
+
 import httpx
 
 EM_API_KEY = os.environ.get("EM_API_KEY", "em_fjFqd4YB6Cqs52LF48XWbMDdLNq6MyNg").strip()
@@ -20,6 +21,7 @@ DEFAULT_OUTPUT_DIR = Path.cwd() / "miaoxiang" / "mx_macro_data"
 # MCP 服务器地址
 DEFAULT_URL = "https://ai-saas.eastmoney.com"
 DEFAULT_PAHT = "/proxy/b/mcp/tool/searchMacroData"
+
 
 def _flatten_value(v: Any) -> str:
     """
@@ -59,7 +61,7 @@ def _extract_frequency(entity_name: str) -> str:
         '日度': 'daily',
         '天': 'daily',
 }
-    
+
     match = re.search(r'[（(]([^）)]+)[）)]', entity_name)
     if match:
         freq_chinese = match.group(1)
@@ -68,7 +70,7 @@ def _extract_frequency(entity_name: str) -> str:
     return "unknown"
 
 
-def _parse_macro_table(data_item: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], str]:
+def _parse_macro_table(data_item: dict[str, Any]) -> tuple[list[dict[str, Any]], str]:
     """
     解析宏观数据的table格式。
 
@@ -93,7 +95,6 @@ def _parse_macro_table(data_item: Dict[str, Any]) -> Tuple[List[Dict[str, Any]],
     table = data_item.get("table", {})
     name_map = data_item.get("nameMap", {})
     entity_name = data_item.get("entityName", "")
- 
 
     # 提取频率
     frequency = _extract_frequency(entity_name)
@@ -111,7 +112,7 @@ def _parse_macro_table(data_item: Dict[str, Any]) -> Tuple[List[Dict[str, Any]],
 
     # 找出所有的指标键（排除headName、date等元数据键）
     exclude_keys = {"headName", "headNameSub", "date"}
-    metric_keys = [k for k in table.keys() if k not in exclude_keys]
+    metric_keys = [k for k in table if k not in exclude_keys]
 
     if not metric_keys:
         return rows, frequency
@@ -147,7 +148,7 @@ def _parse_macro_table(data_item: Dict[str, Any]) -> Tuple[List[Dict[str, Any]],
     return rows, frequency
 
 
-def _build_headers() -> Dict[str, str]:
+def _build_headers() -> dict[str, str]:
     """
     构建宏观数据接口请求头。
     包含 em_api_key 与 JSON 内容类型。
@@ -159,7 +160,8 @@ def _build_headers() -> Dict[str, str]:
     }
     return headers
 
-def _build_request_body(query: str) -> Dict[str, Any]:
+
+def _build_request_body(query: str) -> dict[str, Any]:
     """
     构建 searchMacroData 接口请求体。
     自动生成 callId 与 userId，并携带查询文本。
@@ -179,7 +181,8 @@ def _build_request_body(query: str) -> Dict[str, Any]:
     }
     return body
 
-def _write_csv_file(rows: List[Dict[str, Any]], frequency: str, unique_suffix: str, output_dir: Path) -> Tuple[Path, int]:
+
+def _write_csv_file(rows: list[dict[str, Any]], frequency: str, unique_suffix: str, output_dir: Path) -> tuple[Path, int]:
     """
     将指定频率的数据写入单个 CSV 文件。
     自动整理列顺序并优先展示关键字段与日期列。
@@ -189,7 +192,7 @@ def _write_csv_file(rows: List[Dict[str, Any]], frequency: str, unique_suffix: s
         return None, 0
 
     # 列名：统一取所有出现过的键
-    fieldnames_set: Dict[str, None] = {}
+    fieldnames_set: dict[str, None] = {}
     for row in rows:
         for k in row:
             fieldnames_set[k] = None
@@ -205,7 +208,7 @@ def _write_csv_file(rows: List[Dict[str, Any]], frequency: str, unique_suffix: s
     # 将日期列排序
     date_fields = []
     other_fields = []
-    for field in fieldnames_set.keys():
+    for field in fieldnames_set:
         # 判断是否是日期格式（年或年月日）
         if (field.isdigit() and len(field) == 4) or \
            (re.match(r'^\d{4}-\d{2}-\d{2}$', field)):  # 匹配 YYYY-MM-DD 格式
@@ -224,7 +227,7 @@ def _write_csv_file(rows: List[Dict[str, Any]], frequency: str, unique_suffix: s
     csv_path = output_dir / f"mx_macro_data_{unique_suffix}_{frequency}.csv"
 
     # 写CSV
-    with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
+    with Path(csv_path).open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         for row in rows:
@@ -235,9 +238,9 @@ def _write_csv_file(rows: List[Dict[str, Any]], frequency: str, unique_suffix: s
 
 async def query_mx_macro_data(
     query: str,
-    output_dir: Optional[Path] = None,  # Python 3.6 兼容
-    api_base: Optional[str] = None,      # Python 3.6 兼容
-) -> Dict[str, Any]:
+    output_dir: Path | None = None,  # Python 3.6 兼容
+    api_base: str | None = None,      # Python 3.6 兼容
+) -> dict[str, Any]:
     """
     通过文本查询宏观数据，将返回的JSON转为CSV并生成描述txt。
 
@@ -252,7 +255,7 @@ async def query_mx_macro_data(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "csv_paths": [],  # 改为列表，支持多个CSV文件
         "description_path": None,
         "row_counts": {},  # 频率 -> 行数
@@ -277,7 +280,6 @@ async def query_mx_macro_data(
             payload = resp.json()
             data = payload.get("data")
 
-
     except httpx.HTTPStatusError as e:
         result["error"] = f"HTTP错误: {e.response.status_code} - {e.response.text[:200]}"
         return result
@@ -286,7 +288,7 @@ async def query_mx_macro_data(
         return result
 
     # 解析返回的数据结构 - 按频率分组
-    frequency_groups: Dict[str, List[Dict[str, Any]]] = {}
+    frequency_groups: dict[str, list[dict[str, Any]]] = {}
     description_parts = []
 
     # 检查可能的返回路径
@@ -323,7 +325,6 @@ async def query_mx_macro_data(
                             description_parts.append(f"数据来源 [{frequency}]: {data_source}")
                         if unit_name:
                             description_parts.append(f"单位 [{frequency}]: {unit_name}")
-
 
     preferred_message = None
     if isinstance(data, dict):
@@ -434,6 +435,7 @@ def run_cli() -> None:
         print("用法: python -m scripts.get_data --query \"查询文本\" ")
         print("示例: 中国近三年GDP / top3 经济体的黄金储备 / 华东五市的房价走势")
         sys.exit(1)
+
     async def _main() -> None:
         out_dir = Path(os.environ.get("MX_MACRO_DATA_OUTPUT_DIR", str(DEFAULT_OUTPUT_DIR)))
         r = await query_mx_macro_data(args.query, output_dir=out_dir)
@@ -452,6 +454,7 @@ def run_cli() -> None:
     asyncio.set_event_loop(loop)
     loop.run_until_complete(_main())
     loop.close()
+
 
 if __name__ == "__main__":
     run_cli()

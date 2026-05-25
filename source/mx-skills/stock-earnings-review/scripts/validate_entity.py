@@ -2,9 +2,8 @@ import argparse
 import asyncio
 import json
 
-import httpx
-
 from common import ENTITY_API, SUPPORTED_CLASS_CODES, EntityInfo, auth_headers
+import httpx
 
 
 async def validate_entity(query: str) -> EntityInfo:
@@ -76,4 +75,3 @@ def run_cli() -> None:
 
 if __name__ == "__main__":
     run_cli()
-

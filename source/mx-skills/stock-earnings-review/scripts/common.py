@@ -1,12 +1,12 @@
+import base64
+from dataclasses import dataclass
+from datetime import datetime
 import json
 import os
-import re
-import uuid
-import base64
 from pathlib import Path
-from datetime import datetime
-from dataclasses import dataclass
+import re
 from typing import Any, Dict, Optional
+import uuid
 
 ENTITY_API = "https://ai-saas.eastmoney.com/proxy/entity/dialogTagsV2"
 REPORT_LIST_API = "https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/write/choice/reportList"
@@ -22,13 +22,15 @@ def default_output_root() -> Path:
     单次执行日志与附件的根目录（其下再创建按 run_id 分组的子目录）。
     优先级：STOCK_EARNINGS_REVIEW_OUTPUT_DIR > DEFAULT_OUTPUT_DIR。
     """
-    env = os.environ.get("STOCK_EARNINGS_REVIEW_OUTPUT_DIR") 
+    env = os.environ.get("STOCK_EARNINGS_REVIEW_OUTPUT_DIR")
     if env:
         return Path(env)
     return DEFAULT_OUTPUT_DIR
 
+
 _API_KEY_PLACEHOLDER = "<EM_API_KEY_PLACEHOLDER>"
 EM_API_KEY = os.environ.get("EM_API_KEY", "em_fjFqd4YB6Cqs52LF48XWbMDdLNq6MyNg").strip() or _API_KEY_PLACEHOLDER
+
 
 @dataclass
 class EntityInfo:
@@ -59,7 +61,7 @@ def clean_header_value(name: str, value: str) -> str:
     return cleaned
 
 
-def auth_headers() -> Dict[str, str]:
+def auth_headers() -> dict[str, str]:
     if EM_API_KEY == _API_KEY_PLACEHOLDER:
         raise RuntimeError("请先设置 EM_API_KEY 环境变量")
     return {
@@ -67,7 +69,7 @@ def auth_headers() -> Dict[str, str]:
     }
 
 
-def base_headers() -> Dict[str, str]:
+def base_headers() -> dict[str, str]:
     return {
         "Content-Type": "application/json",
         "em_base_info": json.dumps({"productType": "mx"}, ensure_ascii=False, separators=(",", ":")),
@@ -75,7 +77,7 @@ def base_headers() -> Dict[str, str]:
     }
 
 
-def build_comment_payload(em_code: str, report_date: str) -> Dict[str, str]:
+def build_comment_payload(em_code: str, report_date: str) -> dict[str, str]:
     return {"query": em_code, "reportDate": report_date}
 
 
@@ -89,7 +91,7 @@ def extract_title(content: str) -> str:
     return ""
 
 
-def _pick_data_sheet_base64(data: Dict[str, Any]) -> Any:
+def _pick_data_sheet_base64(data: dict[str, Any]) -> Any:
     if not isinstance(data, dict):
         return None
     for k in (
@@ -106,7 +108,7 @@ def _pick_data_sheet_base64(data: Dict[str, Any]) -> Any:
     return None
 
 
-def attachment_local_status(saved_path: Optional[str]) -> Dict[str, Any]:
+def attachment_local_status(saved_path: str | None) -> dict[str, Any]:
     """确认附件是否已写入本地：路径、是否存在、文件大小。"""
     if not saved_path:
         return {"path": None, "saved": False, "sizeBytes": None}
@@ -120,13 +122,13 @@ def attachment_local_status(saved_path: Optional[str]) -> Dict[str, Any]:
 
 
 def build_attachment_save_report(
-    attachment_candidates: Dict[str, Any],
-    saved_attachments: Dict[str, str],
-) -> Dict[str, Any]:
+    attachment_candidates: dict[str, Any],
+    saved_attachments: dict[str, str],
+) -> dict[str, Any]:
     """
     汇总每种附件：接口是否给了 base64、是否落盘成功、本地校验结果。
     """
-    report: Dict[str, Any] = {}
+    report: dict[str, Any] = {}
     for name, payload in attachment_candidates.items():
         has_b64 = False
         if isinstance(payload, dict) and isinstance(payload.get("base64"), str):
@@ -136,7 +138,7 @@ def build_attachment_save_report(
     return report
 
 
-def extract_comment_response_fields(raw: Any) -> Dict[str, Any]:
+def extract_comment_response_fields(raw: Any) -> dict[str, Any]:
     """
     Parse ApiReturnInfo<WritingResult> format.
     """
@@ -162,11 +164,8 @@ def extract_comment_response_fields(raw: Any) -> Dict[str, Any]:
     }
 
 
-def ensure_log_dir(base_dir: Optional[str] = None, run_id: Optional[str] = None) -> Path:
-    if base_dir:
-        root = Path(base_dir)
-    else:
-        root = default_output_root()
+def ensure_log_dir(base_dir: str | None = None, run_id: str | None = None) -> Path:
+    root = Path(base_dir) if base_dir else default_output_root()
     root.mkdir(parents=True, exist_ok=True)
     rid = run_id or datetime.now().strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:8]
     p = root / rid
@@ -181,10 +180,10 @@ def write_json_log(log_dir: Path, filename: str, data: Any) -> str:
 
 
 def save_attachment_payload(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     output_dir: str,
     default_name: str,
-) -> Optional[str]:
+) -> str | None:
     """
     Save attachment payload to local path.
     Supported inputs:
@@ -215,4 +214,3 @@ def save_attachment_payload(
             except Exception:
                 return None
     return None
-

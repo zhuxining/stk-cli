@@ -10,11 +10,11 @@ import argparse
 import asyncio
 import json
 import os
-import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
-from urllib import error as urllib_error
-from urllib import request as urllib_request
+from urllib import error as urllib_error, request as urllib_request
+import uuid
+
 EM_API_KEY = os.environ.get("EM_API_KEY", "em_fjFqd4YB6Cqs52LF48XWbMDdLNq6MyNg").strip()
 DEFAULT_OUTPUT_DIR = Path.cwd() / "miaoxiang" / "stock_diagnosis"
 TIMEOUT_SECONDS = 60
@@ -40,7 +40,7 @@ def _extract_error_message(body: str) -> str:
     return body[:200]
 
 
-def _extract_content(raw: Dict[str, Any]) -> str:
+def _extract_content(raw: dict[str, Any]) -> str:
     """
     Extract readable report content from API response.
     Supports:
@@ -76,7 +76,7 @@ def _extract_content(raw: Dict[str, Any]) -> str:
     return json.dumps(raw, ensure_ascii=False, indent=2)
 
 
-def _http_call_stock_analysis(question: str) -> Dict[str, Any]:
+def _http_call_stock_analysis(question: str) -> dict[str, Any]:
     payload = {"question": question}
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib_request.Request(
@@ -109,7 +109,7 @@ def _http_call_stock_analysis(question: str) -> Dict[str, Any]:
     return {"data": parsed}
 
 
-def _has_valid_display_data(raw: Dict[str, Any]) -> bool:
+def _has_valid_display_data(raw: dict[str, Any]) -> bool:
     """
     Determine whether API response contains a valid report body.
     Used to avoid saving md files for unsupported/failed scenarios.
@@ -142,9 +142,9 @@ def _has_valid_display_data(raw: Dict[str, Any]) -> bool:
 
 async def diagnose_stock(
     question: str,
-    output_dir: Optional[Path] = None,
+    output_dir: Path | None = None,
     save_to_file: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     question = (question or "").strip()
     if not question:
         return {
@@ -158,7 +158,7 @@ async def diagnose_stock(
     out_dir = Path(output_dir or DEFAULT_OUTPUT_DIR)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "question": question,
         "content": "",
         "output_path": None,
@@ -188,7 +188,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Diagnose one A-share stock from natural language question."
     )
-    parser.add_argument("--query",type=str,help="Natural language stock question.")
+    parser.add_argument("--query", type=str, help="Natural language stock question.")
     parser.add_argument("--no-save", action="store_true", help="Do not save result to local file.")
     return parser
 

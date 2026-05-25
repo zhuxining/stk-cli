@@ -18,15 +18,15 @@ import argparse
 import base64
 import json
 import os
+from pathlib import Path
+import re
 import socket
 import sys
+import traceback
+from typing import Any, Dict, List, Optional
 import urllib.error
 import urllib.request
-import traceback
 import uuid
-import re
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 EM_API_KEY = os.environ.get("EM_API_KEY", "em_fjFqd4YB6Cqs52LF48XWbMDdLNq6MyNg").strip()
 API_URL = "https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/write/tracking/report"
@@ -82,7 +82,8 @@ def _read_query_from_stdin() -> str:
         return raw
     return ""
 
-def _call_api(query: str, timeout: float = 1200.0) -> Dict[str, Any]:
+
+def _call_api(query: str, timeout: float = 1200.0) -> dict[str, Any]:
     req_body = json.dumps({"query": query}, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         API_URL,
@@ -103,8 +104,8 @@ def _call_api(query: str, timeout: float = 1200.0) -> Dict[str, Any]:
     except urllib.error.HTTPError as e:
         raw = e.read() if hasattr(e, "read") else b""
         snippet = raw[:500].decode("utf-8", errors="replace")
-        raise ApiCallError("HTTP_ERROR", "status={0}, body={1}".format(e.code, snippet))
-    except socket.timeout:
+        raise ApiCallError("HTTP_ERROR", f"status={e.code}, body={snippet}")
+    except TimeoutError:
         raise ApiCallError("TIMEOUT", "read operation timed out")
     except urllib.error.URLError as e:
         reason = getattr(e, "reason", e)
@@ -114,7 +115,7 @@ def _call_api(query: str, timeout: float = 1200.0) -> Dict[str, Any]:
 
     text = content.decode("utf-8", errors="replace")
     if status_code and int(status_code) >= 400:
-        raise ApiCallError("HTTP_ERROR", "status={0}, body={1}".format(status_code, text[:500]))
+        raise ApiCallError("HTTP_ERROR", f"status={status_code}, body={text[:500]}")
 
     try:
         parsed = json.loads(text) if text else {}
@@ -124,7 +125,7 @@ def _call_api(query: str, timeout: float = 1200.0) -> Dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {"data": parsed}
 
 
-def _unwrap_data(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _unwrap_data(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {}
     for key in ("data", "result", "content"):
@@ -132,6 +133,7 @@ def _unwrap_data(payload: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(node, dict):
             return node
     return payload
+
 
 def _default_output_dir() -> str:
     """
@@ -141,9 +143,10 @@ def _default_output_dir() -> str:
     env = os.environ.get("INDUSTRY_STOCK_TRACKER_OUTPUT_DIR", "").strip()
     return env or str(DEFAULT_OUTPUT_DIR)
 
-def _decode_attachment_base64(data: Dict[str, Any], output_dir: str) -> List[Dict[str, str]]:
-    attachments: List[Dict[str, str]] = []
-    os.makedirs(output_dir, exist_ok=True)
+
+def _decode_attachment_base64(data: dict[str, Any], output_dir: str) -> list[dict[str, str]]:
+    attachments: list[dict[str, str]] = []
+    Path(output_dir).mkdir(exist_ok=True, parents=True)
 
     file_map = [
         ("wordBase64", "docx", "DOCX"),
@@ -160,12 +163,12 @@ def _decode_attachment_base64(data: Dict[str, Any], output_dir: str) -> List[Dic
             raw = base64.b64decode(b64_str)
         except Exception:
             continue
-        file_name = "{0}_{1}.{2}".format(safe_article_id, ftype.lower(), ext)
+        file_name = f"{safe_article_id}_{ftype.lower()}.{ext}"
         file_path = os.path.join(output_dir, file_name)
-        with open(file_path, "wb") as f:
-            f.write(raw)
+        Path(file_path).write_bytes(raw)
         attachments.append({"type": ftype, "url": file_path})
     return attachments
+
 
 def _render_content(entity_type: str, summary_content: str) -> str:
     return (
@@ -177,8 +180,8 @@ def _render_content(entity_type: str, summary_content: str) -> str:
 
 def build_report_output(
     query: str,
-    payload: Dict[str, Any]
-) -> Dict[str, Any]:
+    payload: dict[str, Any]
+) -> dict[str, Any]:
     raw_data = payload.get("data") if isinstance(payload, dict) else None
     data = _unwrap_data(payload)
     code = _safe_str(payload.get("code") if isinstance(payload, dict) else "")

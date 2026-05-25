@@ -1,12 +1,11 @@
 import argparse
 import asyncio
-import json
 from dataclasses import dataclass
+import json
 from typing import Any, List, Optional
 
-import httpx
-
 from common import REPORT_LIST_API, EntityInfo, base_headers
+import httpx
 
 
 @dataclass
@@ -16,7 +15,7 @@ class ReportOption:
     raw: Any = None
 
 
-async def fetch_report_options(entity: EntityInfo) -> List[ReportOption]:
+async def fetch_report_options(entity: EntityInfo) -> list[ReportOption]:
     async with httpx.AsyncClient(timeout=30.0, verify=True) as client:
         resp = await client.post(REPORT_LIST_API, headers=base_headers(), json={"emCode": entity.em_code})
         resp.raise_for_status()
@@ -33,7 +32,7 @@ async def fetch_report_options(entity: EntityInfo) -> List[ReportOption]:
     if not isinstance(src, list) or not src:
         raise RuntimeError("报告期列表获取失败或为空")
 
-    out: List[ReportOption] = []
+    out: list[ReportOption] = []
     for item in src:
         if isinstance(item, str):
             out.append(ReportOption(report_date=item, raw=item))
@@ -53,8 +52,8 @@ async def fetch_report_options(entity: EntityInfo) -> List[ReportOption]:
 
 
 def choose_report_option_by_model(
-    options: List[ReportOption],
-    selected_report_date: Optional[str] = None,
+    options: list[ReportOption],
+    selected_report_date: str | None = None,
     strict: bool = True,
 ) -> ReportOption:
     if not options:
@@ -129,4 +128,3 @@ def run_cli() -> None:
 
 if __name__ == "__main__":
     run_cli()
-

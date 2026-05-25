@@ -4,18 +4,17 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
-import httpx
-
 from common import (
     PERFORMANCE_COMMENT_API,
     EntityInfo,
+    base_headers,
     build_comment_payload,
-    extract_comment_response_fields,
     ensure_log_dir,
+    extract_comment_response_fields,
     save_attachment_payload,
     write_json_log,
-    base_headers,
 )
+import httpx
 
 
 async def call_review_api(
@@ -24,7 +23,7 @@ async def call_review_api(
     log_dir: str = "",
     attachment_dir: str = "",
     debug: bool = False
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     payload = build_comment_payload(entity.em_code, report_date)
     async with httpx.AsyncClient(timeout=1200.0, verify=True) as client:
         resp = await client.post(PERFORMANCE_COMMENT_API, headers=base_headers(), json=payload)
@@ -49,14 +48,14 @@ async def call_review_api(
     title = str(parsed.get("title") or "")
     content = str(parsed.get("content") or "")
 
-    attachment_candidates: Dict[str, Any] = {
+    attachment_candidates: dict[str, Any] = {
         "pdfBase64": {"base64": parsed.get("pdfBase64") or "", "filename": "review.pdf"},
         "wordBase64": {"base64": parsed.get("wordBase64") or "", "filename": "review.doc"},
     }
     ds_b64 = parsed.get("dataSheetBase64")
     if ds_b64:
         attachment_candidates["dataSheetBase64"] = {"base64": ds_b64, "filename": "review_data.xlsx"}
-    saved_attachments: Dict[str, str] = {}
+    saved_attachments: dict[str, str] = {}
     if attachment_dir:
         output_attachment_dir = attachment_dir
     elif log_path:
@@ -125,4 +124,3 @@ def run_cli() -> None:
 
 if __name__ == "__main__":
     run_cli()
-

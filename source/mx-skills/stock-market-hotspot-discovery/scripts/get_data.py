@@ -10,11 +10,10 @@ import argparse
 import asyncio
 import json
 import os
-import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
-from urllib import error as urllib_error
-from urllib import request as urllib_request
+from urllib import error as urllib_error, request as urllib_request
+import uuid
 
 EM_API_KEY = os.environ.get("EM_API_KEY", "em_fjFqd4YB6Cqs52LF48XWbMDdLNq6MyNg").strip()
 DEFAULT_OUTPUT_DIR = Path.cwd() / "miaoxiang" / "stock_market_hotspot_discovery"
@@ -41,7 +40,7 @@ def _extract_error_message(body: str) -> str:
     return body[:200]
 
 
-def _extract_content(raw: Dict[str, Any]) -> str:
+def _extract_content(raw: dict[str, Any]) -> str:
     """
     Extract readable report content from API response.
     Supports:
@@ -77,7 +76,7 @@ def _extract_content(raw: Dict[str, Any]) -> str:
     return json.dumps(raw, ensure_ascii=False, indent=2)
 
 
-def _has_valid_display_data(raw: Dict[str, Any]) -> bool:
+def _has_valid_display_data(raw: dict[str, Any]) -> bool:
     """
     Determine whether API response contains a valid report body.
     Used to avoid saving md files for unsupported/failed scenarios.
@@ -108,7 +107,7 @@ def _has_valid_display_data(raw: Dict[str, Any]) -> bool:
     return False
 
 
-def _http_call_hotspot_discovery(question: str) -> Dict[str, Any]:
+def _http_call_hotspot_discovery(question: str) -> dict[str, Any]:
     payload = {"question": question}
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib_request.Request(
@@ -126,10 +125,10 @@ def _http_call_hotspot_discovery(question: str) -> Dict[str, Any]:
             raw_body = resp.read().decode("utf-8", errors="replace")
     except urllib_error.HTTPError as exc:
         err_body = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
-        message = _extract_error_message(err_body) or "http status {0}".format(exc.code)
-        raise RuntimeError("Hotspot discovery API request failed: {0}".format(message))
+        message = _extract_error_message(err_body) or f"http status {exc.code}"
+        raise RuntimeError(f"Hotspot discovery API request failed: {message}")
     except urllib_error.URLError as exc:
-        raise RuntimeError("Hotspot discovery API request failed: {0}".format(exc.reason))
+        raise RuntimeError(f"Hotspot discovery API request failed: {exc.reason}")
 
     try:
         parsed = json.loads(raw_body)
@@ -143,9 +142,9 @@ def _http_call_hotspot_discovery(question: str) -> Dict[str, Any]:
 
 async def discover_hotspot(
     question: str,
-    output_dir: Optional[Path] = None,
+    output_dir: Path | None = None,
     save_to_file: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     question = (question or "").strip()
     if not question:
         return {
@@ -178,7 +177,7 @@ async def discover_hotspot(
 
     if save_to_file and result["content"] and _has_valid_display_data(raw):
         unique_suffix = uuid.uuid4().hex[:8]
-        output_path = out_dir / "stock_market_hotspot_discovery_{0}.md".format(unique_suffix)
+        output_path = out_dir / f"stock_market_hotspot_discovery_{unique_suffix}.md"
         output_path.write_text(result["content"], encoding="utf-8")
         result["output_path"] = str(output_path)
 
@@ -211,10 +210,10 @@ def run_cli() -> None:
     async def _main() -> None:
         result = await discover_hotspot(question=question, save_to_file=not args.no_save)
         if "error" in result:
-            print("Error: {0}".format(result["error"]))
+            print("Error: {}".format(result["error"]))
             raise SystemExit(2)
         if result.get("output_path"):
-            print("Saved: {0}".format(result["output_path"]))
+            print("Saved: {}".format(result["output_path"]))
         print(result.get("content", ""))
 
     loop = asyncio.new_event_loop()

@@ -53,8 +53,8 @@ def _read_question_from_stdin() -> str:
     return ""
 
 
-async def _call_api(question: str, deep_think: bool = False, timeout: float = 600.0) -> Dict[str, Any]:
-    body: Dict[str, Any] = {"question": question}
+async def _call_api(question: str, deep_think: bool = False, timeout: float = 600.0) -> dict[str, Any]:
+    body: dict[str, Any] = {"question": question}
     if deep_think:
         body["deepThink"] = True
 
@@ -77,7 +77,7 @@ async def _call_api(question: str, deep_think: bool = False, timeout: float = 60
 
     text = resp.text
     if resp.status_code >= 400:
-        raise ApiCallError("HTTP_ERROR", "status={0}, body={1}".format(resp.status_code, text[:500]))
+        raise ApiCallError("HTTP_ERROR", f"status={resp.status_code}, body={text[:500]}")
 
     try:
         parsed = resp.json() if text else {}
@@ -87,7 +87,7 @@ async def _call_api(question: str, deep_think: bool = False, timeout: float = 60
     return parsed if isinstance(parsed, dict) else {"data": parsed}
 
 
-def _extract_display_data(payload: Dict[str, Any]) -> str:
+def _extract_display_data(payload: dict[str, Any]) -> str:
     """从 data.displayData 中提取模型回答（Markdown 格式）。"""
     data = payload.get("data")
     if isinstance(data, dict):
@@ -95,7 +95,7 @@ def _extract_display_data(payload: Dict[str, Any]) -> str:
     return ""
 
 
-def _extract_references(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _extract_references(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """
     从 data.refIndexList 中提取溯源参考。
 
@@ -108,7 +108,7 @@ def _extract_references(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
       - jumpUrl (String, 可选): type=资讯 时可能存在，原始文档链接
       - source (String, 可选): 资讯/舆情等来源站点名；可能在顶层或 data.source
     """
-    refs: List[Dict[str, Any]] = []
+    refs: list[dict[str, Any]] = []
     data = payload.get("data")
     if not isinstance(data, dict):
         return refs
@@ -120,7 +120,7 @@ def _extract_references(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     for item in ref_list:
         if not isinstance(item, dict):
             continue
-        ref_entry: Dict[str, Any] = {
+        ref_entry: dict[str, Any] = {
             "refId": item.get("refId"),
             "type": _safe_str(item.get("type")),
             "referenceType": _safe_str(item.get("referenceType")),
@@ -153,8 +153,8 @@ def _extract_references(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
 def build_qa_output(
     question: str,
     deep_think: bool,
-    payload: Dict[str, Any],
-) -> Dict[str, Any]:
+    payload: dict[str, Any],
+) -> dict[str, Any]:
     code = payload.get("code")
     message = _safe_str(payload.get("message"))
     stack = payload.get("stack")
@@ -177,7 +177,7 @@ def build_qa_output(
             "message": message or "未获取到有效回答，请稍后重试。",
         }
 
-    output: Dict[str, Any] = {
+    output: dict[str, Any] = {
         "ok": True,
         "tool": TOOL_NAME,
         "question": question,

@@ -10,8 +10,7 @@ import asyncio
 import json
 import os
 from typing import Any, Dict, List
-from urllib import error as urllib_error
-from urllib import request as urllib_request
+from urllib import error as urllib_error, request as urllib_request
 
 EM_API_KEY = os.environ.get("EM_API_KEY", "em_fjFqd4YB6Cqs52LF48XWbMDdLNq6MyNg").strip()
 COMPARE_API_URL = "https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/comparable-company-analysis"
@@ -34,7 +33,7 @@ def _extract_error_message(body: str) -> str:
     return body[:300]
 
 
-def _is_success(payload: Dict[str, Any]) -> bool:
+def _is_success(payload: dict[str, Any]) -> bool:
     """
     Compatible with both styles:
     - code/status == 0
@@ -49,7 +48,7 @@ def _is_success(payload: Dict[str, Any]) -> bool:
     return ok_code and ok_status and isinstance(payload.get("data"), list)
 
 
-def _http_call_compare(question: str) -> Dict[str, Any]:
+def _http_call_compare(question: str) -> dict[str, Any]:
     req_body = json.dumps({"question": question}, ensure_ascii=False).encode("utf-8")
     req = urllib_request.Request(
         url=COMPARE_API_URL,
@@ -66,10 +65,10 @@ def _http_call_compare(question: str) -> Dict[str, Any]:
             raw_body = resp.read().decode("utf-8", errors="replace")
     except urllib_error.HTTPError as exc:
         err_body = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
-        message = _extract_error_message(err_body) or "http status {0}".format(exc.code)
-        raise RuntimeError("Comparable-company API request failed: {0}".format(message))
+        message = _extract_error_message(err_body) or f"http status {exc.code}"
+        raise RuntimeError(f"Comparable-company API request failed: {message}")
     except urllib_error.URLError as exc:
-        raise RuntimeError("Comparable-company API request failed: {0}".format(exc.reason))
+        raise RuntimeError(f"Comparable-company API request failed: {exc.reason}")
 
     try:
         parsed = json.loads(raw_body)
@@ -81,13 +80,13 @@ def _http_call_compare(question: str) -> Dict[str, Any]:
     return {"data": parsed}
 
 
-def _pick_dict(data_list: List[Any], idx: int) -> Dict[str, Any]:
+def _pick_dict(data_list: list[Any], idx: int) -> dict[str, Any]:
     if 0 <= idx < len(data_list) and isinstance(data_list[idx], dict):
         return data_list[idx]
     return {}
 
 
-async def fetch_comparable_company_data(question: str) -> Dict[str, Any]:
+async def fetch_comparable_company_data(question: str) -> dict[str, Any]:
     question = (question or "").strip()
     if not question:
         return {
