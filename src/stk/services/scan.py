@@ -1,159 +1,288 @@
-"""Watchlist scan service — batch quote + score + valuation + profile in one call."""
+"""Daily monitoring scan service."""
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from loguru import logger
 
-from stk.models.fundamental import Valuation
 from stk.models.quote import Quote
-from stk.models.scan import ScanItem, ScanResult
-from stk.models.score import ScoreResult
-from stk.services.fundamental import get_valuations
+from stk.models.scan import (
+    CompactDailyValue,
+    FocusItem,
+    IgnoredSummary,
+    MonitorResult,
+    MonitorSummary,
+    MonitorUniverse,
+    ScanError,
+)
+from stk.models.score import ContextBias, ScoreResult, SignalLevel
+from stk.services.indicator import get_daily
 from stk.services.quote import get_realtime_quotes
 from stk.services.score import calc_score
 from stk.services.watchlist import get_watchlist
-from stk.utils.price import r2
+from stk.utils.symbol import to_longport_symbol
 
-_ALERT = "[警] "
+_FOCUS_LEVELS: set[SignalLevel] = {"strong_buy", "buy", "sell", "strong_sell"}
+_STRONG_LEVELS: set[SignalLevel] = {"strong_buy", "strong_sell"}
+_ACTIVE_SIGNAL_STATUSES = {"new", "active"}
+_LEVEL_RANK: dict[SignalLevel, int] = {
+    "strong_buy": 0,
+    "strong_sell": 0,
+    "buy": 1,
+    "sell": 1,
+    "hold": 2,
+}
+_BIAS_RANK: dict[ContextBias, int] = {
+    "supportive": 0,
+    "mixed": 1,
+    "risky": 2,
+    "conflicting": 3,
+}
+_LOCAL_TZ = ZoneInfo("Asia/Shanghai")
+_STRONG_SIGNAL_DAILY_COUNT = 10
+_WATCH_CONTEXT_MAX_BARS = 10
 
 
-def _batch_analyze(
+def _round_daily_value(value: object, *, digits: int = 4) -> CompactDailyValue:
+    if value is None:
+        return None
+    if isinstance(value, int | str):
+        return value
+    if isinstance(value, float):
+        return round(value, digits)
+    return str(value)
+
+
+def _boll_position_pct(day: dict) -> float | None:
+    close = day.get("close")
+    upper = day.get("upper")
+    lower = day.get("lower")
+    if not isinstance(close, int | float):
+        return None
+    if not isinstance(upper, int | float) or not isinstance(lower, int | float):
+        return None
+    bandwidth = upper - lower
+    if bandwidth <= 0:
+        return None
+    return round((close - lower) / bandwidth * 100, 1)
+
+
+def _compact_daily_row(day: dict) -> dict[str, CompactDailyValue]:
+    field_map = {
+        "date": "date",
+        "open": "open",
+        "high": "high",
+        "low": "low",
+        "close": "close",
+        "volume": "volume",
+        "turnover": "turnover",
+        "change_pct": "change_pct",
+        "EMA9": "ema9",
+        "EMA26": "ema26",
+        "Supertrend": "supertrend",
+        "SupertrendDirection": "supertrend_direction",
+        "MACD": "macd",
+        "signal": "macd_signal",
+        "hist": "macd_hist",
+        "RSI": "rsi14",
+        "J": "j",
+        "ATR10": "atr10",
+    }
+    row = {
+        target: _round_daily_value(day.get(source))
+        for source, target in field_map.items()
+        if day.get(source) is not None
+    }
+    if (boll_position := _boll_position_pct(day)) is not None:
+        row["boll_position_pct"] = boll_position
+    return row
+
+
+def _get_strong_signal_daily10(symbol: str) -> list[dict[str, CompactDailyValue]]:
+    try:
+        daily = get_daily(symbol, count=_STRONG_SIGNAL_DAILY_COUNT)
+    except Exception as err:
+        logger.debug(f"Strong signal daily supplement failed for {symbol}: {err}")
+        return []
+    return [_compact_daily_row(day) for day in daily.days]
+
+
+def _run_date() -> str:
+    return datetime.now(_LOCAL_TZ).date().isoformat()
+
+
+def _quote_map(symbols: list[str], names: dict[str, str]) -> dict[str, Quote]:
+    try:
+        quotes = get_realtime_quotes(symbols)
+    except Exception as err:
+        logger.debug(f"Batch quote failed: {err}")
+        return {}
+
+    quotes_by_symbol = {q.symbol: q for q in quotes}
+    for quote in quotes:
+        if quote.symbol not in names and quote.name:
+            names[quote.symbol] = quote.name
+    return quotes_by_symbol
+
+
+def _score_symbols(
+    symbols: list[str],
+    *,
+    max_workers: int,
+) -> tuple[dict[str, ScoreResult], list[ScanError]]:
+    score_map: dict[str, ScoreResult] = {}
+    errors: list[ScanError] = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(calc_score, symbol): symbol for symbol in symbols}
+        for future in as_completed(futures):
+            symbol = futures[future]
+            lp_symbol = to_longport_symbol(symbol)
+            try:
+                score_map[symbol] = future.result()
+            except Exception as err:
+                logger.debug(f"Score failed for {symbol}: {err}")
+                errors.append(ScanError(symbol=lp_symbol, reason=str(err)))
+    return score_map, errors
+
+
+def _has_watch_context(score: ScoreResult) -> bool:
+    actionable_factors = sum(
+        factor.state in {"risk", "opportunity"} for factor in score.context.factors
+    )
+    if actionable_factors == 0 and not score.context.warnings:
+        return False
+
+    bars = score.decision.bars_since_signal
+    if bars is None or bars > _WATCH_CONTEXT_MAX_BARS:
+        return actionable_factors >= 2
+
+    return (
+        bool(score.context.warnings)
+        or actionable_factors >= 2
+        or score.context.overall_bias in {"risky", "conflicting"}
+    )
+
+
+def _should_focus(score: ScoreResult) -> bool:
+    decision = score.decision
+    if decision.level in _FOCUS_LEVELS and decision.signal_status in _ACTIVE_SIGNAL_STATUSES:
+        return True
+    return decision.level == "hold" and _has_watch_context(score)
+
+
+def _needs_daily10(score: ScoreResult) -> bool:
+    return (
+        score.decision.level in _STRONG_LEVELS
+        and score.context.overall_bias != "conflicting"
+    )
+
+
+def _focus_item(
+    symbol: str,
+    names: dict[str, str],
+    quote_map: dict[str, Quote],
+    score: ScoreResult,
+) -> FocusItem:
+    lp_symbol = to_longport_symbol(symbol)
+    quote = quote_map.get(lp_symbol)
+    return FocusItem(
+        symbol=lp_symbol,
+        name=names.get(lp_symbol, names.get(symbol, "")),
+        decision=score.decision,
+        primary_signal=score.primary_signal,
+        context=score.context,
+        risk=score.risk,
+        last=quote.last if quote else None,
+        change_pct=quote.change_pct if quote else None,
+        source=quote.source if quote else "unknown",
+        daily10=_get_strong_signal_daily10(lp_symbol) if _needs_daily10(score) else None,
+    )
+
+
+def _sort_key(item: FocusItem) -> tuple[int, int, int]:
+    bars = item.decision.bars_since_signal
+    bars_since_signal = 999 if bars is None else bars
+    return (
+        _LEVEL_RANK[item.decision.level],
+        _BIAS_RANK[item.context.overall_bias],
+        bars_since_signal,
+    )
+
+
+def _summary(focus: list[FocusItem]) -> MonitorSummary:
+    return MonitorSummary(
+        focus_count=len(focus),
+        strong_signal_count=sum(item.decision.level in _STRONG_LEVELS for item in focus),
+        entry_signal_count=sum(item.decision.action == "focus_buy" for item in focus),
+        exit_signal_count=sum(item.decision.action == "focus_sell" for item in focus),
+        watch_signal_count=sum(item.decision.action == "watch" for item in focus),
+    )
+
+
+def _monitor_symbols(
     symbols: list[str],
     names: dict[str, str],
     *,
+    universe_name: str,
     max_workers: int = 8,
-) -> list[ScanItem]:
-    """Batch analysis: quote + score + valuation + profile, all parallelized."""
+) -> MonitorResult:
     if not symbols:
-        return []
-
-    # 1. Batch quote — single API call
-    quote_map: dict[str, Quote] = {}
-    try:
-        quotes = get_realtime_quotes(symbols)
-        quote_map = {q.symbol: q for q in quotes}
-        # Supplement names from quotes if not provided
-        for q in quotes:
-            if q.symbol not in names and q.name:
-                names[q.symbol] = q.name
-    except Exception as e:
-        logger.debug(f"Batch quote failed: {e}")
-
-    # 2. Batch valuation — single API call
-    valuation_map: dict[str, Valuation] = {}
-    try:
-        valuations = get_valuations(symbols)
-        valuation_map = {v.symbol: v for v in valuations}
-    except Exception as e:
-        logger.debug(f"Batch valuation failed: {e}")
-
-    # 3. Parallel score calculation
-    score_map: dict[str, ScoreResult] = {}
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(calc_score, s): s for s in symbols}
-        for future in as_completed(futures):
-            symbol = futures[future]
-            try:
-                score_map[symbol] = future.result()
-            except Exception as e:
-                logger.debug(f"Score failed for {symbol}: {e}")
-
-    # 4. Parallel profile (7-day disk cache, errors are non-fatal)
-    from stk.services.fundamental import get_profile
-    from stk.utils.symbol import to_longport_symbol
-
-    profile_map: dict[str, str] = {}
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures_p = {executor.submit(get_profile, s): s for s in symbols}
-        for future in as_completed(futures_p):
-            symbol = futures_p[future]
-            try:
-                profile = future.result()
-                if profile.main_business:
-                    lp_sym = to_longport_symbol(symbol)
-                    profile_map[lp_sym] = profile.main_business
-            except Exception as e:
-                logger.debug(f"Profile failed for {symbol}: {e}")
-
-    # 5. Assemble ScanItems
-    items: list[ScanItem] = []
-    for symbol in symbols:
-        lp_sym = to_longport_symbol(symbol)
-        q = quote_map.get(lp_sym)
-        sc = score_map.get(symbol)
-        v = valuation_map.get(lp_sym)
-
-        # Merge signals: score signals + price alerts
-        signals: list[str] = list(sc.signals) if sc else []
-        change_pct = q.change_pct if q else None
-        if change_pct is not None:
-            cpct = float(change_pct)
-            if cpct >= 5:
-                signals.append(f"{_ALERT}大涨 ({cpct:+.1f}%)")
-            elif cpct <= -3:
-                signals.append(f"{_ALERT}大跌 ({cpct:.1f}%)")
-
-        items.append(
-            ScanItem(
-                symbol=lp_sym,
-                name=names.get(lp_sym, names.get(symbol, "")),
-                last=q.last if q else None,
-                change_pct=change_pct,
-                source=q.source if q else "unknown",
-                score=sc.total_score if sc else None,
-                signals=signals,
-                score_detail={d.name: d.signal for d in sc.dimensions if d.signal} if sc else {},
-                pe_ttm=v.pe_ttm_ratio if v else None,
-                pb=v.pb_ratio if v else None,
-                dividend_yield=v.dividend_ratio_ttm if v else None,
-                volume_ratio=v.volume_ratio if v else None,
-                turnover_rate=v.turnover_rate if v else None,
-                amplitude=v.amplitude if v else None,
-                change_5d=v.five_day_change_rate if v else None,
-                change_10d=v.ten_day_change_rate if v else None,
-                ytd_change_rate=v.ytd_change_rate if v else None,
-                adx=sc.adx if sc else None,
-                atr=sc.atr if sc else None,
-                stop_loss=sc.stop_loss if sc else None,
-                take_profit=sc.take_profit if sc else None,
-                risk_reward_ratio=sc.risk_reward_ratio if sc else None,
-                capital_flow=r2(v.capital_flow / 10000) if v and v.capital_flow else None,
-                main_business=profile_map.get(lp_sym),
-            )
+        return MonitorResult(
+            run_date=_run_date(),
+            universe=MonitorUniverse(name=universe_name, total=0, scanned=0, failed=0),
+            summary=MonitorSummary(
+                focus_count=0,
+                strong_signal_count=0,
+                entry_signal_count=0,
+                exit_signal_count=0,
+                watch_signal_count=0,
+            ),
+            focus=[],
+            ignored=IgnoredSummary(no_signal_count=0),
+            errors=[],
         )
 
-    return items
+    quotes = _quote_map(symbols, names)
+    score_map, errors = _score_symbols(symbols, max_workers=max_workers)
+
+    focus = [
+        _focus_item(symbol, names, quotes, score)
+        for symbol, score in score_map.items()
+        if _should_focus(score)
+    ]
+    focus.sort(key=_sort_key)
+
+    return MonitorResult(
+        run_date=_run_date(),
+        universe=MonitorUniverse(
+            name=universe_name,
+            total=len(symbols),
+            scanned=len(score_map),
+            failed=len(errors),
+        ),
+        summary=_summary(focus),
+        focus=focus,
+        ignored=IgnoredSummary(no_signal_count=len(score_map) - len(focus)),
+        errors=errors,
+    )
 
 
-def scan_watchlist(name: str, *, sort: str = "change_pct") -> ScanResult:
-    """Fetch watchlist members, batch analyze all dimensions, return sorted results."""
+def scan_watchlist(name: str) -> MonitorResult:
+    """Monitor a watchlist and return symbols that need daily focus."""
     watchlist = get_watchlist(name)
-    securities = watchlist.securities
-    symbols = [s.symbol for s in securities]
-    names_map = {s.symbol: s.name for s in securities}
-
-    items = _batch_analyze(symbols, names_map)
-
-    if sort == "score":
-        items.sort(key=lambda x: x.score or 0, reverse=True)
-    else:
-        items.sort(key=lambda x: float(x.change_pct or 0), reverse=True)
-
-    return ScanResult(group_name=name, total=len(items), items=items)
+    symbols = [security.symbol for security in watchlist.securities]
+    names_map = {security.symbol: security.name for security in watchlist.securities}
+    return _monitor_symbols(symbols, names_map, universe_name=name)
 
 
-def batch_summary(symbols: list[str]) -> ScanResult:
-    """Ad-hoc batch analysis for arbitrary symbols."""
-    items = _batch_analyze(symbols, {})
-    items.sort(key=lambda x: x.score or 0, reverse=True)
-
-    return ScanResult(group_name="ad-hoc", total=len(items), items=items)
+def batch_summary(symbols: list[str]) -> MonitorResult:
+    """Monitor an ad-hoc symbol universe and return symbols that need daily focus."""
+    return _monitor_symbols(symbols, {}, universe_name="ad-hoc")
 
 
 def kline_watchlist(name: str, *, period: str = "day", count: int = 10) -> list:
     """Fetch K-line + all indicators for every stock in a watchlist group."""
-    from stk.services.indicator import get_daily
-
     watchlist = get_watchlist(name)
     symbols = [s.symbol for s in watchlist.securities]
 

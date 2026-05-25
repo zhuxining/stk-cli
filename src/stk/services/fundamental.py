@@ -95,10 +95,7 @@ def get_full_comparison(symbol: str) -> FullComparison:
 
     comparisons: list[IndustryComparison] = []
     with ThreadPoolExecutor(max_workers=3) as executor:
-        futures = {
-            executor.submit(get_comparison, symbol, category=cat): cat
-            for cat in categories
-        }
+        futures = {executor.submit(get_comparison, symbol, category=cat): cat for cat in categories}
         for future in as_completed(futures):
             cat = futures[future]
             try:
@@ -130,32 +127,6 @@ _VALUATION_INDEXES = [
     CalcIndex.FiveMinutesChangeRate,
 ]
 
-# Mapping: (longport attr name, model field name, converter)
-# Decimal fields use _d, int fields use _i, str fields use _s
-_DECIMAL_FIELDS = [
-    ("last_done", "last_done"),
-    ("change_value", "change_value"),
-    ("change_rate", "change_rate"),
-    ("turnover", "turnover"),
-    ("ytd_change_rate", "ytd_change_rate"),
-    ("turnover_rate", "turnover_rate"),
-    ("total_market_value", "total_market_value"),
-    ("capital_flow", "capital_flow"),
-    ("amplitude", "amplitude"),
-    ("volume_ratio", "volume_ratio"),
-    ("pe_ttm_ratio", "pe_ttm_ratio"),
-    ("pb_ratio", "pb_ratio"),
-    ("dividend_ratio_ttm", "dividend_ratio_ttm"),
-    ("five_day_change_rate", "five_day_change_rate"),
-    ("ten_day_change_rate", "ten_day_change_rate"),
-    ("half_year_change_rate", "half_year_change_rate"),
-    ("five_minutes_change_rate", "five_minutes_change_rate"),
-]
-
-_INT_FIELDS = [
-    ("volume", "volume"),
-]
-
 
 def _to_decimal(val: object) -> Decimal | None:
     if val is None:
@@ -166,15 +137,40 @@ def _to_decimal(val: object) -> Decimal | None:
     return r2(Decimal(s))
 
 
+def _to_int(val: object) -> int | None:
+    if val is None:
+        return None
+    if isinstance(val, str):
+        stripped = val.strip()
+        return int(stripped) if stripped and stripped != "0" else None
+    if isinstance(val, int | float | Decimal):
+        return int(val) if val else None
+    return None
+
+
 def _build_valuation(r, lp_symbol: str) -> Valuation:
     """Build Valuation model from a single longport calc_indexes result."""
-    data: dict[str, str | Decimal | int | None] = {"symbol": lp_symbol}
-    for attr, field in _DECIMAL_FIELDS:
-        data[field] = _to_decimal(getattr(r, attr, None))
-    for attr, field in _INT_FIELDS:
-        val = getattr(r, attr, None)
-        data[field] = int(val) if val else None
-    return Valuation(**data)  # type: ignore[arg-type]
+    return Valuation(
+        symbol=lp_symbol,
+        last_done=_to_decimal(getattr(r, "last_done", None)),
+        change_value=_to_decimal(getattr(r, "change_value", None)),
+        change_rate=_to_decimal(getattr(r, "change_rate", None)),
+        volume=_to_int(getattr(r, "volume", None)),
+        turnover=_to_decimal(getattr(r, "turnover", None)),
+        ytd_change_rate=_to_decimal(getattr(r, "ytd_change_rate", None)),
+        turnover_rate=_to_decimal(getattr(r, "turnover_rate", None)),
+        total_market_value=_to_decimal(getattr(r, "total_market_value", None)),
+        capital_flow=_to_decimal(getattr(r, "capital_flow", None)),
+        amplitude=_to_decimal(getattr(r, "amplitude", None)),
+        volume_ratio=_to_decimal(getattr(r, "volume_ratio", None)),
+        pe_ttm_ratio=_to_decimal(getattr(r, "pe_ttm_ratio", None)),
+        pb_ratio=_to_decimal(getattr(r, "pb_ratio", None)),
+        dividend_ratio_ttm=_to_decimal(getattr(r, "dividend_ratio_ttm", None)),
+        five_day_change_rate=_to_decimal(getattr(r, "five_day_change_rate", None)),
+        ten_day_change_rate=_to_decimal(getattr(r, "ten_day_change_rate", None)),
+        half_year_change_rate=_to_decimal(getattr(r, "half_year_change_rate", None)),
+        five_minutes_change_rate=_to_decimal(getattr(r, "five_minutes_change_rate", None)),
+    )
 
 
 @cached(ttl=3600)

@@ -1,0 +1,35 @@
+{
+  "skill_name": "stock-analysis",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "今天市场怎么样？有什么热点板块吗？",
+      "expected_output": "使用 market-hotspot-analysis.md 模板生成市场状态分析，包含 A股/港股/美股温度、重要消息、技术热点表格",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "帮我看看茅台这只股票，600519 有信号吗？",
+      "expected_output": "使用 stk stock scan 600519 获取 MonitorResult，按分析步骤输出：结论、主信号(EMA交叉/Supertrend)、辅助因子、风控边界",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "生成今天的 DailyReport，保存到 Obsidian",
+      "expected_output": "读取 workflow/daily-report.md，执行完整工作流：市场热点 + 分组信号追踪，生成 Obsidian 格式的日报并写入 14_Trading/DailyReport/",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "检查一下我的 ETF 分组，今天有什么需要关注的？",
+      "expected_output": "使用 group-signal-tracking.md 模板，运行 stk watchlist scan ETF，只展开 focus 标的，生成统计表格和明日关注",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "对比一下比亚迪、宁德时代、隆基这三只股票",
+      "expected_output": "使用 multi-stock-deep-comparison.md 模板，并行扫描三只股票，横向对比信号质量、辅助态度、风险收益和近10日复核",
+      "files": []
+    }
+  ]
+}

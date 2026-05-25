@@ -95,10 +95,7 @@ def get_market_overview() -> MarketOverview:
     # Fetch temperature for all regions in parallel
     temps: dict[str, MarketTemperature] = {}
     with ThreadPoolExecutor(max_workers=3) as executor:
-        futures = {
-            executor.submit(_get_temperature_for_market, r): r
-            for r in _MARKET_REGIONS
-        }
+        futures = {executor.submit(_get_temperature_for_market, r): r for r in _MARKET_REGIONS}
         for future in as_completed(futures):
             region = futures[future]
             with contextlib.suppress(SourceError):

@@ -1,387 +1,253 @@
-# stk-cli 架构设计（补充）
+# stk-cli 架构设计
 
-> 基础架构信息（目录结构、层级职责、开发命令）见 `CLAUDE.md`。本文档仅记录深度设计决策。
+> **Status**: `active`
 
-## 1. 命令结构
+`stk-cli` 是面向 Agent 与自动化程序消费的股票监控 CLI。系统接收命令行输入，聚合 Longport 与 akshare 数据，输出稳定的 JSON envelope；核心扫描场景是每日监控 100 个以上股票，并筛出需要重点关注的信号标的。
 
-按 **市场 → 个股 → 自选股** 三层逻辑组织：
+## 系统目标与约束
 
-```
-stk
-├── market            # 市场整体：指数(CN/HK/US分组) + 温度 + 新闻
-├── stock             # 个股：scan(综合分析), kline(K线+指标), fundamental, rank
-├── watchlist         # 自选股：CRUD + scan + kline
-├── doctor            # 数据源健康检查
-└── cache             # 缓存管理
-```
+系统提供 A 股、港股、美股的行情、K 线指标、趋势信号监控、自选股、基本面补充数据和市场新闻查询能力。
 
-### 命令与服务映射
+核心约束：
 
-| 命令 | 服务层文件 | 说明 |
-|------|-----------|------|
-| `stk market` | `services/market.get_market_overview()` | CN/HK/US 指数分组 + 三市场温度 |
-| `stk market news` | `services/news.get_all_news()` | 全局新闻（默认 cls+ths 合并；`--source` 可单查） |
-| `stk stock scan` | `services/scan.batch_summary()` | 综合分析：quote+score+valuation（多 symbol） |
-| `stk stock kline` | `services/indicator.get_daily()` | K 线 + 全部技术指标（多 symbol） |
-| `stk stock fundamental` | `services/fundamental.get_full_comparison()` | 同业对比（默认全部 category；`--type` 可单查） |
-| `stk stock rank` | `services/rank.get_tech_hotspot()` | 技术热点（默认行业分析+交叉验证选股；`--screen` 可单查） |
-| `stk watchlist list` | `services/watchlist.list_watchlists()` | 列出所有分组（摘要：name+count） |
-| `stk watchlist show` | `services/watchlist.get_watchlist()` | 查看分组内标的 |
-| `stk watchlist create` | `services/watchlist.create_group()` | 创建分组 |
-| `stk watchlist add` | `services/watchlist.add_symbols()` | 批量添加标的到分组 |
-| `stk watchlist remove` | `services/watchlist.remove_symbols()` | 批量从分组移除标的 |
-| `stk watchlist delete` | `services/watchlist.delete_group()` | 删除分组 |
-| `stk watchlist scan` | `services/scan.scan_watchlist()` | 批量扫描全组：quote+score+valuation |
-| `stk watchlist kline` | `services/scan.kline_watchlist()` | 全组 K 线 + 全部技术指标（并行） |
-| `stk doctor check` | `services/health.run_health_check()` | 数据源健康检查 |
-| `stk cache clear` | `store/cache.clear_cache()` | 缓存清除 |
+- CLI 对 stdout 只输出 JSON envelope；日志和诊断信息输出到 stderr。
+- `commands/` 只负责参数解析、服务调用和结果渲染；业务逻辑只放在 `services/`。
+- `services/` 返回 Pydantic 模型或模型列表，不直接写 stdout。
+- 扫描命令默认输出重点关注标的，不输出无信号标的的完整分析明细。
+- 扫描输出默认只为强信号且辅助态度不冲突的标的附带最近 10 根压缩日线，其他标的只保留决策、上下文和风控摘要。
+- 每日监控以日线收盘 K 线为确认口径，不处理盘中未确认信号。
+- Longport 是跨市场主数据源；akshare 只补充 Longport 未覆盖的 A 股特色数据与新闻数据。
+- 用户输入的股票代码进入服务前必须统一为 Longport symbol 语义。
+- 本地持久化只用于缓存和 Longport 自选股分组 ID 映射；自选股成员数据归 Longport 服务端所有。
+- 外部 SDK 与网络错误必须在服务边界翻译为 `StkError` 派生错误，再由 CLI 全局错误处理器渲染。
 
----
+## 核心设计原则
 
-## 2. 数据源策略
+1. **Agent-first 输出**：系统输出稳定 JSON envelope，并保留统一 `ok/data/error/meta` 结构。理由是 Agent 需要可解析、可重试、可组合的响应契约。
+2. **信号优先监控**：扫描结果以“是否需要关注”为第一层语义，而不是返回全量体检报告。理由是每日批量监控的目标是缩小关注范围。
+3. **命令层保持薄适配**：命令层只处理 CLI 语义，不承载业务规则。理由是同一服务能力可以被多个命令复用，并减少参数解析对业务逻辑的污染。
+4. **模型作为跨层契约**：跨越命令、服务、输出边界的数据必须通过 `models/` 表达。理由是模型同时约束代码内部调用和 Agent 可见 JSON schema。
+5. **缓存不改变数据所有权**：缓存只能保存数据源结果副本，不成为业务数据的写入来源。理由是系统需要降低外部调用成本，同时保持 Longport 与 akshare 的数据权威性。
 
-**Longport 为主 + akshare（同花顺）为辅**：
+## 关键设计决策
 
-- **Longport**：主数据源，覆盖 A 股/港股/美股的实时行情、K 线、估值 (calc_indexes)、资金流、自选股管理
-- **akshare（同花顺）**：补充 A 股特色数据（技术选股排名、基本面对比、主营业务概况）
-- **akshare（财联社）**：全局新闻
+| 决策问题 | 选择 | 放弃的替代方案 | 理由 | 变更条件 |
+|---------|------|--------------|------|----------|
+| CLI 框架使用什么承载命令结构？ | 使用 Typer 注册根命令与子命令组 | 手写 argparse 或自定义命令解析 | Typer 的函数式命令定义能让命令入口保持薄适配，并保留类型提示 | 需要支持 Typer 无法表达的交互式协议时重新评估 |
+| 跨市场行情数据源如何统一？ | Longport 作为主数据源 | 为 A 股、港股、美股分别接入不同主数据源 | 单一主数据源降低 symbol、报价、K 线和自选股语义分裂 | Longport 无法覆盖核心市场或稳定性不满足 CLI 查询时重新评估 |
+| akshare 在系统中承担什么角色？ | akshare 作为补充数据源 | 将 akshare 作为行情主数据源 | akshare 覆盖同花顺技术榜、行业对比和新闻等补充能力，但主行情契约由 Longport 统一 | akshare 补充能力失效或 Longport 覆盖对应能力时重新评估 |
+| 每日扫描输出什么？ | 输出 `MonitorResult`，只展开 `focus` 重点关注标的，并仅为强信号且辅助态度不冲突的标的补充最近 10 根压缩日线 | 输出所有股票的完整分析明细，或为所有 `focus` 标的附带完整 K 线 | 用户核心场景是从 100 个以上股票中找出少数有效信号；默认过滤无信号标的并限制 K 线明细能降低 Agent 上下文成本 | 需要审计完整股票池时新增显式全量输出命令 |
+| 单标的监控结果如何组织？ | 使用 `ScoreResult` 的 `decision`、`primary_signal`、`context`、`risk` 四段结构 | 返回单一 `score` 或混合自然语言信号列表 | 主信号、辅助因子和风控点位的职责不同，拆分后更利于排序、解释和自动化规则消费 | 监控策略扩展为多主策略组合时重新评估 |
+| 跨层数据契约如何表达？ | 使用 Pydantic 模型 | 在服务和命令之间传递裸 dict/DataFrame | Pydantic 模型让服务输出、JSON 序列化和 Agent schema 保持一致 | 模型构建成本成为性能瓶颈并有替代契约时重新评估 |
+| CLI 输出格式如何固定？ | 所有成功和失败响应都使用 JSON envelope | 按命令输出不同 JSON 结构或人类可读文本 | 统一 envelope 让 Agent 能以同一逻辑处理成功、失败和元信息 | 项目转为面向人类终端体验时重新评估 |
+| 本地状态如何存储？ | 使用文件存储与装饰器缓存 | 引入数据库或把自选股数据写入本地 | 当前持久化对象有限，文件存储满足原子写入和清理需求 | 本地状态出现复杂查询、事务或多进程写入需求时重新评估 |
 
-> 已移除所有东方财富（eastmoney）数据源，因其 IP 级别反爬限制导致接口不稳定。
-
-### Symbol 规范化
-
-`utils/symbol.py` 的 `to_longport_symbol()` 统一处理所有市场的 symbol 格式：
-
-| 输入 | 输出 | 说明 |
-|------|------|------|
-| `700.HK` | `700.HK` | 港股，原样 |
-| `AAPL.US` | `AAPL.US` | 美股，原样 |
-| `HSI.HK` | `HSI.HK` | 港股指数，原样 |
-| `.DJI` / `.IXIC` / `.SPX` | 原样 | 美股指数，点前缀 |
-| `000001.SH` | `000001.SH` | 已有后缀，原样 |
-| `600519` | `600519.SH` | A 股主板，6xx → 上交所 |
-| `688001` | `688001.SH` | A 股科创板，688xxx → 上交所 |
-| `000001` | `000001.SZ` | A 股主板，0xx → 深交所 |
-| `002001` | `002001.SZ` | A 股中小板，002xxx → 深交所 |
-| `300750` | `300750.SZ` | A 股创业板，300xxx → 深交所 |
-| `800001` | `800001.BJ` | 北交所，8xxxxx → 北交所 |
-
-### 数据转换工具
-
-`utils/symbol.py` 提供统一的转换函数：
-
-| 函数 | 说明 | 用途 |
-|------|------|------|
-| `to_longport_symbol(symbol)` | 用户输入 → Longport 格式 | 所有服务 |
-| `to_em_symbol(symbol)` | 用户输入 → 东方财富格式 | `fundamental.py` |
-| `to_ak_market(symbol)` | 用户输入 → akshare (code, market) | `fundamental.py` |
-| `is_hk(symbol)` | 是否为港股 | `fundamental.py` |
-| `to_hk_code(symbol)` | 港股代码补零 | `fundamental.py` |
-| `extract_code(symbol)` | 提取纯数字代码 | `fundamental.py` |
-
----
-
-## 3. 标的类型
-
-通过 `--type` 参数区分，默认为 `stock`：
-
-```python
-class TargetType(StrEnum):
-    STOCK = "stock"  # 个股（默认）
-    SECTOR = "sector"  # 行业板块
-    CONCEPT = "concept"  # 概念板块
-    INDEX = "index"  # 指数
-```
-
-### 各类型支持矩阵
-
-| 命令 | stock | index | sector | concept | 多 symbol |
-|------|-------|-------|--------|---------|-----------|
-| `stock scan` | ✅ | ❌ | ❌ | ❌ | ✅（全量批量） |
-| `stock kline` | ✅ | ✅ | ❌ | ❌ | ✅ |
-| `stock fundamental` | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `stock rank` | ✅ | ❌ | ❌ | ❌ | — |
-
----
-
-## 4. Longport SDK API 使用映射
-
-| stk 命令 | Longport API | 返回类型 |
-|----------|-------------|----------|
-| `market` | `ctx.quote(MAJOR_INDICES)` + `ctx.market_temperature(Market.CN/HK/US)` | 分组指数行情 + 三市场温度 |
-| `stock scan` | `ctx.quote()` + `ctx.calc_indexes()` | 实时行情 + 估值指标（批量） |
-| `stock kline` | `ctx.candlesticks(symbol, period, count, adjust)` | K 线 + 全部技术指标 |
-| `watchlist *` | `ctx.watchlist()` / `ctx.create_watchlist_group()` / `ctx.update_watchlist_group()` / `ctx.delete_watchlist_group()` | 自选股分组管理 |
-
----
-
-## 5. 命令数据流
-
-### 5.1 市场概览 (`stk market`)
+## 边界划分
 
 ```
-stk market
-  → commands/market.py: market_overview() (callback, invoke_without_command)
-  → services/market.py: get_market_overview()
-    → get_indices(): ctx.quote(9 大指数) → 按 CN/HK/US 分组
-      → CN: 000001.SH, 399001.SZ, 399006.SZ
-      → HK: HSI.HK, HSCEI.HK, HSTECH.HK
-      → US: .IXIC, .DJI, .SPX
-    → _get_temperature_for_market("CN"/"HK"/"US") × 3
-  → models/market.py: MarketOverview(indices, temperature)
-
-stk market news
-  → services/news.py: get_all_news(count=20)
-    → 串行调用 get_global_news(source="cls") + get_global_news(source="ths")（间隔 1-3s）
-    → 合并按时间倒序，截取 count 条
-  → models/news.py: list[NewsItem]
-
-stk market news --source cls
-  → services/news.py: get_global_news(source="cls", count=20)
-  → models/news.py: list[NewsItem]
+User / Agent / Automation
+    |
+    v
+CLI Runtime (cli.py)
+    |
+    v
+Command Adapters (commands/)
+    |
+    v
+Domain Services (services/)
+    |----------------------.
+    v                      v
+External Providers      Local Store
+(Longport, akshare)     (store/)
+    |                      |
+    '----------.-----------'
+               v
+Domain Models (models/)
+               |
+               v
+Output Renderer (output.py)
+               |
+               v
+JSON envelope on stdout
 ```
 
-### 5.2 综合分析 (`stk stock scan`)
+主要边界：
+
+- **CLI Runtime** 负责注册命令组、初始化日志、捕获全局错误，不负责业务数据获取。
+- **Command Adapters** 负责把 Typer 参数转成服务调用，不负责数据源访问、指标计算和信号筛选。
+- **Domain Services** 负责业务流程、外部 API 调用、DataFrame 转换、技术指标、趋势信号、监控筛选和数据聚合，不负责 stdout 渲染。
+- **Domain Models** 负责跨层数据契约，不负责外部 API 调用。
+- **Local Store** 负责本地 JSON 文件与缓存副本，不负责决定业务数据权威来源。
+- **Utilities** 负责 symbol 与价格等纯转换逻辑，不负责调用外部服务。
+- **External Providers** 负责提供行情、K 线、估值、自选股、排行和新闻原始数据，不负责系统内部模型契约。
+- **Output Renderer** 负责成功和失败 envelope 序列化，不负责命令参数解析。
+
+跨切关注点：
+
+- **日志** 通过 `loguru` 在 CLI 启动时配置，服务只写日志，不改变输出协议。
+- **配置** 通过 `pydantic-settings` 读取环境变量和 `.env`，外部依赖通过 `deps.py` 懒加载。
+- **错误翻译** 在服务边界把外部异常转换为 `SourceError`、`IndicatorError` 或其他 `StkError` 派生错误。
+- **缓存** 通过 `store/cache.py` 的装饰器组合到服务函数上，缓存层不改变服务函数的返回模型。
+
+依赖方向：
 
 ```
-stk stock scan 600519 700.HK
-  → commands/stock.py: scan()
-  → services/scan.py: batch_summary(symbols)
-    → _batch_analyze(symbols, names):
-      1. get_realtime_quotes(symbols)      → 1 次批量 API
-      2. get_valuations(symbols)           → 1 次批量 API (calc_indexes)
-      3. ThreadPoolExecutor(max_workers=8)
-         ├─ calc_score(symbol) × N         → 并行
-         └─ get_profile(symbol) × N        → 并行 + 7天磁盘缓存
-      4. 合并 quote + valuation + score + profile → ScanItem[]
-  → models/scan.py: ScanResult(group_name, total, items[])
+commands/ -> services/ -> deps.py -> external SDKs
+commands/ -> output.py
+services/ -> models/
+services/ -> store/
+services/ -> utils/
+output.py -> models/
 ```
 
-### 5.3 K 线 + 全部指标 (`stk stock kline`)
+依赖从命令入口流向服务、契约和基础设施；`models/` 与 `utils/` 不依赖命令层或服务层。
 
-```
-stk stock kline 600519 --count 10
-  → commands/stock.py: kline()
-  → services/indicator.py: get_daily(symbol, count=10)
-    → get_history(count=10+60) → 拉取 70 根 K 线（60 根用于指标预热）
-    → 在同一 DataFrame 上计算全部指标（EMA/MACD/RSI/KDJ/BOLL/ATR）
-    → 合并 OHLCV + 涨跌幅 + 全部指标为逐日扁平数据
-    → 截取最近 count 天，按新到旧排列
-  → models/indicator.py: DailyResult(symbol, days[])
-```
+## 核心实体关系
 
-每日数据结构（扁平 dict）：
+核心实体：
 
-- K 线：date, open, high, low, close, volume, turnover, change_pct
-- EMA：EMA5, EMA10, EMA20, EMA60
-- MACD：MACD, signal, hist
-- RSI：RSI
-- KDJ：K, D, J
-- BOLL：upper, middle, lower
-- ATR：ATR14
+- **Security**：可查询的证券标的，使用 Longport symbol 作为跨服务统一身份。
+- **Quote Snapshot**：某个证券在一次查询中的行情快照，由行情服务生成，并作为监控结果的展示字段补充。
+- **Candlestick Series**：某个证券的一组 K 线数据，是指标计算和趋势信号监控的输入。
+- **Primary Signal**：基于 EMA9/EMA26 与 Supertrend 的主趋势判断，描述策略、方向、触发事件、指标值和原因列表。
+- **Monitoring Decision**：面向每日监控的动作判断，包含 `focus_buy`、`focus_sell` 或 `watch`，并携带信号强度和新鲜度。
+- **Signal Context**：非主策略指标形成的辅助因子集合，用结构化指标解释主信号质量、冲突、风险或左侧机会。
+- **Risk Profile**：基于 ATR 与 Supertrend 的止损、止盈、风险收益比和风险等级。
+- **Monitor Run**：一次 watchlist 或临时股票池扫描，包含股票池覆盖情况、重点关注列表、忽略统计和失败列表。
+- **Focus Item**：一次 Monitor Run 中被筛选进入重点关注列表的单个标的，可在强信号时携带压缩日线解释数据。
+- **Watchlist Group**：用户在 Longport 服务端维护的自选股分组，本地只缓存分组名称到 ID 的映射。
+- **News Item**：来自补充数据源的市场新闻条目，按来源归一为统一模型。
+- **Cache Entry**：外部数据查询结果的本地副本，按函数身份和入参生成键。
 
-### 5.4 基本面 (`stk stock fundamental`)
-
-```
-stk stock fundamental 600519
-  → services/fundamental.py: get_full_comparison(symbol)
-    → 串行调用 get_comparison(symbol, category) × 3（间隔 1-3s 防风控）
-      → categories: growth, valuation, dupont（港股无 dupont）
-    → 每个 category: ak.stock_zh_{cat}_comparison_em() → IndustryComparison
-  → models/fundamental.py: FullComparison(symbol, comparisons[])
-
-stk stock fundamental 600519 --type growth
-  → services/fundamental.py: get_comparison(symbol, category="growth")
-  → models/fundamental.py: IndustryComparison(symbol, category, companies)
-```
-
-支持的对比类型：`growth`（成长性）、`valuation`（估值）、`dupont`（杜邦分析，仅 A 股）
-
-### 5.5 技术选股排名 (`stk stock rank`)
-
-```
-stk stock rank
-  → services/rank.py: get_tech_hotspot(ma="20日均线")
-    → 串行调用 get_tech_rank(type=screen) × 8（akshare THS 内部用 V8/py_mini_racer，并发初始化会 crash）
-    → 行业分析：6 个有"所属行业"的 screen 统计行业多空出现频次
-    → 技术选股：4 个多方 screen 交叉验证，取 2+ screen 重叠的候选
-  → models/market.py: TechHotspot(industries[], candidates[], total_candidates)
-
-stk stock rank --screen lxsz
-  → services/rank.py: get_tech_rank(type="lxsz", ma="20日均线")
-    → ak.stock_rank_lxsz_ths()
-  → models/market.py: TechRank(type="lxsz", label="连续上涨", items[])
+```mermaid
+erDiagram
+    SECURITY ||--o{ QUOTE_SNAPSHOT : "produces snapshots"
+    SECURITY ||--o{ CANDLESTICK_SERIES : "has history"
+    SECURITY ||--o{ PRIMARY_SIGNAL : "derives trend evidence"
+    SECURITY ||--o{ MONITORING_DECISION : "receives decision"
+    CANDLESTICK_SERIES ||--o{ PRIMARY_SIGNAL : "calculates"
+    CANDLESTICK_SERIES ||--o{ SIGNAL_CONTEXT : "calculates"
+    CANDLESTICK_SERIES ||--o{ RISK_PROFILE : "calculates"
+    PRIMARY_SIGNAL ||--|| MONITORING_DECISION : "drives"
+    SIGNAL_CONTEXT ||--o{ MONITORING_DECISION : "qualifies"
+    MONITOR_RUN ||--o{ FOCUS_ITEM : "selects"
+    FOCUS_ITEM }o--|| SECURITY : "references"
+    FOCUS_ITEM ||--|| MONITORING_DECISION : "contains"
+    FOCUS_ITEM ||--|| PRIMARY_SIGNAL : "contains"
+    FOCUS_ITEM ||--|| SIGNAL_CONTEXT : "contains"
+    FOCUS_ITEM ||--|| RISK_PROFILE : "contains"
+    WATCHLIST_GROUP ||--o{ SECURITY : "contains"
+    CACHE_ENTRY }o--|| QUOTE_SNAPSHOT : "stores snapshot"
+    CACHE_ENTRY }o--|| CANDLESTICK_SERIES : "stores series"
+    NEWS_ITEM }o--|| CACHE_ENTRY : "is stored as"
 ```
 
-支持的筛选类型（上涨）：`lxsz`（连续上涨）、`cxfl`（持续放量）、`xstp`（向上突破）、`ljqs`（量价齐升）
-支持的筛选类型（下跌）：`cxsl`（连续下跌）、`lxxd`（持续缩量）、`xxtp`（向下突破）、`ljqd`（量价齐跌）
+## 整体流程
 
-### 5.6 多指标共振评分 (内部，被 scan 调用)
-
-```
-calc_score(symbol, count=60)
-  → services/score.py: calc_score(symbol, count=60)
-    → services/history.get_history() → DataFrame
-    → talib 计算: EMA/RSI/STOCH/MACD/BBANDS/ADX/ATR
-    → services/flow.get_stock_flow() → 资金流维度（个股独有）
-  → models/score.py: ScoreResult(total_score, rating, dimensions[], buy_signals[], sell_signals[], trend_strength, adx, atr, stop_loss, take_profit, risk_reward_ratio)
-```
-
-评分体系（满分 100）：
-
-**个股维度**（7 维，直接加总 = 100）：
-
-| 维度 | 权重 | 判断逻辑 |
-|------|------|---------|
-| 动量 | 15 | RSI(60%) + KDJ(40%) 加权合并。RSI 超卖满分，超买 0 分；KDJ 金叉满分，死叉 0 分 |
-| MACD | 15 | 金叉满分，死叉 0 分，柱翻红/翻绿中间分 |
-| BOLL | 15 | 下轨反弹满分，触及上轨 0 分 |
-| 量价 | 10 | 放量上涨满分，放量下跌 0 分 |
-| 趋势 | 20 | EMA(5/10/20/60) 多头排列满分，空头排列 0 分 |
-| 背离 | 10 | MACD 柱状图底背离满分，顶背离 0 分 |
-| 资金 | 15 | 主力大幅流入满分，大幅流出 0 分 |
-
-**ETF 维度**（6 维，加总 85 → 归一化至 100）：
-
-| 维度 | 权重 | 说明 |
-|------|------|------|
-| 动量 | 10 | 同上，权重略低 |
-| MACD | 15 | 同上 |
-| BOLL | 15 | 同上 |
-| 量价 | 10 | 同上 |
-| 趋势 | 25 | 权重更高，ETF 趋势性更强 |
-| 背离 | 10 | 同上 |
-
-**ADX 趋势强度标签**：ADX ≥ 25 → "trending"，< 25 → "ranging"（辅助判断，不参与评分）
-
-ATR 风控（基于 ATR×2 止损 / ATR×3 止盈）：
+### 每日监控主路径
 
 ```
-止损价 = 当前价 - ATR(14) × 2.0
-止盈价 = 当前价 + ATR(14) × 3.0
-盈亏比 = (止盈价 - 当前价) / (当前价 - 止损价)  # 理论值 ≈ 1.5
+stk stock scan / stk watchlist scan
+    -> Command Adapter validates CLI shape
+    -> Scan Service resolves an ad-hoc universe or watchlist securities
+    -> Quote Service collects optional display quote data
+    -> Score Service builds decision, primary_signal, context and risk from closed daily K-line data
+    -> Scan Service filters active focus candidates and sorts by signal level, context bias and signal age
+    -> Scan Service supplements strong, non-conflicting focus items with compact daily10 rows
+    -> MonitorResult returns run_date, universe, summary, focus, ignored and errors
+    -> Output Renderer emits JSON envelope
 ```
 
-### 5.7 自选股扫描与 K 线 (`stk watchlist scan` / `stk watchlist kline`)
+### 单标的信号计算路径
 
 ```
-stk watchlist scan ETF
-  → services/scan.py: scan_watchlist(name, sort)
-    → get_watchlist(name) → symbols
-    → _batch_analyze(symbols, names)  # 同 stock scan 流程
-  → models/scan.py: ScanResult(group_name, total, items[])
-
-stk watchlist kline ETF
-  → services/scan.py: kline_watchlist(name, period, count)
-    → get_watchlist(name) → symbols
-    → ThreadPoolExecutor(max_workers=8)
-       └─ get_daily(symbol) × N  → 并行
-  → list[DailyResult]
+Score Service
+    -> History Service fetches recent Longport daily candles
+    -> Score Service calculates EMA9, EMA26, Supertrend(ATR10 x2.5), ADX and ATR
+    -> Primary Signal records the main trend evidence
+    -> Monitoring Decision maps the primary signal into focus_buy, focus_sell or watch
+    -> Signal Context calculates auxiliary factors from momentum, MACD, BOLL, volume-price, EMA trend, MFI and divergence
+    -> Risk Profile calculates stop_loss, take_profit, risk_reward_ratio and risk_level
+    -> ScoreResult returns the single-security monitoring contract
 ```
 
-**性能优化**：
-
-- `get_valuations()` 原生批量：N 个 symbol 仅 1 次 API 调用
-- `calc_score()` 并行：30 只股票从 ~30s → ~4s
-- `kline_watchlist()` 并行获取所有成员 K 线
-
-### 5.8 数据源健康检查 (`stk doctor check`)
+### K 线与指标主路径
 
 ```
-stk doctor check
-  → commands/doctor.py: check()
-  → services/health.run_health_check()
-    → 检查 Longport API 连通性 + 延迟
-  → output.render(results, meta={"healthy": N, "total": M})
+stk stock kline / stk watchlist kline
+    -> Command Adapter resolves symbol list or watchlist group
+    -> Indicator Service requests Candlestick Series
+    -> History Service fetches Longport K-line data
+    -> Indicator Service calculates EMA, MACD, RSI, KDJ, BOLL, ATR and Supertrend values
+    -> DailyResult returns OHLCV rows merged with indicator values
+    -> Output Renderer emits JSON envelope
 ```
 
-### 5.9 缓存清除 (`stk cache clear`)
+### 基本面与新闻查询路径
 
 ```
-stk cache clear [--prefix PREFIX]
-  → commands/cache.py: clear(prefix="")
-  → store/cache.clear_cache(prefix)
-    → 按 prefix 过滤缓存条目（prefix="" 清除全部）
-  → output.render({"cleared": N, "prefix": "..."})
+stk stock fundamental / stk market news
+    -> Command Adapter validates request shape
+    -> Domain Service calls akshare supplementary data source
+    -> Domain Service maps upstream data into Pydantic models
+    -> Output Renderer emits JSON envelope
 ```
 
----
+## 信号策略边界
 
-## 6. 配置项
+详细策略记录在 [scoring-strategies.md](scoring-strategies.md)。架构文档只声明模块边界：
 
-| 配置项 | 说明 | 默认值 |
-|--------|------|--------|
-| `LONGPORT_APP_KEY` | Longport 应用 Key | — |
-| `LONGPORT_APP_SECRET` | Longport 应用 Secret | — |
-| `LONGPORT_ACCESS_TOKEN` | Longport 访问令牌 | — |
-| `DATA_DIR` | 本地文件存储目录 | `~/.stk/` |
-| `DEFAULT_FORMAT` | 默认输出格式 | `json` |
-| `LOG_LEVEL` | 日志级别 | `WARNING` |
+- `services/score.py` 负责把日线 K 线转换为 `ScoreResult`，其中 `decision` 是可执行动作，`primary_signal` 是 EMA9/26 与 Supertrend 主信号，`context` 是辅助因子解释，`risk` 是独立风控字段。
+- `services/scan.py` 负责把多个 `ScoreResult` 聚合为 `MonitorResult`，并按重点关注规则生成 `focus`、`summary`、`ignored` 和 `errors`；仅为强信号且辅助态度不冲突的 `FocusItem` 补充最近 10 根压缩日线。
+- `services/indicator.py` 负责输出 K 线与技术指标明细，供使用者解释信号来源，不负责判断是否入选重点关注。
+- `services/fundamental.py` 与 `services/news.py` 是补充查询能力，不参与默认每日监控筛选。
 
----
+## 部署架构
 
-## 7. 本地存储格式
+`stk-cli` 以单进程 CLI 方式运行，由 `uv` 管理 Python 运行环境和依赖。运行时进程直接访问 Longport OpenAPI、akshare 数据接口和用户主目录下的本地存储目录。
 
 ```
-~/.stk/
-├── watchlist_groups.json   # 自选股分组 name→id 映射缓存（数据存 longport 服务端）
-└── config.json             # 可选：用户偏好配置持久化
+Shell / Agent / Automation
+    |
+    v
+stk CLI process
+    |-------------------> Longport OpenAPI
+    |-------------------> akshare upstream APIs
+    '-------------------> ~/.stk local files
 ```
 
-自选股数据存储在 longport 服务端，本地仅缓存分组名称与 ID 的映射关系，用于 add/remove/delete 操作时快速查找分组 ID。每次 `watchlist list` 时自动同步缓存。存储使用原子写入（tmp 文件 + rename）。
+## 安全架构
 
----
+信任边界：
 
-## 8. akshare 补充功能
+- 用户输入只通过 Typer 参数进入命令层，再由 symbol 工具和服务层解释。
+- Longport 凭证由配置层从环境变量或 `.env` 读取，业务模型和 JSON 输出不包含凭证。
+- stdout 是 Agent 消费边界；stderr 是日志边界，两者不得混用。
+- 本地文件写入限制在 `settings.data_dir` 和 `settings.cache_dir` 语义下。
 
-| 功能 | 服务 | akshare API | 数据源 |
-|------|------|------------|--------|
-| 全局新闻 | `news.get_global_news()` | `stock_info_global_cls/ths` | 财联社/同花顺 |
-| 技术选股 | `rank.get_tech_rank()` | `stock_rank_lxsz/cxfl/xstp/ljqs_ths` | 同花顺 |
-| 行业对比 | `fundamental.get_comparison()` | `stock_zh_growth/valuation/dupont_comparison_em` | 东方财富（数据中心） |
-| 主营业务 | `fundamental.get_profile()` | `stock_zyjs_ths` | 同花顺 |
+## 模块职责索引
 
----
-
-## 9. 服务层文件结构
-
-```
-services/
-├── rank.py           # 技术选股排名（同花顺）
-├── market.py         # 市场概览：indices (CN/HK/US) + temperature × 3
-├── fundamental.py    # 基本面：valuation (批量 calc_indexes), comparison, profile
-├── history.py        # K 线历史（供 indicator.py 内部调用）
-├── indicator.py      # 技术指标 (ta-lib) + get_daily (OHLCV + 全部指标合并)
-├── news.py           # 全局新闻（财联社/同花顺）
-├── score.py          # 多指标共振评分 + ATR 风控
-├── scan.py           # 批量分析核心：_batch_analyze() + scan + kline_watchlist
-├── watchlist.py      # 自选股 CRUD (longport API + 本地 group ID 缓存)
-├── quote.py # Longport 原始 API 封装
-└── health.py         # 数据源健康检查
-```
-
----
-
-## 10. 错误处理
-
-全局错误处理器在 `cli.py` 中捕获所有异常，转换为 JSON envelope：
-
-```python
-try:
-    app()
-except StkError as e:
-    output.render_error(type(e).__name__, e.message)
-except Exception as e:
-    output.render_error("UnexpectedError", str(e))
-```
-
-自定义异常层次：
-
-- `StkError` (基类)
-  - `ConfigError` — 配置错误（环境变量缺失等）
-  - `SourceError` — 数据源错误（API 失败、数据为空）
-  - `SymbolNotFoundError` — 标的不存在
-  - `IndicatorError` — 指标计算错误
-  - `DataNotFoundError` — 数据不存在
-
-日志使用 `loguru`，输出到 stderr（不干扰 stdout 的 JSON）。
+| 模块 | 职责 | 不负责 |
+|------|------|--------|
+| `cli.py` | 组装 CLI 应用、配置日志、统一错误出口 | 业务数据获取 |
+| `commands/market.py` | 暴露市场概览与新闻命令 | 市场数据转换 |
+| `commands/stock.py` | 暴露个股排行、基本面、扫描和 K 线命令 | 技术指标计算和监控筛选 |
+| `commands/watchlist.py` | 暴露自选股 CRUD、扫描和 K 线命令 | 自选股远端数据所有权和监控筛选 |
+| `commands/doctor.py` | 暴露数据源健康检查命令 | 修复配置或网络问题 |
+| `commands/cache.py` | 暴露缓存清理命令 | 决定服务缓存策略 |
+| `services/market.py` | 聚合主要指数和市场温度 | CLI 输出 |
+| `services/quote.py` | 封装 Longport 实时行情查询 | 技术指标计算 |
+| `services/history.py` | 封装 Longport K 线查询 | 指标语义计算 |
+| `services/indicator.py` | 生成按日合并的 OHLCV、EMA9/26、Supertrend、ATR10 与其他技术指标结果 | 判断重点关注标的 |
+| `services/score.py` | 基于日线 K 线生成 `ScoreResult`，包含决策、主信号、结构化辅助因子和风控点位 | 管理自选股或批量排序 |
+| `services/scan.py` | 聚合每日监控结果，输出重点关注标的、统计、忽略数量、错误列表和 high 标的压缩日线 | 渲染响应或计算单标的主信号 |
+| `services/fundamental.py` | 获取估值、行业对比和公司概况 | 参与默认每日监控筛选 |
+| `services/rank.py` | 获取同花顺技术筛选与行业情绪结果 | 生成每日监控决策 |
+| `services/news.py` | 获取并归一化市场新闻 | 个股监控筛选 |
+| `services/watchlist.py` | 通过 Longport 管理自选股分组并同步本地 ID 缓存 | 本地保存自选股成员数据 |
+| `services/health.py` | 检查数据源连通性 | 自动恢复凭证 |
+| `models/score.py` | 定义单标的监控结果契约 | 计算技术指标 |
+| `models/scan.py` | 定义每日批量监控结果契约 | 获取行情或执行筛选 |
+| `models/` | 定义其他跨层 Pydantic 数据契约 | 访问外部数据源 |
+| `store/` | 提供文件存储与缓存副本 | 拥有业务数据权威来源 |
+| `utils/` | 提供 symbol、价格等纯转换函数 | 读取配置或访问网络 |

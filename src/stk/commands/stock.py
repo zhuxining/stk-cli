@@ -82,7 +82,7 @@ def fundamental(
 def scan(
     symbols: list[str] = typer.Argument(help="One or more symbols (e.g. 600519 000001 700.HK)"),
 ) -> None:
-    """Batch analysis: quote + score + valuation in one call. Accepts multiple symbols."""
+    """Daily monitor symbols and return focus candidates."""
     from stk.services.scan import batch_summary
     from stk.utils.symbol import expand_symbols
 

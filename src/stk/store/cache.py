@@ -103,6 +103,8 @@ def cached(
         stale_on_error: If True, return expired cache on total failure.
 
     """
+    if retries < 1:
+        raise ValueError("retries must be >= 1")
 
     def decorator(func):
         @functools.wraps(func)
@@ -167,7 +169,9 @@ def cached(
                     logger.debug("Cache STALE (fallback): {}", key)
                     return stale
 
-            raise last_err  # type: ignore[misc]
+            if last_err is not None:
+                raise last_err
+            raise RuntimeError("Cache wrapper exhausted retries without capturing an error")
 
         return wrapper
 

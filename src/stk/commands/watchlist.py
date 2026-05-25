@@ -86,12 +86,11 @@ def delete(
 @app.command()
 def scan(
     name: str = typer.Argument(help="Watchlist group name"),
-    sort: str = typer.Option("score", "--sort", "-s", help="Sort by: score / change_pct"),
 ) -> None:
-    """Batch scan a watchlist: quote + score all members in one call, sorted by change."""
+    """Daily monitor a watchlist and return focus symbols."""
     from stk.services.scan import scan_watchlist
 
-    result = scan_watchlist(name, sort=sort)
+    result = scan_watchlist(name)
     output.render(result)
 
 

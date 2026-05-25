@@ -1,6 +1,7 @@
 """Rank service — stock technical and popularity rankings."""
 
 from collections.abc import Callable
+from typing import TypedDict
 
 import akshare as ak
 from loguru import logger
@@ -17,7 +18,12 @@ from stk.models.market import (
 )
 from stk.store.cache import cached
 
-_TechRankConfig = dict[str, str | Callable[[str], dict[str, str]]]
+
+class _TechRankConfig(TypedDict):
+    api: str
+    label: str
+    kwargs_fn: Callable[[str], dict[str, str]]
+
 
 _TECH_RANK_CONFIG: dict[str, _TechRankConfig] = {
     "lxsz": {
@@ -84,9 +90,9 @@ def get_tech_rank(
         raise SourceError(f"Unknown type: {type}, use {valid}")
 
     try:
-        api_fn = getattr(ak, cfg["api"])  # type: ignore[arg-type]
+        api_fn = getattr(ak, cfg["api"])
         kwargs_fn = cfg["kwargs_fn"]
-        df = api_fn(**kwargs_fn(ma))  # type: ignore[arg-type]
+        df = api_fn(**kwargs_fn(ma))
 
         if df.empty:
             raise SourceError(f"No {cfg['label']} data")
@@ -103,7 +109,7 @@ def get_tech_rank(
                 )
             )
 
-        return TechRank(type=type, label=cfg["label"], items=items)  # type: ignore[arg-type]
+        return TechRank(type=type, label=cfg["label"], items=items)
     except SourceError:
         raise
     except Exception as e:
@@ -122,9 +128,7 @@ _BEAR_ALL = {"cxsl", "lxxd", "ljqd", "xxtp"}
 _ALL_SCREENS = ["lxsz", "cxfl", "ljqs", "xstp", "cxsl", "lxxd", "ljqd", "xxtp"]
 
 # 缩写 → 中文 label 映射
-_SCREEN_LABEL: dict[str, str] = {
-    k: str(v["label"]) for k, v in _TECH_RANK_CONFIG.items()
-}
+_SCREEN_LABEL: dict[str, str] = {k: str(v["label"]) for k, v in _TECH_RANK_CONFIG.items()}
 
 
 def _to_labels(codes: set[str] | list[str]) -> list[str]:
