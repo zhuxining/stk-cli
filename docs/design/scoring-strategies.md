@@ -17,7 +17,7 @@
 
 ## 目标与边界
 
-每日监控的目标不是给每只股票做完整体检，而是回答“今天哪些标的需要重点关注”。系统默认只展开可行动的买入、退出或风险信号；无信号和中性观察标的只进入统计字段。
+每日监控的目标不是给每只股票做完整体检，而是回答“今天哪些标的需要重点关注”。系统默认只展开可行动的买入、退出或风险信号；观察标的只进入统计字段。
 
 设计边界：
 
@@ -25,10 +25,10 @@
 - `services/scan.py` 负责批量扫描与重点关注筛选，输出 `MonitorResult`。
 - 主信号只使用日线收盘 K 线确认，不处理盘中未确认信号。
 - 主信号默认由 `EMA9/EMA26 + Supertrend(ATR10 x2.5)` 决定，并补充保守确认后的反转、修复形态。
-- `decision.intent` 表达处理意图，`decision.strength` 表达信号强弱，`decision.pattern` 表达形态来源；ADX 只作为趋势强度提示，不直接改变强弱。
+- `decision.signal` 合并处理方向与形态来源，`decision.strength` 只表达信号强弱；ADX 只作为趋势强度提示，不直接改变强弱。
 - 辅助因子只解释主信号质量、冲突、风险或左侧机会，不生成单一综合分数。
 - 风控字段独立输出，不参与主信号级别计算。
-- `风险退出` 表示减仓、退出或风险预警，不表达做空建议。
+- 退出类信号表示减仓、退出或风险预警，不表达做空建议。
 
 ## 单标的输出结构
 
@@ -38,9 +38,8 @@
 {
   "symbol": "600519.SH",
   "decision": {
-    "intent": "买入关注",
+    "signal": "趋势买入",
     "strength": "强信号",
-    "pattern": "趋势共振",
     "signal_status": "new",
     "signal_date": "2026-05-12",
     "bars_since_signal": 1
@@ -92,9 +91,8 @@
 |------|------|
 | `symbol` | Longport symbol。 |
 | `decision` | 面向每日监控的可执行判断。 |
-| `decision.intent` | `买入关注`、`风险退出` 或 `观察`。 |
-| `decision.strength` | `强信号`、`普通信号` 或 `无信号`。 |
-| `decision.pattern` | `趋势共振`、`反转确认` 或 `趋势修复`，表示信号来源。 |
+| `decision.signal` | `趋势买入`、`趋势退出`、`反转买入`、`反转退出`、`修复买入`、`修复退出` 或 `观察`。 |
+| `decision.strength` | `强信号`、`普通信号` 或 `观察`。 |
 | `decision.signal_status` | `new`、`active` 或 `stale`。 |
 | `decision.signal_date` | 最近一次主信号触发日期。 |
 | `decision.bars_since_signal` | 最近一次主信号距当前 K 线的根数。 |
@@ -182,10 +180,10 @@
 | `universe.failed` | 单标的信号计算失败数量。 |
 | `summary.focus_count` | 入选 `focus` 的标的数量。 |
 | `summary.strong_signal_count` | `decision.strength=强信号` 的标的数量。 |
-| `summary.entry_signal_count` | `decision.intent=买入关注` 的标的数量。 |
-| `summary.exit_signal_count` | `decision.intent=风险退出` 的标的数量。 |
-| `summary.watch_signal_count` | `decision.intent=观察` 的标的数量；默认扫描口径下一般为 0，保留用于兼容。 |
-| `focus` | 重点关注标的列表，默认只包含可行动的 `买入关注` / `风险退出`。 |
+| `summary.entry_signal_count` | `decision.signal` 为 `趋势买入`、`反转买入` 或 `修复买入` 的标的数量。 |
+| `summary.exit_signal_count` | `decision.signal` 为 `趋势退出`、`反转退出` 或 `修复退出` 的标的数量。 |
+| `summary.watch_signal_count` | `decision.signal=观察` 的标的数量；默认扫描口径下一般为 0，保留用于兼容。 |
+| `focus` | 重点关注标的列表，默认只包含可行动的买入或退出信号。 |
 | `focus[].daily10` | 仅在扫描命令显式传入 `--daily10` 时，为强信号且辅助态度不冲突的标的补充最近 10 根压缩日线；其他标的默认不输出该字段。 |
 | `ignored.no_signal_count` | 成功扫描但未进入可行动 `focus` 的标的数量。 |
 | `errors` | 非致命单标的错误列表。 |
@@ -222,23 +220,19 @@
 - Supertrend 从多头翻为空头记为 `supertrend_flip=bearish`。
 - 共振窗口固定为最近 3 根 K 线。
 
-信号意图与强弱：
+信号分类与强弱：
 
-| intent | strength | 判定规则 |
+| signal | strength | 判定规则 |
 |--------|----------|----------|
-| `买入关注` | `强信号` | `EMA9 > EMA26`，Supertrend 多头，且最近 0-1 根 K 线内出现多头触发。 |
-| `买入关注` | `普通信号` | `EMA9 > EMA26`，Supertrend 多头，且最近 2-3 根 K 线内出现多头触发。 |
-| `观察` | `无信号` | 指标未形成、EMA 与 Supertrend 不一致，或趋势排列存在但最近 3 根 K 线内无新触发。 |
-| `风险退出` | `普通信号` | `EMA9 < EMA26`，Supertrend 空头，且最近 2-3 根 K 线内出现空头触发。 |
-| `风险退出` | `强信号` | `EMA9 < EMA26`，Supertrend 空头，且最近 0-1 根 K 线内出现空头触发。 |
-
-信号形态：
-
-| pattern | 判定规则 | 输出口径 |
-|-------|----------|----------|
-| `趋势共振` | 原 EMA9/26 + Supertrend 趋势共振。 | 顺势突破或退出信号。 |
-| `反转确认` | 超买/超卖、MACD 背离或 BOLL 极端位置出现后，至少 2 个辅助因子确认同一方向。 | 底部反转关注或顶部风险退出。 |
-| `趋势修复` | 趋势未破坏，价格回踩后重新收复 EMA9，或反抽后重新跌回 EMA9，并至少 2 个辅助因子确认。 | 趋势修复关注或反抽失败风险。 |
+| `趋势买入` | `强信号` | `EMA9 > EMA26`，Supertrend 多头，且最近 0-1 根 K 线内出现多头触发。 |
+| `趋势买入` | `普通信号` | `EMA9 > EMA26`，Supertrend 多头，且最近 2-3 根 K 线内出现多头触发。 |
+| `趋势退出` | `强信号` | `EMA9 < EMA26`，Supertrend 空头，且最近 0-1 根 K 线内出现空头触发。 |
+| `趋势退出` | `普通信号` | `EMA9 < EMA26`，Supertrend 空头，且最近 2-3 根 K 线内出现空头触发。 |
+| `反转买入` / `反转退出` | `普通信号` | 超买/超卖、BOLL 极端、资金流极端或 MACD 背离触发，至少 2 个方向确认因子，且至少 3 个辅助因子支持同一方向。 |
+| `反转买入` / `反转退出` | `强信号` | 满足反转普通信号条件，同时 `context.overall_bias=supportive`，且至少 4 个辅助因子支持同一方向。 |
+| `修复买入` / `修复退出` | `普通信号` | 原趋势方向未破坏但趋势信号已过期，价格回踩收复 EMA9 或反抽跌回 EMA9，`context.overall_bias=supportive`，且至少 3 个辅助因子支持同一方向。 |
+| `修复买入` / `修复退出` | `强信号` | 满足修复普通信号条件，且至少 4 个辅助因子支持同一方向。 |
+| `观察` | `观察` | 指标未形成、EMA 与 Supertrend 不一致、趋势排列存在但最近 3 根 K 线内无新触发，或反转/修复确认不足。 |
 
 若多个形态同时命中，先按 `strength` 强弱选择，再按 `bars_since_signal` 新旧选择，最后按 `趋势共振 > 反转确认 > 趋势修复` 稳定排序。
 
@@ -331,9 +325,9 @@ MFI 解释规则：
 
 入选 `focus` 的规则：
 
-- `decision.intent` 为 `买入关注` 或 `风险退出`。
+- `decision.signal` 为 `趋势买入`、`反转买入`、`修复买入`、`趋势退出`、`反转退出` 或 `修复退出`。
 - `decision.strength` 为 `强信号` 或 `普通信号`，且 `signal_status` 为 `new` 或 `active`。
-- `decision.strength=无信号` 或 `decision.intent=观察` 默认不进入 `focus`。
+- `decision.strength=观察` 或 `decision.signal=观察` 默认不进入 `focus`。
 - `signal_status=stale` 的买卖信号默认不进入 `focus`。
 - 扫描失败的标的不进入 `focus`，只进入 `errors`。
 - 默认扫描结果省略空值字段，并从 `context.factors` 中省略 `neutral` / `none` 因子；完整上下文用 `--full-context`。
@@ -345,7 +339,7 @@ MFI 解释规则：
 
 排序规则：
 
-1. `decision.strength`：`强信号` 优先，其次 `普通信号`，最后 `无信号`。
+1. `decision.strength`：`强信号` 优先，其次 `普通信号`，最后 `观察`。
 2. `context.overall_bias`：`supportive`、`mixed`、`risky`、`conflicting`。
 3. `decision.bars_since_signal`：信号越新越靠前；空值按最老处理。
 

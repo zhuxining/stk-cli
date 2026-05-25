@@ -49,7 +49,7 @@
 
 | 代码 | 名称 | 信号 | 新鲜度 | 关键依据 | 风控 | 明日动作 |
 |------|------|------|--------|----------|------|----------|
-| {symbol} | {name} | {intent}/{strength}/{pattern} | {signal_status}/{bars_since_signal}K | {1句原因} | {按风控口径} | {固定动作口径} |
+| {symbol} | {name} | {signal}/{strength} | {signal_status}/{bars_since_signal}K | {1句原因} | {按风控口径} | {固定动作口径} |
 
 ### 强信号复核
 

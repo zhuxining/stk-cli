@@ -18,7 +18,7 @@ from stk.models.scan import (
 )
 from stk.models.score import (
     ContextBias,
-    DecisionIntent,
+    DecisionSignal,
     FactorState,
     ScoreResult,
     SignalContext,
@@ -30,11 +30,13 @@ from stk.services.score import calc_score
 from stk.services.watchlist import get_watchlist
 from stk.utils.symbol import to_longport_symbol
 
-_FOCUS_INTENTS: set[DecisionIntent] = {"买入关注", "风险退出"}
+_ENTRY_SIGNALS: set[DecisionSignal] = {"趋势买入", "反转买入", "修复买入"}
+_EXIT_SIGNALS: set[DecisionSignal] = {"趋势退出", "反转退出", "修复退出"}
+_FOCUS_SIGNALS = _ENTRY_SIGNALS | _EXIT_SIGNALS
 _FOCUS_STRENGTHS: set[SignalStrength] = {"强信号", "普通信号"}
 _STRONG_STRENGTHS: set[SignalStrength] = {"强信号"}
 _ACTIVE_SIGNAL_STATUSES = {"new", "active"}
-_STRENGTH_RANK: dict[SignalStrength, int] = {"强信号": 0, "普通信号": 1, "无信号": 2}
+_STRENGTH_RANK: dict[SignalStrength, int] = {"强信号": 0, "普通信号": 1, "观察": 2}
 _BIAS_RANK: dict[ContextBias, int] = {
     "supportive": 0,
     "mixed": 1,
@@ -151,7 +153,7 @@ def _score_symbols(
 def _should_focus(score: ScoreResult) -> bool:
     decision = score.decision
     return (
-        decision.intent in _FOCUS_INTENTS
+        decision.signal in _FOCUS_SIGNALS
         and decision.strength in _FOCUS_STRENGTHS
         and decision.signal_status in _ACTIVE_SIGNAL_STATUSES
     )
@@ -211,9 +213,9 @@ def _summary(focus: list[FocusItem]) -> MonitorSummary:
     return MonitorSummary(
         focus_count=len(focus),
         strong_signal_count=sum(item.decision.strength in _STRONG_STRENGTHS for item in focus),
-        entry_signal_count=sum(item.decision.intent == "买入关注" for item in focus),
-        exit_signal_count=sum(item.decision.intent == "风险退出" for item in focus),
-        watch_signal_count=sum(item.decision.intent == "观察" for item in focus),
+        entry_signal_count=sum(item.decision.signal in _ENTRY_SIGNALS for item in focus),
+        exit_signal_count=sum(item.decision.signal in _EXIT_SIGNALS for item in focus),
+        watch_signal_count=sum(item.decision.signal == "观察" for item in focus),
     )
 
 

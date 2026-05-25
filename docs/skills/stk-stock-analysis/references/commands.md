@@ -95,14 +95,14 @@ stk stock scan 600519 --full-context
 - `run_date`: 本次运行日期。
 - `universe`: `name`、`total`、`scanned`、`failed`。
 - `summary`: `focus_count`、`strong_signal_count`、`entry_signal_count`、`exit_signal_count`、`watch_signal_count`。
-- `focus[]`: 重点关注标的列表，默认只包含可行动的 `买入关注` / `风险退出`。
+- `focus[]`: 重点关注标的列表，默认只包含可行动的买入或退出信号。
 - `ignored`: `no_signal_count`。
 - `errors[]`: 单标的非致命错误。
 
 `focus[]` 中每个 `FocusItem` 含：
 
 - 展示字段：`symbol`、`name`、`last`、`change_pct`、`source`。
-- `decision`: `intent`、`strength`、`pattern`、`signal_status`、`signal_date`、`bars_since_signal`。
+- `decision`: `signal`、`strength`、`signal_status`、`signal_date`、`bars_since_signal`。
 - `primary_signal`: `ema_cross`、`ema9`、`ema26`、`supertrend`、`supertrend_direction`、`adx`、`reasons`。
 - `context`: `overall_bias`、`factors[]`、`warnings[]`；默认省略 `neutral` / `none` 因子，需要完整复盘时加 `--full-context`。
 - `risk`: `atr`、`stop_loss`、`take_profit`、`risk_reward_ratio`、`risk_level`。
@@ -111,12 +111,11 @@ stk stock scan 600519 --full-context
 有效信号口径：
 
 - 主策略：`EMA9/EMA26 + Supertrend(ATR10 x2.5)`，并补充保守确认后的反转、修复形态。
-- `intent`: `买入关注` / `风险退出` / `观察`。
-- `strength`: `强信号` / `普通信号` / `无信号`。
-- `pattern`: `趋势共振` / `反转确认` / `趋势修复`。
-- `风险退出` 表示减仓、退出或风险预警，不表达做空建议。
+- `signal`: `趋势买入` / `趋势退出` / `反转买入` / `反转退出` / `修复买入` / `修复退出` / `观察`。
+- `strength`: `强信号` / `普通信号` / `观察`。
+- 退出类信号表示减仓、退出或风险预警，不表达做空建议。
 - `primary_signal.adx < 20` 表示趋势强度偏弱，`>=25` 表示趋势质量较好；ADX 不直接改变 `strength`。
-- `风险退出` 中的 `risk.stop_loss` 表示上方失效线，`risk.take_profit` 表示下行风险参考，不代表做空建议。
+- 退出类信号中的 `risk.stop_loss` 表示上方失效线，`risk.take_profit` 表示下行风险参考，不代表做空建议。
 - `观察` 默认不进入 `focus`，只计入 `ignored.no_signal_count`；不要升级成买入、卖出或加仓建议。
 
 辅助因子读取口径：
@@ -201,7 +200,7 @@ stk stock scan 600519 --full-context
 
 - 当前命令没有 `--sort` 参数。
 - 默认只展开 `focus` 重点关注标的。
-- 无信号标的进入 `ignored.no_signal_count`，不返回逐只明细。
+- 观察标的进入 `ignored.no_signal_count`，不返回逐只明细。
 
 ### `stk watchlist kline <group>`
 

@@ -10,7 +10,7 @@ from stk.models.score import (
     ContextBias,
     ContextFactor,
     Decision,
-    DecisionIntent,
+    DecisionSignal,
     FactorState,
     PrimarySignal,
     RiskProfile,
@@ -26,7 +26,7 @@ def _score_result(
     symbol: str,
     *,
     strength: SignalStrength,
-    intent: DecisionIntent,
+    signal: DecisionSignal,
     status: SignalStatus,
     bias: ContextBias = "supportive",
     factor_state: FactorState = "confirming",
@@ -35,19 +35,18 @@ def _score_result(
     return ScoreResult(
         symbol=symbol,
         decision=Decision(
-            intent=intent,
+            signal=signal,
             strength=strength,
-            pattern="趋势共振",
             signal_status=status,
             signal_date="2026-05-12",
             bars_since_signal=bars_since_signal,
         ),
         primary_signal=PrimarySignal(
-            ema_cross="death" if intent == "风险退出" else "golden",
+            ema_cross="death" if "退出" in signal else "golden",
             ema9=10,
             ema26=9,
             supertrend=8,
-            supertrend_direction="bearish" if intent == "风险退出" else "bullish",
+            supertrend_direction="bearish" if "退出" in signal else "bullish",
             adx=25,
             reasons=["test reason"],
         ),
@@ -144,13 +143,13 @@ def test_batch_summary_returns_focus_only(mock_score, mock_daily, mock_quotes):
             return _score_result(
                 symbol,
                 strength="强信号",
-                intent="买入关注",
+                signal="趋势买入",
                 status="new",
             )
         return _score_result(
             symbol,
-            strength="无信号",
-            intent="观察",
+            strength="观察",
+            signal="观察",
             status="stale",
             bias="mixed",
             factor_state="neutral",
@@ -169,8 +168,15 @@ def test_batch_summary_returns_focus_only(mock_score, mock_daily, mock_quotes):
     assert result.ignored.no_signal_count == 1
     assert result.errors[0].symbol == "300750.SZ"
     assert result.focus[0].symbol == "600519.SH"
-    assert result.focus[0].decision.intent == "买入关注"
-    assert {item.decision.intent for item in result.focus} <= {"买入关注", "风险退出"}
+    assert result.focus[0].decision.signal == "趋势买入"
+    assert {item.decision.signal for item in result.focus} <= {
+        "趋势买入",
+        "反转买入",
+        "修复买入",
+        "趋势退出",
+        "反转退出",
+        "修复退出",
+    }
     assert result.focus[0].daily10 is None
     mock_daily.assert_not_called()
 
@@ -185,7 +191,7 @@ def test_batch_summary_includes_daily10_when_requested(mock_score, mock_daily, m
     mock_score.return_value = _score_result(
         "600519.SH",
         strength="强信号",
-        intent="买入关注",
+        signal="趋势买入",
         status="new",
     )
 
@@ -203,7 +209,7 @@ def test_batch_summary_compacts_context_by_default(mock_score, mock_quotes):
     score = _score_result(
         "600519.SH",
         strength="强信号",
-        intent="买入关注",
+        signal="趋势买入",
         status="new",
     )
     score.context.factors = [
@@ -233,8 +239,8 @@ def test_hold_with_risk_context_is_ignored(mock_score, mock_quotes):
     mock_quotes.return_value = []
     mock_score.return_value = _score_result(
         "000001.SZ",
-        strength="无信号",
-        intent="观察",
+        strength="观察",
+        signal="观察",
         status="stale",
         bias="risky",
         factor_state="risk",
@@ -256,8 +262,8 @@ def test_old_hold_with_single_risk_context_is_ignored(mock_score, mock_quotes):
     mock_quotes.return_value = []
     mock_score.return_value = _score_result(
         "000001.SZ",
-        strength="无信号",
-        intent="观察",
+        strength="观察",
+        signal="观察",
         status="stale",
         bias="risky",
         factor_state="risk",

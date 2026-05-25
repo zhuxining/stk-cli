@@ -4,11 +4,19 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-type SignalStrength = Literal["强信号", "普通信号", "无信号"]
+type SignalStrength = Literal["强信号", "普通信号", "观察"]
 type TrendDirection = Literal["bullish", "bearish", "neutral"]
 type EmaCross = Literal["golden", "death"]
 type SupertrendFlip = Literal["bullish", "bearish"]
-type DecisionIntent = Literal["买入关注", "风险退出", "观察"]
+type DecisionSignal = Literal[
+    "趋势买入",
+    "趋势退出",
+    "反转买入",
+    "反转退出",
+    "修复买入",
+    "修复退出",
+    "观察",
+]
 type SignalStatus = Literal["new", "active", "stale"]
 type SignalPattern = Literal["趋势共振", "反转确认", "趋势修复"]
 type ContextBias = Literal["supportive", "mixed", "conflicting", "risky"]
@@ -37,9 +45,8 @@ class TrendSignal(BaseModel):
 class Decision(BaseModel):
     """Monitoring decision used to select focus symbols."""
 
-    intent: DecisionIntent
+    signal: DecisionSignal
     strength: SignalStrength
-    pattern: SignalPattern
     signal_status: SignalStatus
     signal_date: str | None = None
     bars_since_signal: int | None = None

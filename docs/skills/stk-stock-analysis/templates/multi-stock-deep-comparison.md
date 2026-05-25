@@ -15,7 +15,7 @@
 ## 分析方法
 
 - 先按 `focus` 过滤，无明确信号标的只进入统计或一句提醒。
-- 横向比较信号强弱：`decision.intent`、`decision.strength`、`decision.pattern`、`signal_status`、`bars_since_signal`。
+- 横向比较信号强弱：`decision.signal`、`decision.strength`、`signal_status`、`bars_since_signal`。
 - 信号质量比较：主信号是否新鲜、ADX 是否支持、`context.overall_bias` 是否冲突。
 - 风险收益比较：`risk_reward_ratio`、`risk_level`、`stop_loss` 距离、`take_profit` 参考。
 - 辅助因子比较：只挑每只股票最重要的确认/冲突/风险因子，不堆指标。
@@ -34,7 +34,7 @@
 
 | 代码 | 名称 | 信号 | 新鲜度 | 辅助态度 | 风控 | 结论 |
 |------|------|------|--------|----------|------|------|
-| {symbol} | {name} | {intent}/{strength}/{pattern} | {signal_status}/{bars_since_signal}K | {overall_bias} | {按风控口径} | {跟踪突破/等待回踩/风险退出/仅观察/暂不处理} |
+| {symbol} | {name} | {signal}/{strength} | {signal_status}/{bars_since_signal}K | {overall_bias} | {按风控口径} | {跟踪突破/等待回踩/风险退出/仅观察/暂不处理} |
 
 ## 关键差异
 
@@ -52,5 +52,5 @@
 
 ## 统计
 
-扫描 {scanned}/{total} | 重点关注 {focus_count} | 强信号 {strong_signal_count} | 买入信号 {entry_signal_count} | 退出/风险 {exit_signal_count} | 观察 {watch_signal_count} | 无信号 {no_signal_count} | 失败 {failed}
+扫描 {scanned}/{total} | 重点关注 {focus_count} | 强信号 {strong_signal_count} | 买入信号 {entry_signal_count} | 退出/风险 {exit_signal_count} | 观察 {watch_signal_count} | 未入选 {no_signal_count} | 失败 {failed}
 ```

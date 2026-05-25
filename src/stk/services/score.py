@@ -11,7 +11,7 @@ from stk.models.score import (
     ContextBias,
     ContextFactor,
     Decision,
-    DecisionIntent,
+    DecisionSignal,
     EmaCross,
     FactorState,
     MetricValue,
@@ -34,9 +34,12 @@ _EMA_FAST = 9
 _EMA_SLOW = 26
 _RESONANCE_WINDOW = 3
 _MIN_HISTORY = 30
-_CONFIRMATION_THRESHOLD = 2
+_REVERSAL_SUPPORT_THRESHOLD = 3
+_REVERSAL_CONFIRMATION_THRESHOLD = 2
+_REPAIR_SUPPORT_THRESHOLD = 3
+_STRONG_SETUP_SUPPORT_THRESHOLD = 4
 _PATTERN_RANK: dict[SignalPattern, int] = {"趋势共振": 0, "反转确认": 1, "趋势修复": 2}
-_STRENGTH_RANK: dict[SignalStrength, int] = {"强信号": 0, "普通信号": 1, "无信号": 2}
+_STRENGTH_RANK: dict[SignalStrength, int] = {"强信号": 0, "普通信号": 1, "观察": 2}
 _TRADE_DIRECTIONS: tuple[TrendDirection, TrendDirection] = ("bullish", "bearish")
 _REVERSAL_TRIGGER_FACTORS = {"momentum", "boll", "money_flow", "divergence"}
 _CONFIRMATION_FACTORS = _REVERSAL_TRIGGER_FACTORS | {"macd", "ema_trend", "volume_price"}
@@ -187,7 +190,7 @@ def _build_trend_signal(
 
     if ema9 is None or ema26 is None or supertrend is None:
         return TrendSignal(
-            strength="无信号",
+            strength="观察",
             direction="neutral",
             ema9=ema9,
             ema26=ema26,
@@ -227,7 +230,7 @@ def _build_trend_signal(
         bear_flip_age=bear_flip_age,
     )
 
-    strength: SignalStrength = "无信号"
+    strength: SignalStrength = "观察"
     direction: TrendDirection = "neutral"
     signal_age: int | None = None
     ema_cross: EmaCross | None = None
@@ -297,23 +300,29 @@ def _signal_status(age: int | None) -> SignalStatus:
     return "stale"
 
 
-def _decision_intent(trend_signal: TrendSignal) -> DecisionIntent:
-    if trend_signal.strength == "无信号":
+def _decision_signal(trend_signal: TrendSignal) -> DecisionSignal:
+    if trend_signal.strength == "观察":
         return "观察"
-    match trend_signal.direction:
-        case "bullish":
-            return "买入关注"
-        case "bearish":
-            return "风险退出"
-        case _:
-            return "观察"
+    match trend_signal.pattern, trend_signal.direction:
+        case "趋势共振", "bullish":
+            return "趋势买入"
+        case "趋势共振", "bearish":
+            return "趋势退出"
+        case "反转确认", "bullish":
+            return "反转买入"
+        case "反转确认", "bearish":
+            return "反转退出"
+        case "趋势修复", "bullish":
+            return "修复买入"
+        case "趋势修复", "bearish":
+            return "修复退出"
+    return "观察"
 
 
 def _build_decision(trend_signal: TrendSignal) -> Decision:
     return Decision(
-        intent=_decision_intent(trend_signal),
+        signal=_decision_signal(trend_signal),
         strength=trend_signal.strength,
-        pattern=trend_signal.pattern,
         signal_status=_signal_status(trend_signal.bars_since_signal),
         signal_date=trend_signal.signal_date,
         bars_since_signal=trend_signal.bars_since_signal,
@@ -337,10 +346,6 @@ def _build_primary_signal(trend_signal: TrendSignal, *, adx: float | None) -> Pr
         adx=adx,
         reasons=reasons,
     )
-
-
-def _signal_strength_for_direction(direction: TrendDirection) -> SignalStrength:
-    return "无信号" if direction == "neutral" else "强信号"
 
 
 def _supporting_factor_names(
@@ -385,10 +390,11 @@ def _setup_signal(
     *,
     pattern: SignalPattern,
     direction: TrendDirection,
+    strength: SignalStrength,
     reasons: list[str],
 ) -> TrendSignal:
     return TrendSignal(
-        strength=_signal_strength_for_direction(direction),
+        strength=strength,
         direction=direction,
         pattern=pattern,
         signal_date=_event_date(df, 0),
@@ -411,10 +417,19 @@ def _build_reversal_signal(
     triggers = _reversal_trigger_names(context, direction=direction)
     supports = _supporting_factor_names(context, direction=direction)
     confirmations = _directional_confirmation_names(context)
-    if not triggers or not confirmations or len(supports) < _CONFIRMATION_THRESHOLD:
+    if (
+        not triggers
+        or len(confirmations) < _REVERSAL_CONFIRMATION_THRESHOLD
+        or len(supports) < _REVERSAL_SUPPORT_THRESHOLD
+    ):
         return None
 
     direction_text = "底部反转" if direction == "bullish" else "顶部反转"
+    strength: SignalStrength = (
+        "强信号"
+        if context.overall_bias == "supportive" and len(supports) >= _STRONG_SETUP_SUPPORT_THRESHOLD
+        else "普通信号"
+    )
     reasons = [
         f"{direction_text}信号：{', '.join(triggers)} 出现极端提示",
         f"辅助确认达到 {len(supports)} 项：{', '.join(supports)}",
@@ -424,6 +439,7 @@ def _build_reversal_signal(
         base_signal,
         pattern="反转确认",
         direction=direction,
+        strength=strength,
         reasons=reasons,
     )
 
@@ -477,7 +493,7 @@ def _build_repair_signal(
     low_arr: np.ndarray,
     ema9_arr: np.ndarray,
 ) -> TrendSignal | None:
-    if base_signal.strength != "无信号" or base_signal.direction != direction:
+    if base_signal.strength != "观察" or base_signal.direction != direction:
         return None
     if not _has_repair_trigger(
         direction=direction,
@@ -489,9 +505,12 @@ def _build_repair_signal(
         return None
 
     supports = _supporting_factor_names(context, direction=direction)
-    if len(supports) < _CONFIRMATION_THRESHOLD:
+    if context.overall_bias != "supportive" or len(supports) < _REPAIR_SUPPORT_THRESHOLD:
         return None
 
+    strength: SignalStrength = (
+        "强信号" if len(supports) >= _STRONG_SETUP_SUPPORT_THRESHOLD else "普通信号"
+    )
     reason = (
         "多头趋势未破坏，回踩后重新收复 EMA9"
         if direction == "bullish"
@@ -502,6 +521,7 @@ def _build_repair_signal(
         base_signal,
         pattern="趋势修复",
         direction=direction,
+        strength=strength,
         reasons=[
             f"修复信号：{reason}",
             f"辅助确认达到 {len(supports)} 项：{', '.join(supports)}",
