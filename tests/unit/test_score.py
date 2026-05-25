@@ -10,6 +10,7 @@ import pytest
 
 from stk.errors import IndicatorError
 from stk.models.history import Candlestick
+from stk.models.score import ContextFactor, FactorState, SignalContext
 from stk.services.score import _calc_money_flow_factor, calc_score
 
 
@@ -50,6 +51,38 @@ def _stale_bullish_candles() -> list[Candlestick]:
     return _candles_from_closes(closes)
 
 
+def _setup_context(
+    *,
+    trigger_name: str | None = None,
+    trigger_state: FactorState = "opportunity",
+    confirming: tuple[str, ...] = (),
+) -> SignalContext:
+    factors = [
+        ContextFactor(name=name, state="confirming", metrics={"bias": "confirming"})
+        for name in confirming
+    ]
+    if trigger_name is not None:
+        factors.insert(
+            0,
+            ContextFactor(
+                name=trigger_name,
+                state=trigger_state,
+                metrics={"trigger": True},
+            ),
+        )
+    return SignalContext(overall_bias="supportive", factors=factors)
+
+
+def _neutral_context() -> SignalContext:
+    return SignalContext(
+        overall_bias="mixed",
+        factors=[
+            ContextFactor(name="momentum", state="neutral", metrics={"rsi_zone": "neutral"}),
+            ContextFactor(name="macd", state="neutral", metrics={"bias": "neutral"}),
+        ],
+    )
+
+
 @patch("stk.services.score.get_history")
 def test_calc_score_basic(mock_history, make_candles):
     """Test basic scoring returns the monitoring structure."""
@@ -58,8 +91,9 @@ def test_calc_score_basic(mock_history, make_candles):
     result = calc_score("600519")
 
     assert result.symbol == "600519"
-    assert result.decision.level in {"strong_buy", "buy", "hold", "sell", "strong_sell"}
-    assert result.decision.action in {"focus_buy", "focus_sell", "watch"}
+    assert result.decision.strength in {"强信号", "普通信号", "无信号"}
+    assert result.decision.intent in {"买入关注", "风险退出", "观察"}
+    assert result.decision.pattern in {"趋势共振", "反转确认", "趋势修复"}
     assert result.context.overall_bias in {"supportive", "mixed", "conflicting", "risky"}
     assert result.risk.risk_level in {"low", "medium", "high"}
 
@@ -130,13 +164,14 @@ def test_score_no_data(mock_history):
 
 @patch("stk.services.score.get_history")
 def test_strong_buy_signal(mock_history):
-    """EMA9 golden cross plus bullish Supertrend yields strong_buy."""
+    """EMA9 golden cross plus bullish Supertrend yields a strong buy focus."""
     mock_history.return_value = _strong_buy_candles()
 
     result = calc_score("600519")
 
-    assert result.decision.level == "strong_buy"
-    assert result.decision.action == "focus_buy"
+    assert result.decision.strength == "强信号"
+    assert result.decision.intent == "买入关注"
+    assert result.decision.pattern == "趋势共振"
     assert result.decision.signal_status == "new"
     assert result.decision.bars_since_signal == 0
     assert result.primary_signal.ema_cross == "golden"
@@ -144,13 +179,14 @@ def test_strong_buy_signal(mock_history):
 
 @patch("stk.services.score.get_history")
 def test_strong_sell_signal(mock_history):
-    """EMA9 death cross plus bearish Supertrend yields strong_sell."""
+    """EMA9 death cross plus bearish Supertrend yields a strong exit focus."""
     mock_history.return_value = _strong_sell_candles()
 
     result = calc_score("600519")
 
-    assert result.decision.level == "strong_sell"
-    assert result.decision.action == "focus_sell"
+    assert result.decision.strength == "强信号"
+    assert result.decision.intent == "风险退出"
+    assert result.decision.pattern == "趋势共振"
     assert result.decision.signal_status == "new"
     assert result.decision.bars_since_signal == 0
     assert result.primary_signal.ema_cross == "death"
@@ -173,15 +209,16 @@ def test_strong_sell_risk_points_are_bearish(mock_history):
     assert result.risk.risk_reward_ratio > 0
 
 
+@patch("stk.services.score._build_context", return_value=_neutral_context())
 @patch("stk.services.score.get_history")
-def test_mismatch_holds_signal(mock_history):
-    """EMA and Supertrend disagreement stays at hold level."""
+def test_mismatch_holds_signal(mock_history, _mock_context):
+    """EMA and Supertrend disagreement stays observational without a confirmed pattern."""
     mock_history.return_value = _mismatch_candles()
 
     result = calc_score("600519")
 
-    assert result.decision.level == "hold"
-    assert result.decision.action == "watch"
+    assert result.decision.strength == "无信号"
+    assert result.decision.intent == "观察"
     assert any("方向不一致" in reason for reason in result.primary_signal.reasons)
 
 
@@ -192,10 +229,111 @@ def test_old_cross_no_strong_signal(mock_history):
 
     result = calc_score("600519")
 
-    assert result.decision.level == "hold"
-    assert result.decision.action == "watch"
+    assert result.decision.strength == "无信号"
+    assert result.decision.intent == "观察"
     assert result.decision.signal_status == "stale"
     assert result.decision.bars_since_signal is None
+
+
+@patch("stk.services.score._build_context")
+@patch("stk.services.score.get_history")
+def test_bullish_reversal_signal_requires_two_confirmations(mock_history, mock_context):
+    """Bottom reversal pattern needs an extreme trigger plus confirmation."""
+    mock_history.return_value = _mismatch_candles()
+    bullish_context = _setup_context(
+        trigger_name="momentum",
+        trigger_state="opportunity",
+        confirming=("macd",),
+    )
+
+    def _context_side_effect(*_args, **kwargs) -> SignalContext:
+        return bullish_context if kwargs["direction"] == "bullish" else _neutral_context()
+
+    mock_context.side_effect = _context_side_effect
+
+    result = calc_score("600519")
+
+    assert result.decision.pattern == "反转确认"
+    assert result.decision.strength == "强信号"
+    assert result.decision.intent == "买入关注"
+    assert result.decision.signal_status == "new"
+
+
+@patch("stk.services.score._build_context")
+@patch("stk.services.score.get_history")
+def test_bearish_reversal_signal_requires_two_confirmations(mock_history, mock_context):
+    """Top reversal pattern maps to an exit/risk focus signal."""
+    mock_history.return_value = _mismatch_candles()
+    bearish_context = _setup_context(
+        trigger_name="boll",
+        trigger_state="risk",
+        confirming=("macd",),
+    )
+
+    def _context_side_effect(*_args, **kwargs) -> SignalContext:
+        return bearish_context if kwargs["direction"] == "bearish" else _neutral_context()
+
+    mock_context.side_effect = _context_side_effect
+
+    result = calc_score("600519")
+
+    assert result.decision.pattern == "反转确认"
+    assert result.decision.strength == "强信号"
+    assert result.decision.intent == "风险退出"
+
+
+@patch("stk.services.score._has_repair_trigger", return_value=True)
+@patch("stk.services.score._build_context")
+@patch("stk.services.score.get_history")
+def test_bullish_repair_signal_requires_two_confirmations(
+    mock_history,
+    mock_context,
+    _mock_repair_trigger,
+):
+    """Repair pattern confirms a pullback recovery without adding a redundant field."""
+    mock_history.return_value = _stale_bullish_candles()
+    repair_context = _setup_context(confirming=("macd", "ema_trend"))
+
+    def _context_side_effect(*_args, **kwargs) -> SignalContext:
+        return repair_context if kwargs["direction"] == "bullish" else _neutral_context()
+
+    mock_context.side_effect = _context_side_effect
+
+    result = calc_score("600519")
+
+    assert result.decision.pattern == "趋势修复"
+    assert result.decision.strength == "强信号"
+    assert result.decision.intent == "买入关注"
+
+
+@patch("stk.services.score._build_context")
+@patch("stk.services.score.get_history")
+def test_single_reversal_trigger_stays_watch(mock_history, mock_context):
+    """Single oversold/divergence style triggers do not become focus signals."""
+    mock_history.return_value = _mismatch_candles()
+    weak_context = _setup_context(trigger_name="divergence", trigger_state="opportunity")
+
+    def _context_side_effect(*_args, **kwargs) -> SignalContext:
+        return weak_context if kwargs["direction"] == "bullish" else _neutral_context()
+
+    mock_context.side_effect = _context_side_effect
+
+    result = calc_score("600519")
+
+    assert result.decision.pattern == "趋势共振"
+    assert result.decision.intent == "观察"
+
+
+@patch("stk.services.score._build_context", return_value=_neutral_context())
+@patch("stk.services.score.get_history")
+def test_neutral_context_stays_watch(mock_history, _mock_context):
+    """Pure neutral context does not create a synthetic pattern."""
+    mock_history.return_value = _mismatch_candles()
+
+    result = calc_score("600519")
+
+    assert result.decision.pattern == "趋势共振"
+    assert result.decision.intent == "观察"
 
 
 @patch("stk.services.score.get_history")

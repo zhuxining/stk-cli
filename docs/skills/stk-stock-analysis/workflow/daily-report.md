@@ -67,7 +67,7 @@ stk stock scan <symbols...>
 - 每个 watchlist 分组生成一行统计。
 - 只展开 `MonitorResult.focus`；无信号标的只进入统计。
 - 合并所有分组的 focus 生成明日动作。
-- 强信号标的若有 `daily10`，补一句近 10 日复核。
+- 默认扫描不带 `--daily10`；只有用户要求近 10 日复核时，才带 `--daily10` 并补一句复核。
 
 ### 多股深入对比
 

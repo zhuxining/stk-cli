@@ -81,36 +81,43 @@
 
 ```bash
 stk stock scan 600519 000001 700.HK
+stk stock scan 600519 --daily10
+stk stock scan 600519 --full-context
 ```
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--daily10` | `false` | 为强信号且辅助态度不冲突的标的补充最近 10 根压缩日线。默认关闭，避免批量扫描输出过大。 |
+| `--full-context` | `false` | 输出完整辅助因子，包括 `neutral` 和 `none`。默认仅保留有判断价值的因子，减少批量扫描输出。 |
 
 返回 `MonitorResult`：
 
 - `run_date`: 本次运行日期。
 - `universe`: `name`、`total`、`scanned`、`failed`。
 - `summary`: `focus_count`、`strong_signal_count`、`entry_signal_count`、`exit_signal_count`、`watch_signal_count`。
-- `focus[]`: 重点关注标的列表。
+- `focus[]`: 重点关注标的列表，默认只包含可行动的 `买入关注` / `风险退出`。
 - `ignored`: `no_signal_count`。
 - `errors[]`: 单标的非致命错误。
 
 `focus[]` 中每个 `FocusItem` 含：
 
 - 展示字段：`symbol`、`name`、`last`、`change_pct`、`source`。
-- `decision`: `action`、`level`、`signal_status`、`signal_date`、`bars_since_signal`。
+- `decision`: `intent`、`strength`、`pattern`、`signal_status`、`signal_date`、`bars_since_signal`。
 - `primary_signal`: `ema_cross`、`ema9`、`ema26`、`supertrend`、`supertrend_direction`、`adx`、`reasons`。
-- `context`: `overall_bias`、`factors[]`、`warnings[]`；每个 factor 读取 `state` 与 `metrics`。
+- `context`: `overall_bias`、`factors[]`、`warnings[]`；默认省略 `neutral` / `none` 因子，需要完整复盘时加 `--full-context`。
 - `risk`: `atr`、`stop_loss`、`take_profit`、`risk_reward_ratio`、`risk_level`。
-- `daily10`: 仅强信号且辅助态度不冲突的标的补充最近 10 根压缩日线，用于复核价格结构和指标变化。
+- `daily10`: 仅在传入 `--daily10` 且标的为强信号、辅助态度不冲突时出现，用于复核价格结构和指标变化。
 
 有效信号口径：
 
-- 主策略：`EMA9/EMA26 + Supertrend(ATR10 x2.5)`。
-- `level`: `strong_buy` / `buy` / `hold` / `sell` / `strong_sell`。
-- `action`: `focus_buy` / `focus_sell` / `watch`。
-- `sell` 与 `strong_sell` 表示减仓、退出或风险预警，不表达做空建议。
-- `primary_signal.adx < 20` 表示趋势强度偏弱，`>=25` 表示趋势质量较好；ADX 不直接改变 `level`。
-- `focus_sell` 中的 `risk.stop_loss` 表示上方失效线，`risk.take_profit` 表示下行风险参考，不代表做空建议。
-- `hold` + `watch` 只表示风险、机会或预警观察；不要升级成买入、卖出或加仓建议。
-- 陈旧 `hold` 只有明确上下文风险或机会时才会进入 `focus`，报告中应降为仅观察。
+- 主策略：`EMA9/EMA26 + Supertrend(ATR10 x2.5)`，并补充保守确认后的反转、修复形态。
+- `intent`: `买入关注` / `风险退出` / `观察`。
+- `strength`: `强信号` / `普通信号` / `无信号`。
+- `pattern`: `趋势共振` / `反转确认` / `趋势修复`。
+- `风险退出` 表示减仓、退出或风险预警，不表达做空建议。
+- `primary_signal.adx < 20` 表示趋势强度偏弱，`>=25` 表示趋势质量较好；ADX 不直接改变 `strength`。
+- `风险退出` 中的 `risk.stop_loss` 表示上方失效线，`risk.take_profit` 表示下行风险参考，不代表做空建议。
+- `观察` 默认不进入 `focus`，只计入 `ignored.no_signal_count`；不要升级成买入、卖出或加仓建议。
 
 辅助因子读取口径：
 
@@ -124,12 +131,12 @@ stk stock scan 600519 000001 700.HK
 | `money_flow` | `mfi14`、`mfi_zone` | 结合主方向判断资金流强弱和过热风险。 |
 | `divergence` | `type`、`lookback`、`price_distance_pct`、`hist_delta` | 判断 MACD 顶/底背离，只作为风险或机会提示。 |
 
-`daily10` 压缩日线字段：
+`daily10` 压缩日线字段（需显式传入 `--daily10`）：
 
 - 价格量能：`date`、`open`、`high`、`low`、`close`、`volume`、`turnover`、`change_pct`。
 - 主信号：`ema9`、`ema26`、`supertrend`、`supertrend_direction`。
 - 辅助指标：`macd`、`macd_signal`、`macd_hist`、`rsi14`、`j`、`boll_position_pct`、`atr10`。
-- 使用方式：复核信号出现在第几根 K 线、触发后是否延续、是否放量、是否过热，不用 `daily10` 重新计算 `decision.level`。
+- 使用方式：复核信号出现在第几根 K 线、触发后是否延续、是否放量、是否过热，不用 `daily10` 重新计算 `decision.strength`。
 
 ### `stk stock kline <symbols...>`
 
@@ -184,6 +191,11 @@ stk stock scan 600519 000001 700.HK
 ### `stk watchlist scan <group>`
 
 对 watchlist 分组做每日监控，返回 `MonitorResult`。输出结构与 `stk stock scan <symbols...>` 相同。
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--daily10` | `false` | 为强信号且辅助态度不冲突的标的补充最近 10 根压缩日线。默认关闭。 |
+| `--full-context` | `false` | 输出完整辅助因子，包括 `neutral` 和 `none`。默认精简。 |
 
 注意：
 

@@ -81,13 +81,27 @@ def fundamental(
 @app.command()
 def scan(
     symbols: list[str] = typer.Argument(help="One or more symbols (e.g. 600519 000001 700.HK)"),
+    daily10: bool = typer.Option(
+        False,
+        "--daily10",
+        help="Include recent 10-day compact K-line supplement for strong signals",
+    ),
+    full_context: bool = typer.Option(
+        False,
+        "--full-context",
+        help="Include neutral/no-signal context factors in scan output",
+    ),
 ) -> None:
     """Daily monitor symbols and return focus candidates."""
     from stk.services.scan import batch_summary
     from stk.utils.symbol import expand_symbols
 
-    result = batch_summary(expand_symbols(symbols))
-    output.render(result)
+    result = batch_summary(
+        expand_symbols(symbols),
+        include_daily10=daily10,
+        include_full_context=full_context,
+    )
+    output.render(result, exclude_none=True)
 
 
 @app.command()

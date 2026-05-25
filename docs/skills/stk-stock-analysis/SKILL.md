@@ -21,24 +21,27 @@ compatibility:
 
 ## 核心口径
 
-- 主信号：`EMA9/EMA26 + Supertrend(ATR10 x2.5)`，日线收盘确认。
+- 主信号：`EMA9/EMA26 + Supertrend(ATR10 x2.5)`，并补充保守确认后的反转、修复形态，日线收盘确认。
 - 有效窗口：最近 3 根 K 线内出现 EMA 交叉或 Supertrend 翻转，且方向一致。
-- 批量扫描：只展开 `MonitorResult.focus`；无信号标的只统计 `ignored.no_signal_count`。
+- 批量扫描：只展开 `MonitorResult.focus`；`观察` 和无信号标的只统计 `ignored.no_signal_count`。
 - 单标的解读：以 `decision` 下结论，以 `primary_signal` 给依据，以 `context` 和 `risk` 做补充。
-- 辅助因子读取 `context.factors[].state` 与 `context.factors[].metrics`。
-- 强信号标的若包含 `daily10`，用最近 10 根压缩日线复核信号发生位置和短期指标变化。
-- `sell` / `strong_sell` 只表示减仓、退出或风险预警，不表达做空建议。
-- `hold` / `watch` 只表示风险、机会或波动提示；不写成买入、卖出或加仓建议。
-- `focus_sell` 的 `risk.stop_loss` 是上方失效线，`risk.take_profit` 是下行风险参考。
+- `decision.intent` 表示处理意图，取值为 `买入关注`、`风险退出`、`观察`。
+- `decision.strength` 表示强弱，取值为 `强信号`、`普通信号`、`无信号`。
+- `decision.pattern` 表示信号来源，取值为 `趋势共振`、`反转确认`、`趋势修复`。
+- 辅助因子读取 `context.factors[].state` 与 `context.factors[].metrics`；默认扫描结果已省略 `neutral` / `none` 因子，完整复盘时给命令加 `--full-context`。
+- `daily10` 默认不返回；只有命令显式传入 `--daily10` 后，强信号标的才可能包含最近 10 根压缩日线。
+- `风险退出` 只表示减仓、退出或风险预警，不表达做空建议。
+- `观察` 默认不会进入批量扫描 `focus`；单标的解读时也只作为风险、机会或波动提示，不写成买入、卖出或加仓建议。
+- `风险退出` 的 `risk.stop_loss` 是上方失效线，`risk.take_profit` 是下行风险参考。
 
-- 信号级别：`strong_buy`(0-1K/多头强共振) → `buy`(2-3K) → `hold`(无效/过期/冲突) → `sell`(2-3K/空头) → `strong_sell`(0-1K/空头强)
+- 信号强弱：`强信号`(0-1K 或反转/修复确认) → `普通信号`(2-3K) → `无信号`(无效/过期/冲突)。
 
 ## 分析步骤
 
 按固定证据链分析，避免只复述字段。
 
 1. **先看入选理由**：`focus` 代表需要关注；非 `focus` 不展开，不把 `ignored.no_signal_count` 解释成负面基本面。
-2. **先下结论**：用 `decision.level`、`action`、`signal_status` 判断今天的动作强度。
+2. **先下结论**：用 `decision.intent`、`strength`、`pattern`、`signal_status` 判断今天的处理意图、强度与信号来源。
 3. **验证主信号**：用 `primary_signal.ema_cross`、`ema9/ema26`、`supertrend_direction`、`reasons` 说明触发来源；`bars_since_signal` 越小，信号越新。
 4. **校验辅助因子**：统计 `context.factors` 中 `confirming`、`conflicting`、`risk`、`opportunity` 的数量和名称，再读对应 `metrics` 给出原因。
 5. **复核强信号标的**：有 `daily10` 时，检查最近 10 日价格是否贴近信号日、量能是否配合、RSI/J 是否过热、BOLL 位置是否过高、ATR 风险是否放大。
@@ -52,7 +55,7 @@ compatibility:
 - `mixed`：信号可关注，但需要等待价格或量能继续确认。
 - `risky`：方向未必错，但有过热、缩量、布林收窄、资金流转弱等风险，避免追高。
 - `conflicting`：辅助因子明显冲突，即使主信号成立，也要降低措辞强度。
-- `decision.level=hold` 且 `action=watch`：只解释进入观察的风险或机会原因；若 `bars_since_signal` 很大或为空，明确写成陈旧趋势/左侧观察。
+- `decision.intent=观察` 或 `decision.strength=无信号`：批量扫描中不展开；单标的解读时只解释风险或机会原因，若 `bars_since_signal` 很大或为空，明确写成陈旧趋势/左侧观察。
 - `RSI` 只作为动量温度，不单独产生买卖建议；多头中 `50-70` 更健康，`>70` 偏追高风险，`<45` 动能不足。
 - `ADX` 只作为趋势强度提示；`<20` 说明趋势偏弱、信号更容易反复，`>=25` 说明趋势质量更好。
 - `KDJ J` 用于观察短期过热或钝化；极高的 J 值是追涨风险，不直接否定趋势。
@@ -127,7 +130,7 @@ compatibility:
 - `stk stock kline <symbol>`
 - `stk stock fundamental <symbol>`
 
-结论必须先给 `decision.level`、`decision.action`、`signal_status` 和是否进入 `focus`。未进入 `focus` 时，不要强行给买卖建议。
+结论必须先给 `decision.intent`、`decision.strength`、`decision.pattern`、`signal_status` 和是否进入 `focus`。未进入 `focus` 时，不要强行给买卖建议。
 如果用户一次分析多只股票，使用 `templates/multi-stock-deep-comparison.md`，表格对比信号质量、辅助态度和风控，不逐只展开长段落。
 如果只分析单只股票，按“分析步骤”输出短表：结论、主信号、辅助确认、风险冲突和风控边界。
 
@@ -144,7 +147,7 @@ compatibility:
 - 使用中文，结论先行。
 - 报告默认精炼：先给 1-2 句结论，再用表格呈现结果。
 - 多只股票分析必须用表格，不逐只写长段落；只有用户明确要求详细拆解时才展开单只标的。
-- 关键数字包括：`level`、`signal_status`、`bars_since_signal`、`stop_loss`、`take_profit`、`risk_reward_ratio`。
+- 关键数字和判断字段包括：`intent`、`strength`、`pattern`、`signal_status`、`bars_since_signal`、`stop_loss`、`take_profit`、`risk_reward_ratio`。
 - 方向性观点必须引用字段或数值，避免只写“走势较好/较差”。
 - 报告可保存到 `~/.stk/reports/` 并通过 `obsidian-knowledge` 写入 `14_Trading/DailyReport/{YYYY-MM-DD-[report-name]}.md`。
 

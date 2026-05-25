@@ -16,23 +16,25 @@ from stk.models.scan import (
     MonitorUniverse,
     ScanError,
 )
-from stk.models.score import ContextBias, ScoreResult, SignalLevel
+from stk.models.score import (
+    ContextBias,
+    DecisionIntent,
+    FactorState,
+    ScoreResult,
+    SignalContext,
+    SignalStrength,
+)
 from stk.services.indicator import get_daily
 from stk.services.quote import get_realtime_quotes
 from stk.services.score import calc_score
 from stk.services.watchlist import get_watchlist
 from stk.utils.symbol import to_longport_symbol
 
-_FOCUS_LEVELS: set[SignalLevel] = {"strong_buy", "buy", "sell", "strong_sell"}
-_STRONG_LEVELS: set[SignalLevel] = {"strong_buy", "strong_sell"}
+_FOCUS_INTENTS: set[DecisionIntent] = {"买入关注", "风险退出"}
+_FOCUS_STRENGTHS: set[SignalStrength] = {"强信号", "普通信号"}
+_STRONG_STRENGTHS: set[SignalStrength] = {"强信号"}
 _ACTIVE_SIGNAL_STATUSES = {"new", "active"}
-_LEVEL_RANK: dict[SignalLevel, int] = {
-    "strong_buy": 0,
-    "strong_sell": 0,
-    "buy": 1,
-    "sell": 1,
-    "hold": 2,
-}
+_STRENGTH_RANK: dict[SignalStrength, int] = {"强信号": 0, "普通信号": 1, "无信号": 2}
 _BIAS_RANK: dict[ContextBias, int] = {
     "supportive": 0,
     "mixed": 1,
@@ -41,7 +43,7 @@ _BIAS_RANK: dict[ContextBias, int] = {
 }
 _LOCAL_TZ = ZoneInfo("Asia/Shanghai")
 _STRONG_SIGNAL_DAILY_COUNT = 10
-_WATCH_CONTEXT_MAX_BARS = 10
+_DEFAULT_FACTOR_STATES: set[FactorState] = {"confirming", "conflicting", "risk", "opportunity"}
 
 
 def _round_daily_value(value: object, *, digits: int = 4) -> CompactDailyValue:
@@ -146,36 +148,24 @@ def _score_symbols(
     return score_map, errors
 
 
-def _has_watch_context(score: ScoreResult) -> bool:
-    actionable_factors = sum(
-        factor.state in {"risk", "opportunity"} for factor in score.context.factors
-    )
-    if actionable_factors == 0 and not score.context.warnings:
-        return False
-
-    bars = score.decision.bars_since_signal
-    if bars is None or bars > _WATCH_CONTEXT_MAX_BARS:
-        return actionable_factors >= 2
-
-    return (
-        bool(score.context.warnings)
-        or actionable_factors >= 2
-        or score.context.overall_bias in {"risky", "conflicting"}
-    )
-
-
 def _should_focus(score: ScoreResult) -> bool:
     decision = score.decision
-    if decision.level in _FOCUS_LEVELS and decision.signal_status in _ACTIVE_SIGNAL_STATUSES:
-        return True
-    return decision.level == "hold" and _has_watch_context(score)
+    return (
+        decision.intent in _FOCUS_INTENTS
+        and decision.strength in _FOCUS_STRENGTHS
+        and decision.signal_status in _ACTIVE_SIGNAL_STATUSES
+    )
 
 
 def _needs_daily10(score: ScoreResult) -> bool:
     return (
-        score.decision.level in _STRONG_LEVELS
-        and score.context.overall_bias != "conflicting"
+        score.decision.strength in _STRONG_STRENGTHS and score.context.overall_bias != "conflicting"
     )
+
+
+def _compact_context(context: SignalContext) -> SignalContext:
+    factors = [factor for factor in context.factors if factor.state in _DEFAULT_FACTOR_STATES]
+    return context.model_copy(update={"factors": factors})
 
 
 def _focus_item(
@@ -183,6 +173,9 @@ def _focus_item(
     names: dict[str, str],
     quote_map: dict[str, Quote],
     score: ScoreResult,
+    *,
+    include_daily10: bool,
+    include_full_context: bool,
 ) -> FocusItem:
     lp_symbol = to_longport_symbol(symbol)
     quote = quote_map.get(lp_symbol)
@@ -191,12 +184,16 @@ def _focus_item(
         name=names.get(lp_symbol, names.get(symbol, "")),
         decision=score.decision,
         primary_signal=score.primary_signal,
-        context=score.context,
+        context=score.context if include_full_context else _compact_context(score.context),
         risk=score.risk,
         last=quote.last if quote else None,
         change_pct=quote.change_pct if quote else None,
         source=quote.source if quote else "unknown",
-        daily10=_get_strong_signal_daily10(lp_symbol) if _needs_daily10(score) else None,
+        daily10=(
+            _get_strong_signal_daily10(lp_symbol)
+            if include_daily10 and _needs_daily10(score)
+            else None
+        ),
     )
 
 
@@ -204,7 +201,7 @@ def _sort_key(item: FocusItem) -> tuple[int, int, int]:
     bars = item.decision.bars_since_signal
     bars_since_signal = 999 if bars is None else bars
     return (
-        _LEVEL_RANK[item.decision.level],
+        _STRENGTH_RANK[item.decision.strength],
         _BIAS_RANK[item.context.overall_bias],
         bars_since_signal,
     )
@@ -213,10 +210,10 @@ def _sort_key(item: FocusItem) -> tuple[int, int, int]:
 def _summary(focus: list[FocusItem]) -> MonitorSummary:
     return MonitorSummary(
         focus_count=len(focus),
-        strong_signal_count=sum(item.decision.level in _STRONG_LEVELS for item in focus),
-        entry_signal_count=sum(item.decision.action == "focus_buy" for item in focus),
-        exit_signal_count=sum(item.decision.action == "focus_sell" for item in focus),
-        watch_signal_count=sum(item.decision.action == "watch" for item in focus),
+        strong_signal_count=sum(item.decision.strength in _STRONG_STRENGTHS for item in focus),
+        entry_signal_count=sum(item.decision.intent == "买入关注" for item in focus),
+        exit_signal_count=sum(item.decision.intent == "风险退出" for item in focus),
+        watch_signal_count=sum(item.decision.intent == "观察" for item in focus),
     )
 
 
@@ -226,6 +223,8 @@ def _monitor_symbols(
     *,
     universe_name: str,
     max_workers: int = 8,
+    include_daily10: bool = False,
+    include_full_context: bool = False,
 ) -> MonitorResult:
     if not symbols:
         return MonitorResult(
@@ -247,7 +246,14 @@ def _monitor_symbols(
     score_map, errors = _score_symbols(symbols, max_workers=max_workers)
 
     focus = [
-        _focus_item(symbol, names, quotes, score)
+        _focus_item(
+            symbol,
+            names,
+            quotes,
+            score,
+            include_daily10=include_daily10,
+            include_full_context=include_full_context,
+        )
         for symbol, score in score_map.items()
         if _should_focus(score)
     ]
@@ -268,17 +274,39 @@ def _monitor_symbols(
     )
 
 
-def scan_watchlist(name: str) -> MonitorResult:
+def scan_watchlist(
+    name: str,
+    *,
+    include_daily10: bool = False,
+    include_full_context: bool = False,
+) -> MonitorResult:
     """Monitor a watchlist and return symbols that need daily focus."""
     watchlist = get_watchlist(name)
     symbols = [security.symbol for security in watchlist.securities]
     names_map = {security.symbol: security.name for security in watchlist.securities}
-    return _monitor_symbols(symbols, names_map, universe_name=name)
+    return _monitor_symbols(
+        symbols,
+        names_map,
+        universe_name=name,
+        include_daily10=include_daily10,
+        include_full_context=include_full_context,
+    )
 
 
-def batch_summary(symbols: list[str]) -> MonitorResult:
+def batch_summary(
+    symbols: list[str],
+    *,
+    include_daily10: bool = False,
+    include_full_context: bool = False,
+) -> MonitorResult:
     """Monitor an ad-hoc symbol universe and return symbols that need daily focus."""
-    return _monitor_symbols(symbols, {}, universe_name="ad-hoc")
+    return _monitor_symbols(
+        symbols,
+        {},
+        universe_name="ad-hoc",
+        include_daily10=include_daily10,
+        include_full_context=include_full_context,
+    )
 
 
 def kline_watchlist(name: str, *, period: str = "day", count: int = 10) -> list:

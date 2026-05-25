@@ -11,7 +11,7 @@ from stk.models.score import (
     ContextBias,
     ContextFactor,
     Decision,
-    DecisionAction,
+    DecisionIntent,
     EmaCross,
     FactorState,
     MetricValue,
@@ -20,8 +20,9 @@ from stk.models.score import (
     RiskProfile,
     ScoreResult,
     SignalContext,
-    SignalLevel,
+    SignalPattern,
     SignalStatus,
+    SignalStrength,
     SupertrendFlip,
     TrendDirection,
     TrendSignal,
@@ -33,6 +34,12 @@ _EMA_FAST = 9
 _EMA_SLOW = 26
 _RESONANCE_WINDOW = 3
 _MIN_HISTORY = 30
+_CONFIRMATION_THRESHOLD = 2
+_PATTERN_RANK: dict[SignalPattern, int] = {"趋势共振": 0, "反转确认": 1, "趋势修复": 2}
+_STRENGTH_RANK: dict[SignalStrength, int] = {"强信号": 0, "普通信号": 1, "无信号": 2}
+_TRADE_DIRECTIONS: tuple[TrendDirection, TrendDirection] = ("bullish", "bearish")
+_REVERSAL_TRIGGER_FACTORS = {"momentum", "boll", "money_flow", "divergence"}
+_CONFIRMATION_FACTORS = _REVERSAL_TRIGGER_FACTORS | {"macd", "ema_trend", "volume_price"}
 
 
 def _safe_last(series: pd.Series | np.ndarray) -> float | None:
@@ -180,7 +187,7 @@ def _build_trend_signal(
 
     if ema9 is None or ema26 is None or supertrend is None:
         return TrendSignal(
-            level="hold",
+            strength="无信号",
             direction="neutral",
             ema9=ema9,
             ema26=ema26,
@@ -220,7 +227,7 @@ def _build_trend_signal(
         bear_flip_age=bear_flip_age,
     )
 
-    level: SignalLevel = "hold"
+    strength: SignalStrength = "无信号"
     direction: TrendDirection = "neutral"
     signal_age: int | None = None
     ema_cross: EmaCross | None = None
@@ -230,9 +237,9 @@ def _build_trend_signal(
         direction = "bullish"
         signal_age = bull_event_age
         if signal_age <= 1:
-            level = "strong_buy"
+            strength = "强信号"
         elif signal_age <= _RESONANCE_WINDOW:
-            level = "buy"
+            strength = "普通信号"
         else:
             reasons.append("多头排列存在，但最近3根K线内没有新触发")
 
@@ -245,9 +252,9 @@ def _build_trend_signal(
         direction = "bearish"
         signal_age = bear_event_age
         if signal_age <= 1:
-            level = "strong_sell"
+            strength = "强信号"
         elif signal_age <= _RESONANCE_WINDOW:
-            level = "sell"
+            strength = "普通信号"
         else:
             reasons.append("空头排列存在，但最近3根K线内没有新触发")
 
@@ -266,7 +273,7 @@ def _build_trend_signal(
         reasons.append("EMA 与 Supertrend 方向不一致，等待收盘确认")
 
     return TrendSignal(
-        level=level,
+        strength=strength,
         direction=direction,
         signal_date=_event_date(df, signal_age),
         bars_since_signal=signal_age,
@@ -290,20 +297,23 @@ def _signal_status(age: int | None) -> SignalStatus:
     return "stale"
 
 
-def _decision_action(level: SignalLevel) -> DecisionAction:
-    match level:
-        case "strong_buy" | "buy":
-            return "focus_buy"
-        case "strong_sell" | "sell":
-            return "focus_sell"
+def _decision_intent(trend_signal: TrendSignal) -> DecisionIntent:
+    if trend_signal.strength == "无信号":
+        return "观察"
+    match trend_signal.direction:
+        case "bullish":
+            return "买入关注"
+        case "bearish":
+            return "风险退出"
         case _:
-            return "watch"
+            return "观察"
 
 
 def _build_decision(trend_signal: TrendSignal) -> Decision:
     return Decision(
-        action=_decision_action(trend_signal.level),
-        level=trend_signal.level,
+        intent=_decision_intent(trend_signal),
+        strength=trend_signal.strength,
+        pattern=trend_signal.pattern,
         signal_status=_signal_status(trend_signal.bars_since_signal),
         signal_date=trend_signal.signal_date,
         bars_since_signal=trend_signal.bars_since_signal,
@@ -326,6 +336,187 @@ def _build_primary_signal(trend_signal: TrendSignal, *, adx: float | None) -> Pr
         supertrend_direction=trend_signal.supertrend_direction,
         adx=adx,
         reasons=reasons,
+    )
+
+
+def _signal_strength_for_direction(direction: TrendDirection) -> SignalStrength:
+    return "无信号" if direction == "neutral" else "强信号"
+
+
+def _supporting_factor_names(
+    context: SignalContext,
+    *,
+    direction: TrendDirection,
+) -> list[str]:
+    support_states = (
+        {"confirming", "risk"} if direction == "bearish" else {"confirming", "opportunity"}
+    )
+    return [
+        factor.name
+        for factor in context.factors
+        if factor.state in support_states and factor.name in _CONFIRMATION_FACTORS
+    ]
+
+
+def _reversal_trigger_names(
+    context: SignalContext,
+    *,
+    direction: TrendDirection,
+) -> list[str]:
+    trigger_state = "risk" if direction == "bearish" else "opportunity"
+    return [
+        factor.name
+        for factor in context.factors
+        if factor.name in _REVERSAL_TRIGGER_FACTORS and factor.state == trigger_state
+    ]
+
+
+def _directional_confirmation_names(context: SignalContext) -> list[str]:
+    return [
+        factor.name
+        for factor in context.factors
+        if factor.state == "confirming" and factor.name in _CONFIRMATION_FACTORS
+    ]
+
+
+def _setup_signal(
+    df: pd.DataFrame,
+    base_signal: TrendSignal,
+    *,
+    pattern: SignalPattern,
+    direction: TrendDirection,
+    reasons: list[str],
+) -> TrendSignal:
+    return TrendSignal(
+        strength=_signal_strength_for_direction(direction),
+        direction=direction,
+        pattern=pattern,
+        signal_date=_event_date(df, 0),
+        bars_since_signal=0,
+        ema9=base_signal.ema9,
+        ema26=base_signal.ema26,
+        supertrend=base_signal.supertrend,
+        supertrend_direction=base_signal.supertrend_direction,
+        reasons=reasons,
+    )
+
+
+def _build_reversal_signal(
+    df: pd.DataFrame,
+    base_signal: TrendSignal,
+    *,
+    direction: TrendDirection,
+    context: SignalContext,
+) -> TrendSignal | None:
+    triggers = _reversal_trigger_names(context, direction=direction)
+    supports = _supporting_factor_names(context, direction=direction)
+    confirmations = _directional_confirmation_names(context)
+    if not triggers or not confirmations or len(supports) < _CONFIRMATION_THRESHOLD:
+        return None
+
+    direction_text = "底部反转" if direction == "bullish" else "顶部反转"
+    reasons = [
+        f"{direction_text}信号：{', '.join(triggers)} 出现极端提示",
+        f"辅助确认达到 {len(supports)} 项：{', '.join(supports)}",
+    ]
+    return _setup_signal(
+        df,
+        base_signal,
+        pattern="反转确认",
+        direction=direction,
+        reasons=reasons,
+    )
+
+
+def _safe_value_at(series: np.ndarray, index: int) -> float | None:
+    if index < 0 or index >= len(series):
+        return None
+    value = series[index]
+    return None if np.isnan(value) else round(float(value), 4)
+
+
+def _has_repair_trigger(
+    *,
+    direction: TrendDirection,
+    close_arr: np.ndarray,
+    high_arr: np.ndarray,
+    low_arr: np.ndarray,
+    ema9_arr: np.ndarray,
+) -> bool:
+    current_close = _safe_last(close_arr)
+    previous_close = _safe_value_at(close_arr, len(close_arr) - 2)
+    current_high = _safe_last(high_arr)
+    current_low = _safe_last(low_arr)
+    ema9 = _safe_last(ema9_arr)
+    previous_ema9 = _safe_value_at(ema9_arr, len(ema9_arr) - 2)
+    if None in {current_close, previous_close, current_high, current_low, ema9, previous_ema9}:
+        return False
+    assert current_close is not None
+    assert previous_close is not None
+    assert current_high is not None
+    assert current_low is not None
+    assert ema9 is not None
+    assert previous_ema9 is not None
+
+    if direction == "bullish":
+        pulled_back = previous_close <= previous_ema9 or current_low <= ema9
+        return pulled_back and current_close > ema9
+
+    retested = previous_close >= previous_ema9 or current_high >= ema9
+    return retested and current_close < ema9
+
+
+def _build_repair_signal(
+    df: pd.DataFrame,
+    base_signal: TrendSignal,
+    *,
+    direction: TrendDirection,
+    context: SignalContext,
+    close_arr: np.ndarray,
+    high_arr: np.ndarray,
+    low_arr: np.ndarray,
+    ema9_arr: np.ndarray,
+) -> TrendSignal | None:
+    if base_signal.strength != "无信号" or base_signal.direction != direction:
+        return None
+    if not _has_repair_trigger(
+        direction=direction,
+        close_arr=close_arr,
+        high_arr=high_arr,
+        low_arr=low_arr,
+        ema9_arr=ema9_arr,
+    ):
+        return None
+
+    supports = _supporting_factor_names(context, direction=direction)
+    if len(supports) < _CONFIRMATION_THRESHOLD:
+        return None
+
+    reason = (
+        "多头趋势未破坏，回踩后重新收复 EMA9"
+        if direction == "bullish"
+        else "空头趋势未破坏，反抽后重新跌回 EMA9"
+    )
+    return _setup_signal(
+        df,
+        base_signal,
+        pattern="趋势修复",
+        direction=direction,
+        reasons=[
+            f"修复信号：{reason}",
+            f"辅助确认达到 {len(supports)} 项：{', '.join(supports)}",
+        ],
+    )
+
+
+def _select_signal(candidates: list[TrendSignal]) -> TrendSignal:
+    return min(
+        candidates,
+        key=lambda signal: (
+            _STRENGTH_RANK[signal.strength],
+            999 if signal.bars_since_signal is None else signal.bars_since_signal,
+            _PATTERN_RANK[signal.pattern],
+        ),
     )
 
 
@@ -789,7 +980,7 @@ def _risk_points(
 
 
 def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
-    """Calculate trend-first signal level from daily closed candles."""
+    """Calculate trend-first monitoring decision from daily closed candles."""
     candles = get_history(symbol, count=count)
     if not candles or len(candles) < _MIN_HISTORY:
         got = len(candles) if candles else 0
@@ -812,6 +1003,41 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
         supertrend_arr=supertrend_arr,
         st_direction_arr=st_direction_arr,
     )
+    contexts: dict[TrendDirection, SignalContext] = {}
+
+    def context_for(direction: TrendDirection) -> SignalContext:
+        if direction not in contexts:
+            contexts[direction] = _build_context(
+                df,
+                direction=direction,
+                close_arr=close,
+                current_price=current_price,
+            )
+        return contexts[direction]
+
+    candidates = [trend_signal]
+    for direction in _TRADE_DIRECTIONS:
+        context = context_for(direction)
+        if reversal_signal := _build_reversal_signal(
+            df,
+            trend_signal,
+            direction=direction,
+            context=context,
+        ):
+            candidates.append(reversal_signal)
+        if repair_signal := _build_repair_signal(
+            df,
+            trend_signal,
+            direction=direction,
+            context=context,
+            close_arr=close,
+            high_arr=high,
+            low_arr=low,
+            ema9_arr=ema9_arr,
+        ):
+            candidates.append(repair_signal)
+
+    selected_signal = _select_signal(candidates)
 
     adx_series = talib.ADX(high, low, close, timeperiod=14)
     adx_last = _safe_last(adx_series)
@@ -830,17 +1056,12 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
         stop_loss, take_profit, rr_ratio = _risk_points(
             current_price=current_price,
             atr=atr_last,
-            trend_signal=trend_signal,
+            trend_signal=selected_signal,
         )
 
-    decision = _build_decision(trend_signal)
-    primary_signal = _build_primary_signal(trend_signal, adx=adx_val)
-    context = _build_context(
-        df,
-        direction=trend_signal.direction,
-        close_arr=close,
-        current_price=current_price,
-    )
+    decision = _build_decision(selected_signal)
+    primary_signal = _build_primary_signal(selected_signal, adx=adx_val)
+    context = context_for(selected_signal.direction)
     risk_profile = _build_risk_profile(
         atr=atr_val,
         stop_loss=stop_loss,

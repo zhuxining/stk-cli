@@ -23,22 +23,22 @@
 - 结论先行，第一屏回答“今天是否需要关注”，结论不超过 2 句。
 - 多只股票必须用表格，不逐只写长段落。
 - 只展开 `MonitorResult.focus`；无信号标的只进入统计。
-- 数字优先：`level`、`signal_status`、`bars_since_signal`、`stop_loss`、`take_profit`、`risk_reward_ratio`。
+- 数字优先：`strength`、`signal_status`、`bars_since_signal`、`stop_loss`、`take_profit`、`risk_reward_ratio`。
 - 强信号标的若有 `daily10`，只补 1 句复核。
 - 辅助因子只引用 `state` 和 `metrics`。
-- `focus_sell` 中 `stop_loss` 写”上方失效线”，`take_profit` 写”下行参考”。
-- `hold/watch` 只写观察、等待确认、风险提示、左侧机会，不写买卖动作。
+- `风险退出` 中 `stop_loss` 写”上方失效线”，`take_profit` 写”下行参考”。
+- `观察` 只写观察、等待确认、风险提示、左侧机会，不写买卖动作。
 
 ## 固定动作口径
 
-- `跟踪突破`：`strong_buy`，未明显过热，量能或趋势延续较好。
-- `等待回踩`：`focus_buy` 但过热、缩量或 RR 一般。
-- `风险退出`：`focus_sell`。
-- `仅观察`：`watch`。
+- `跟踪突破`：`买入关注` + `强信号`，未明显过热，量能或趋势延续较好。
+- `等待回踩`：`买入关注` 但过热、缩量或 RR 一般。
+- `风险退出`：`风险退出`。
+- `仅观察`：`观察`。
 - `暂不处理`：低质量或冲突明显的信号。
 
 ## 风控口径
 
-- `focus_buy`：`止损 {stop_loss} / 止盈 {take_profit} / RR {risk_reward_ratio}`。
-- `focus_sell`：`失效线 {stop_loss} / 下行参考 {take_profit}`。
-- `watch`：`观察 / 风险 {risk_level}`。
+- `买入关注`：`止损 {stop_loss} / 止盈 {take_profit} / RR {risk_reward_ratio}`。
+- `风险退出`：`失效线 {stop_loss} / 下行参考 {take_profit}`。
+- `观察`：`观察 / 风险 {risk_level}`。

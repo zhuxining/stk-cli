@@ -17,18 +17,18 @@
 
 ## 目标与边界
 
-每日监控的目标不是给每只股票做完整体检，而是回答“今天哪些标的需要重点关注”。系统默认只展开有效信号、风险预警或左侧机会标的；无信号标的只进入统计字段。
+每日监控的目标不是给每只股票做完整体检，而是回答“今天哪些标的需要重点关注”。系统默认只展开可行动的买入、退出或风险信号；无信号和中性观察标的只进入统计字段。
 
 设计边界：
 
 - `services/score.py` 负责单标的信号判断，输出 `ScoreResult`。
 - `services/scan.py` 负责批量扫描与重点关注筛选，输出 `MonitorResult`。
 - 主信号只使用日线收盘 K 线确认，不处理盘中未确认信号。
-- 主信号由 `EMA9/EMA26 + Supertrend(ATR10 x2.5)` 决定。
-- `decision.level` 是主信号强度与动作方向的唯一外显字段；ADX 只作为趋势强度提示，不直接改变级别。
+- 主信号默认由 `EMA9/EMA26 + Supertrend(ATR10 x2.5)` 决定，并补充保守确认后的反转、修复形态。
+- `decision.intent` 表达处理意图，`decision.strength` 表达信号强弱，`decision.pattern` 表达形态来源；ADX 只作为趋势强度提示，不直接改变强弱。
 - 辅助因子只解释主信号质量、冲突、风险或左侧机会，不生成单一综合分数。
 - 风控字段独立输出，不参与主信号级别计算。
-- `sell` 与 `strong_sell` 表示减仓、退出或风险预警，不表达做空建议。
+- `风险退出` 表示减仓、退出或风险预警，不表达做空建议。
 
 ## 单标的输出结构
 
@@ -38,8 +38,9 @@
 {
   "symbol": "600519.SH",
   "decision": {
-    "action": "focus_buy",
-    "level": "strong_buy",
+    "intent": "买入关注",
+    "strength": "强信号",
+    "pattern": "趋势共振",
     "signal_status": "new",
     "signal_date": "2026-05-12",
     "bars_since_signal": 1
@@ -91,14 +92,15 @@
 |------|------|
 | `symbol` | Longport symbol。 |
 | `decision` | 面向每日监控的可执行判断。 |
-| `decision.action` | `focus_buy`、`focus_sell` 或 `watch`。 |
-| `decision.level` | `strong_buy`、`buy`、`hold`、`sell` 或 `strong_sell`。 |
+| `decision.intent` | `买入关注`、`风险退出` 或 `观察`。 |
+| `decision.strength` | `强信号`、`普通信号` 或 `无信号`。 |
+| `decision.pattern` | `趋势共振`、`反转确认` 或 `趋势修复`，表示信号来源。 |
 | `decision.signal_status` | `new`、`active` 或 `stale`。 |
 | `decision.signal_date` | 最近一次主信号触发日期。 |
 | `decision.bars_since_signal` | 最近一次主信号距当前 K 线的根数。 |
 | `primary_signal` | 主趋势策略的指标值和触发原因。 |
 | `context` | 辅助因子、整体态度和风险提示。 |
-| `context.factors[].metrics` | 辅助因子的结构化指标值，是 Agent 分析的主要依据。 |
+| `context.factors[].metrics` | 辅助因子的结构化指标值，是 Agent 分析的主要依据；扫描命令默认省略 `neutral` / `none` 因子。 |
 | `risk` | ATR、止损、止盈、风险收益比和风险等级。 |
 
 ## 批量监控输出结构
@@ -119,7 +121,7 @@
     "strong_signal_count": 2,
     "entry_signal_count": 4,
     "exit_signal_count": 1,
-    "watch_signal_count": 1
+    "watch_signal_count": 0
   },
   "focus": [
     {
@@ -179,13 +181,13 @@
 | `universe.scanned` | 成功生成 `ScoreResult` 的标的数量。 |
 | `universe.failed` | 单标的信号计算失败数量。 |
 | `summary.focus_count` | 入选 `focus` 的标的数量。 |
-| `summary.strong_signal_count` | `strong_buy` 或 `strong_sell` 的标的数量。 |
-| `summary.entry_signal_count` | `decision.action=focus_buy` 的标的数量。 |
-| `summary.exit_signal_count` | `decision.action=focus_sell` 的标的数量。 |
-| `summary.watch_signal_count` | `decision.action=watch` 的标的数量。 |
-| `focus` | 重点关注标的列表，默认不包含无信号标的。 |
-| `focus[].daily10` | 仅强信号且辅助态度不冲突的标的补充最近 10 根压缩日线；其他标的为空。 |
-| `ignored.no_signal_count` | 成功扫描但未进入 `focus` 的标的数量。 |
+| `summary.strong_signal_count` | `decision.strength=强信号` 的标的数量。 |
+| `summary.entry_signal_count` | `decision.intent=买入关注` 的标的数量。 |
+| `summary.exit_signal_count` | `decision.intent=风险退出` 的标的数量。 |
+| `summary.watch_signal_count` | `decision.intent=观察` 的标的数量；默认扫描口径下一般为 0，保留用于兼容。 |
+| `focus` | 重点关注标的列表，默认只包含可行动的 `买入关注` / `风险退出`。 |
+| `focus[].daily10` | 仅在扫描命令显式传入 `--daily10` 时，为强信号且辅助态度不冲突的标的补充最近 10 根压缩日线；其他标的默认不输出该字段。 |
+| `ignored.no_signal_count` | 成功扫描但未进入可行动 `focus` 的标的数量。 |
 | `errors` | 非致命单标的错误列表。 |
 
 `FocusItem` 在 `ScoreResult` 基础上补充展示字段：
@@ -194,7 +196,8 @@
 - `last`：实时最新价，行情失败时为空。
 - `change_pct`：实时涨跌幅，行情失败时为空。
 - `source`：行情来源，行情失败时为 `unknown`。
-- `daily10`：只在强信号且辅助态度不冲突时补充，用于 Agent 复核信号发生位置、近期价格结构和指标变化。
+- `daily10`：只在扫描命令显式传入 `--daily10`，且标的为强信号、辅助态度不冲突时补充，用于 Agent 复核信号发生位置、近期价格结构和指标变化。
+- `context.factors`：扫描命令默认只输出 `confirming`、`conflicting`、`risk`、`opportunity` 因子，需完整辅助因子时传入 `--full-context`。
 
 ## 主信号策略
 
@@ -204,7 +207,7 @@
 - 少于 30 根 K 线时抛出 `IndicatorError`。
 - 价格、EMA、Supertrend、ADX 和 ATR 均基于日线收盘数据计算。
 
-主信号指标：
+主趋势信号指标：
 
 - `EMA9`：短周期趋势线。
 - `EMA26`：慢周期趋势线。
@@ -219,15 +222,25 @@
 - Supertrend 从多头翻为空头记为 `supertrend_flip=bearish`。
 - 共振窗口固定为最近 3 根 K 线。
 
-信号级别：
+信号意图与强弱：
 
-| level | 判定规则 | action |
-|-------|----------|--------|
-| `strong_buy` | `EMA9 > EMA26`，Supertrend 多头，且最近 0-1 根 K 线内出现多头触发 | `focus_buy` |
-| `buy` | `EMA9 > EMA26`，Supertrend 多头，且最近 2-3 根 K 线内出现多头触发 | `focus_buy` |
-| `hold` | 指标未形成、EMA 与 Supertrend 不一致，或趋势排列存在但最近 3 根 K 线内无新触发 | `watch` |
-| `sell` | `EMA9 < EMA26`，Supertrend 空头，且最近 2-3 根 K 线内出现空头触发 | `focus_sell` |
-| `strong_sell` | `EMA9 < EMA26`，Supertrend 空头，且最近 0-1 根 K 线内出现空头触发 | `focus_sell` |
+| intent | strength | 判定规则 |
+|--------|----------|----------|
+| `买入关注` | `强信号` | `EMA9 > EMA26`，Supertrend 多头，且最近 0-1 根 K 线内出现多头触发。 |
+| `买入关注` | `普通信号` | `EMA9 > EMA26`，Supertrend 多头，且最近 2-3 根 K 线内出现多头触发。 |
+| `观察` | `无信号` | 指标未形成、EMA 与 Supertrend 不一致，或趋势排列存在但最近 3 根 K 线内无新触发。 |
+| `风险退出` | `普通信号` | `EMA9 < EMA26`，Supertrend 空头，且最近 2-3 根 K 线内出现空头触发。 |
+| `风险退出` | `强信号` | `EMA9 < EMA26`，Supertrend 空头，且最近 0-1 根 K 线内出现空头触发。 |
+
+信号形态：
+
+| pattern | 判定规则 | 输出口径 |
+|-------|----------|----------|
+| `趋势共振` | 原 EMA9/26 + Supertrend 趋势共振。 | 顺势突破或退出信号。 |
+| `反转确认` | 超买/超卖、MACD 背离或 BOLL 极端位置出现后，至少 2 个辅助因子确认同一方向。 | 底部反转关注或顶部风险退出。 |
+| `趋势修复` | 趋势未破坏，价格回踩后重新收复 EMA9，或反抽后重新跌回 EMA9，并至少 2 个辅助因子确认。 | 趋势修复关注或反抽失败风险。 |
+
+若多个形态同时命中，先按 `strength` 强弱选择，再按 `bars_since_signal` 新旧选择，最后按 `趋势共振 > 反转确认 > 趋势修复` 稳定排序。
 
 信号状态：
 
@@ -239,7 +252,7 @@
 
 ## 辅助因子策略
 
-辅助因子用于解释主信号质量，不改变 `decision.level`。
+辅助因子用于解释主信号质量，不改变 `decision.strength`。
 
 辅助因子列表：
 
@@ -318,20 +331,21 @@ MFI 解释规则：
 
 入选 `focus` 的规则：
 
-- `decision.level` 为 `strong_buy`、`buy`、`sell` 或 `strong_sell`，且 `signal_status` 为 `new` 或 `active`。
-- `decision.level=hold` 时，只有近期存在明确风险、机会或预警，才以 `watch` 进入 `focus`。
-- `hold` 标的的 watch 入选会过滤陈旧噪音：若最近主信号超过 10 根 K 线，至少需要 2 个风险/机会因子才进入 `focus`。
+- `decision.intent` 为 `买入关注` 或 `风险退出`。
+- `decision.strength` 为 `强信号` 或 `普通信号`，且 `signal_status` 为 `new` 或 `active`。
+- `decision.strength=无信号` 或 `decision.intent=观察` 默认不进入 `focus`。
 - `signal_status=stale` 的买卖信号默认不进入 `focus`。
 - 扫描失败的标的不进入 `focus`，只进入 `errors`。
+- 默认扫描结果省略空值字段，并从 `context.factors` 中省略 `neutral` / `none` 因子；完整上下文用 `--full-context`。
 
 强信号规则：
 
-- `strong_buy` 或 `strong_sell` 计入 `summary.strong_signal_count`。
-- 强信号且 `context.overall_bias != conflicting` 时补充 `daily10`，用于复核最近价格结构。
+- `强信号` 计入 `summary.strong_signal_count`。
+- 显式传入 `--daily10`，且强信号、`context.overall_bias != conflicting` 时补充 `daily10`，用于复核最近价格结构。
 
 排序规则：
 
-1. `decision.level`：`strong_buy` / `strong_sell` 优先，其次 `buy` / `sell`，最后 `hold`。
+1. `decision.strength`：`强信号` 优先，其次 `普通信号`，最后 `无信号`。
 2. `context.overall_bias`：`supportive`、`mixed`、`risky`、`conflicting`。
 3. `decision.bars_since_signal`：信号越新越靠前；空值按最老处理。
 
@@ -348,4 +362,4 @@ MFI 解释规则：
 
 K 线指标服务只提供解释数据，不负责判断重点关注列表。
 
-`MonitorResult.focus[].daily10` 使用 `DailyResult.days` 的压缩子集，仅包含 OHLCV、`change_pct`、`EMA9`、`EMA26`、Supertrend、MACD、RSI14、J 值、BOLL 区间位置和 `ATR10`。完整指标解释仍通过 `stk stock kline` 或 `stk watchlist kline` 获取。
+`MonitorResult.focus[].daily10` 需要扫描命令显式传入 `--daily10`。它使用 `DailyResult.days` 的压缩子集，仅包含 OHLCV、`change_pct`、`EMA9`、`EMA26`、Supertrend、MACD、RSI14、J 值、BOLL 区间位置和 `ATR10`。完整指标解释仍通过 `stk stock kline` 或 `stk watchlist kline` 获取。

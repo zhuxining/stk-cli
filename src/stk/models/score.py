@@ -4,12 +4,13 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-type SignalLevel = Literal["strong_buy", "buy", "hold", "sell", "strong_sell"]
+type SignalStrength = Literal["强信号", "普通信号", "无信号"]
 type TrendDirection = Literal["bullish", "bearish", "neutral"]
 type EmaCross = Literal["golden", "death"]
 type SupertrendFlip = Literal["bullish", "bearish"]
-type DecisionAction = Literal["focus_buy", "focus_sell", "watch"]
+type DecisionIntent = Literal["买入关注", "风险退出", "观察"]
 type SignalStatus = Literal["new", "active", "stale"]
+type SignalPattern = Literal["趋势共振", "反转确认", "趋势修复"]
 type ContextBias = Literal["supportive", "mixed", "conflicting", "risky"]
 type FactorState = Literal["confirming", "neutral", "conflicting", "risk", "opportunity", "none"]
 type RiskLevel = Literal["low", "medium", "high"]
@@ -19,8 +20,9 @@ type MetricValue = str | int | float | bool | None
 class TrendSignal(BaseModel):
     """Internal trend signal derived from EMA9/26 and Supertrend."""
 
-    level: SignalLevel
+    strength: SignalStrength
     direction: TrendDirection
+    pattern: SignalPattern = "趋势共振"
     signal_date: str | None = None
     bars_since_signal: int | None = None
     ema9: float | None = None
@@ -35,8 +37,9 @@ class TrendSignal(BaseModel):
 class Decision(BaseModel):
     """Monitoring decision used to select focus symbols."""
 
-    action: DecisionAction
-    level: SignalLevel
+    intent: DecisionIntent
+    strength: SignalStrength
+    pattern: SignalPattern
     signal_status: SignalStatus
     signal_date: str | None = None
     bars_since_signal: int | None = None

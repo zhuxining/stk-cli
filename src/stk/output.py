@@ -7,9 +7,18 @@ from typing import Any
 from pydantic import BaseModel
 
 
-def render(data: Any, *, meta: dict[str, Any] | None = None) -> None:
+def render(
+    data: Any,
+    *,
+    meta: dict[str, Any] | None = None,
+    exclude_none: bool = False,
+) -> None:
     """Print success JSON envelope to stdout."""
-    serialized = [_serialize(item) for item in data] if isinstance(data, list) else _serialize(data)
+    serialized = (
+        [_serialize(item, exclude_none=exclude_none) for item in data]
+        if isinstance(data, list)
+        else _serialize(data, exclude_none=exclude_none)
+    )
 
     cst = timezone(timedelta(hours=8))
     combined_meta = {"updated_at": datetime.now(cst).isoformat(timespec="seconds")}
@@ -30,7 +39,7 @@ def render_error(error_type: str, message: str) -> None:
     print(json.dumps(envelope, ensure_ascii=False))
 
 
-def _serialize(obj: Any) -> Any:
+def _serialize(obj: Any, *, exclude_none: bool) -> Any:
     if isinstance(obj, BaseModel):
-        return obj.model_dump(mode="json")
+        return obj.model_dump(mode="json", exclude_none=exclude_none)
     return obj

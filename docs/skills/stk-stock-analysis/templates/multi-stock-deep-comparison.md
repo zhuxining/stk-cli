@@ -15,7 +15,7 @@
 ## 分析方法
 
 - 先按 `focus` 过滤，无明确信号标的只进入统计或一句提醒。
-- 横向比较信号强弱：`decision.level`、`signal_status`、`bars_since_signal`。
+- 横向比较信号强弱：`decision.intent`、`decision.strength`、`decision.pattern`、`signal_status`、`bars_since_signal`。
 - 信号质量比较：主信号是否新鲜、ADX 是否支持、`context.overall_bias` 是否冲突。
 - 风险收益比较：`risk_reward_ratio`、`risk_level`、`stop_loss` 距离、`take_profit` 参考。
 - 辅助因子比较：只挑每只股票最重要的确认/冲突/风险因子，不堆指标。
@@ -34,13 +34,13 @@
 
 | 代码 | 名称 | 信号 | 新鲜度 | 辅助态度 | 风控 | 结论 |
 |------|------|------|--------|----------|------|------|
-| {symbol} | {name} | {level} | {signal_status}/{bars_since_signal}K | {overall_bias} | {按风控口径} | {跟踪突破/等待回踩/风险退出/仅观察/暂不处理} |
+| {symbol} | {name} | {intent}/{strength}/{pattern} | {signal_status}/{bars_since_signal}K | {overall_bias} | {按风控口径} | {跟踪突破/等待回踩/风险退出/仅观察/暂不处理} |
 
 ## 关键差异
 
 | 代码 | 名称 | 主信号质量 | 辅助确认 | 风险冲突 | 近 10 日复核 |
 |------|------|------------|----------|----------|--------------|
-| {symbol} | {name} | {EMA/Supertrend/ADX 1句} | {最重要 confirming metrics；无则写”无”} | {最重要 warning/conflicting/risk；无则写”无”} | {仅 strong + daily10 输出 1句；否则写”无”} |
+| {symbol} | {name} | {EMA/Supertrend/ADX 1句} | {最重要 confirming metrics；无则写”无”} | {最重要 warning/conflicting/risk；无则写”无”} | {仅强信号 + daily10 输出 1句；否则写”无”} |
 
 ## 排序建议
 

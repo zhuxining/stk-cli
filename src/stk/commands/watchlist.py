@@ -86,12 +86,26 @@ def delete(
 @app.command()
 def scan(
     name: str = typer.Argument(help="Watchlist group name"),
+    daily10: bool = typer.Option(
+        False,
+        "--daily10",
+        help="Include recent 10-day compact K-line supplement for strong signals",
+    ),
+    full_context: bool = typer.Option(
+        False,
+        "--full-context",
+        help="Include neutral/no-signal context factors in scan output",
+    ),
 ) -> None:
     """Daily monitor a watchlist and return focus symbols."""
     from stk.services.scan import scan_watchlist
 
-    result = scan_watchlist(name)
-    output.render(result)
+    result = scan_watchlist(
+        name,
+        include_daily10=daily10,
+        include_full_context=full_context,
+    )
+    output.render(result, exclude_none=True)
 
 
 @app.command()
