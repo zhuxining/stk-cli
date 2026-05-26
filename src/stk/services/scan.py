@@ -29,9 +29,10 @@ from stk.services.quote import get_realtime_quotes
 from stk.services.score import calc_score
 from stk.services.watchlist import get_watchlist
 from stk.utils.symbol import to_longport_symbol
+from stk.utils.trading_session import is_unclosed_daily_bar
 
-_ENTRY_SIGNALS: set[DecisionSignal] = {"趋势买入", "反转买入", "修复买入"}
-_EXIT_SIGNALS: set[DecisionSignal] = {"趋势退出", "反转退出", "修复退出"}
+_ENTRY_SIGNALS: set[DecisionSignal] = {"趋势买入", "超卖修复"}
+_EXIT_SIGNALS: set[DecisionSignal] = {"趋势退出"}
 _FOCUS_SIGNALS = _ENTRY_SIGNALS | _EXIT_SIGNALS
 _FOCUS_STRENGTHS: set[SignalStrength] = {"强信号", "普通信号"}
 _STRONG_STRENGTHS: set[SignalStrength] = {"强信号"}
@@ -105,11 +106,14 @@ def _compact_daily_row(day: dict) -> dict[str, CompactDailyValue]:
 
 def _get_strong_signal_daily10(symbol: str) -> list[dict[str, CompactDailyValue]]:
     try:
-        daily = get_daily(symbol, count=_STRONG_SIGNAL_DAILY_COUNT)
+        daily = get_daily(symbol, count=_STRONG_SIGNAL_DAILY_COUNT + 1)
     except Exception as err:
         logger.debug(f"Strong signal daily supplement failed for {symbol}: {err}")
         return []
-    return [_compact_daily_row(day) for day in daily.days]
+    days = daily.days
+    if days and is_unclosed_daily_bar(days[0].get("date"), symbol):
+        days = days[1:]
+    return [_compact_daily_row(day) for day in days[:_STRONG_SIGNAL_DAILY_COUNT]]
 
 
 def _run_date() -> str:

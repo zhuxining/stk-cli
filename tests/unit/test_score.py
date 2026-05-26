@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -11,7 +12,7 @@ import pytest
 from stk.errors import IndicatorError
 from stk.models.history import Candlestick
 from stk.models.score import ContextFactor, FactorState, SignalContext
-from stk.services.score import _calc_money_flow_factor, calc_score
+from stk.services.score import _calc_money_flow_factor, _closed_daily_df, calc_score
 
 
 def _candles_from_closes(closes: list[float], *, width: float = 1.0) -> list[Candlestick]:
@@ -83,6 +84,24 @@ def _neutral_context() -> SignalContext:
     )
 
 
+def test_closed_daily_df_drops_current_cn_bar_before_close():
+    df = pd.DataFrame({"date": ["2026-05-25 00:00:00", "2026-05-26 00:00:00"]})
+    now = datetime(2026, 5, 26, 10, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
+
+    result = _closed_daily_df(df, "600519.SH", now=now)
+
+    assert result["date"].tolist() == ["2026-05-25 00:00:00"]
+
+
+def test_closed_daily_df_keeps_current_cn_bar_after_close():
+    df = pd.DataFrame({"date": ["2026-05-25 00:00:00", "2026-05-26 00:00:00"]})
+    now = datetime(2026, 5, 26, 15, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+
+    result = _closed_daily_df(df, "600519.SH", now=now)
+
+    assert result["date"].tolist() == ["2026-05-25 00:00:00", "2026-05-26 00:00:00"]
+
+
 @patch("stk.services.score.get_history")
 def test_calc_score_basic(mock_history, make_candles):
     """Test basic scoring returns the monitoring structure."""
@@ -95,10 +114,7 @@ def test_calc_score_basic(mock_history, make_candles):
     assert result.decision.signal in {
         "趋势买入",
         "趋势退出",
-        "反转买入",
-        "反转退出",
-        "修复买入",
-        "修复退出",
+        "超卖修复",
         "观察",
     }
     assert result.context.overall_bias in {"supportive", "mixed", "conflicting", "risky"}
@@ -170,13 +186,13 @@ def test_score_no_data(mock_history):
 
 
 @patch("stk.services.score.get_history")
-def test_strong_buy_signal(mock_history):
-    """EMA9 golden cross plus bullish Supertrend yields a strong buy focus."""
+def test_trend_buy_signal(mock_history):
+    """EMA9 golden cross plus bullish Supertrend yields a trend buy focus."""
     mock_history.return_value = _strong_buy_candles()
 
     result = calc_score("600519")
 
-    assert result.decision.strength == "强信号"
+    assert result.decision.strength == "普通信号"
     assert result.decision.signal == "趋势买入"
     assert result.decision.signal_status == "new"
     assert result.decision.bars_since_signal == 0
@@ -184,13 +200,13 @@ def test_strong_buy_signal(mock_history):
 
 
 @patch("stk.services.score.get_history")
-def test_strong_sell_signal(mock_history):
-    """EMA9 death cross plus bearish Supertrend yields a strong exit focus."""
+def test_trend_sell_signal(mock_history):
+    """EMA9 death cross plus bearish Supertrend yields a trend exit focus."""
     mock_history.return_value = _strong_sell_candles()
 
     result = calc_score("600519")
 
-    assert result.decision.strength == "强信号"
+    assert result.decision.strength == "普通信号"
     assert result.decision.signal == "趋势退出"
     assert result.decision.signal_status == "new"
     assert result.decision.bars_since_signal == 0
@@ -242,13 +258,30 @@ def test_old_cross_no_strong_signal(mock_history):
 
 @patch("stk.services.score._build_context")
 @patch("stk.services.score.get_history")
-def test_bullish_reversal_signal_requires_two_confirmations(mock_history, mock_context):
-    """Bottom reversal pattern needs an extreme trigger plus confirmation."""
+def test_oversold_repair_signal_requires_repair_confirmations(mock_history, mock_context):
+    """Oversold repair needs an oversold trigger plus price/indicator repair."""
     mock_history.return_value = _mismatch_candles()
-    bullish_context = _setup_context(
-        trigger_name="momentum",
-        trigger_state="opportunity",
-        confirming=("macd", "ema_trend"),
+    bullish_context = SignalContext(
+        overall_bias="supportive",
+        factors=[
+            ContextFactor(
+                name="momentum",
+                state="opportunity",
+                metrics={"rsi14": 32, "j": 8, "kdj_bias": "bullish"},
+            ),
+            ContextFactor(name="macd", state="confirming", metrics={"hist": 0.2}),
+            ContextFactor(name="boll", state="neutral", metrics={"position_pct": 22}),
+            ContextFactor(
+                name="volume_price", state="confirming", metrics={"volume_ratio_5d": 1.6}
+            ),
+            ContextFactor(
+                name="ema_trend",
+                state="confirming",
+                metrics={"ema5": 100, "ema10": 99, "ema20": 98},
+            ),
+            ContextFactor(name="money_flow", state="neutral", metrics={"mfi14": 45}),
+            ContextFactor(name="divergence", state="none", metrics={"type": "none"}),
+        ],
     )
 
     def _context_side_effect(*_args, **kwargs) -> SignalContext:
@@ -258,54 +291,37 @@ def test_bullish_reversal_signal_requires_two_confirmations(mock_history, mock_c
 
     result = calc_score("600519")
 
-    assert result.decision.signal == "反转买入"
+    assert result.decision.signal == "超卖修复"
     assert result.decision.strength == "普通信号"
     assert result.decision.signal_status == "new"
 
 
 @patch("stk.services.score._build_context")
 @patch("stk.services.score.get_history")
-def test_bearish_reversal_signal_requires_two_confirmations(mock_history, mock_context):
-    """Top reversal pattern maps to an exit/risk focus signal."""
+def test_oversold_without_repair_stays_watch(mock_history, mock_context):
+    """Oversold alone is not enough to create a repair signal."""
     mock_history.return_value = _mismatch_candles()
-    bearish_context = _setup_context(
-        trigger_name="boll",
-        trigger_state="risk",
-        confirming=("macd", "ema_trend"),
+    weak_context = SignalContext(
+        overall_bias="mixed",
+        factors=[
+            ContextFactor(
+                name="momentum",
+                state="opportunity",
+                metrics={"rsi14": 30, "j": 5, "kdj_bias": "bearish"},
+            ),
+            ContextFactor(name="macd", state="neutral", metrics={"hist": -0.2}),
+            ContextFactor(name="ema_trend", state="neutral", metrics={"ema5": 120}),
+        ],
     )
 
     def _context_side_effect(*_args, **kwargs) -> SignalContext:
-        return bearish_context if kwargs["direction"] == "bearish" else _neutral_context()
+        return weak_context if kwargs["direction"] == "bullish" else _neutral_context()
 
     mock_context.side_effect = _context_side_effect
 
     result = calc_score("600519")
 
-    assert result.decision.signal == "反转退出"
-    assert result.decision.strength == "普通信号"
-
-
-@patch("stk.services.score._has_repair_trigger", return_value=True)
-@patch("stk.services.score._build_context")
-@patch("stk.services.score.get_history")
-def test_bullish_repair_signal_requires_three_supports(
-    mock_history,
-    mock_context,
-    _mock_repair_trigger,
-):
-    """Repair pattern confirms a pullback recovery without adding a redundant field."""
-    mock_history.return_value = _stale_bullish_candles()
-    repair_context = _setup_context(confirming=("macd", "ema_trend", "money_flow"))
-
-    def _context_side_effect(*_args, **kwargs) -> SignalContext:
-        return repair_context if kwargs["direction"] == "bullish" else _neutral_context()
-
-    mock_context.side_effect = _context_side_effect
-
-    result = calc_score("600519")
-
-    assert result.decision.signal == "修复买入"
-    assert result.decision.strength == "普通信号"
+    assert result.decision.signal == "观察"
 
 
 @patch("stk.services.score._build_context")

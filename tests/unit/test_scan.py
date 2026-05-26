@@ -100,6 +100,20 @@ def _daily_result() -> SimpleNamespace:
     )
 
 
+def _daily_result_with_unclosed_bar() -> SimpleNamespace:
+    result = _daily_result()
+    result.days.insert(
+        0,
+        {
+            **result.days[0],
+            "date": "2026-05-15",
+            "volume": 100,
+            "turnover": 10000.0,
+        },
+    )
+    return result
+
+
 def _compact_daily10() -> list[dict[str, str | int | float | None]]:
     return [
         {
@@ -171,11 +185,8 @@ def test_batch_summary_returns_focus_only(mock_score, mock_daily, mock_quotes):
     assert result.focus[0].decision.signal == "趋势买入"
     assert {item.decision.signal for item in result.focus} <= {
         "趋势买入",
-        "反转买入",
-        "修复买入",
+        "超卖修复",
         "趋势退出",
-        "反转退出",
-        "修复退出",
     }
     assert result.focus[0].daily10 is None
     mock_daily.assert_not_called()
@@ -198,7 +209,33 @@ def test_batch_summary_includes_daily10_when_requested(mock_score, mock_daily, m
     result = batch_summary(["600519.SH"], include_daily10=True)
 
     assert result.focus[0].daily10 == _compact_daily10()
-    mock_daily.assert_called_once_with("600519.SH", count=10)
+    mock_daily.assert_called_once_with("600519.SH", count=11)
+
+
+@patch("stk.services.scan.is_unclosed_daily_bar", return_value=True)
+@patch("stk.services.scan.get_realtime_quotes")
+@patch("stk.services.scan.get_daily")
+@patch("stk.services.scan.calc_score")
+def test_batch_summary_daily10_drops_unclosed_current_bar(
+    mock_score,
+    mock_daily,
+    mock_quotes,
+    mock_unclosed,
+):
+    """daily10 follows the same closed-daily-bar policy as score calculation."""
+    mock_quotes.return_value = [Quote(symbol="600519.SH", name="贵州茅台", last=Decimal(100))]
+    mock_daily.return_value = _daily_result_with_unclosed_bar()
+    mock_score.return_value = _score_result(
+        "600519.SH",
+        strength="强信号",
+        signal="趋势买入",
+        status="new",
+    )
+
+    result = batch_summary(["600519.SH"], include_daily10=True)
+
+    assert result.focus[0].daily10 == _compact_daily10()
+    mock_unclosed.assert_called_once_with("2026-05-15", "600519.SH")
 
 
 @patch("stk.services.scan.get_realtime_quotes")

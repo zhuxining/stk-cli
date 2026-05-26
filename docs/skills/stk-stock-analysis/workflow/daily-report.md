@@ -111,7 +111,7 @@ groups:
 
 ## 数据限制
 
-本报告基于日线收盘确认信号与 `stk-cli` 当前可用数据生成，不代表盘中实时信号，也不构成投资建议。
+本报告基于完整日线确认信号与 `stk-cli` 当前可用数据生成，不代表盘中实时信号，也不构成投资建议。
 ```
 
 1. 通过 `obsidian-knowledge` 写入 `14_Trading/DailyReport/{YYYY-MM-DD-[report-name]}.md`。

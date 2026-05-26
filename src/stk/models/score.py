@@ -11,14 +11,11 @@ type SupertrendFlip = Literal["bullish", "bearish"]
 type DecisionSignal = Literal[
     "趋势买入",
     "趋势退出",
-    "反转买入",
-    "反转退出",
-    "修复买入",
-    "修复退出",
+    "超卖修复",
     "观察",
 ]
 type SignalStatus = Literal["new", "active", "stale"]
-type SignalPattern = Literal["趋势共振", "反转确认", "趋势修复"]
+type SignalPattern = Literal["趋势共振", "超卖修复"]
 type ContextBias = Literal["supportive", "mixed", "conflicting", "risky"]
 type FactorState = Literal["confirming", "neutral", "conflicting", "risk", "opportunity", "none"]
 type RiskLevel = Literal["low", "medium", "high"]

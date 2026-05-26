@@ -87,7 +87,7 @@ stk stock scan 600519 --full-context
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
-| `--daily10` | `false` | 为强信号且辅助态度不冲突的标的补充最近 10 根压缩日线。默认关闭，避免批量扫描输出过大。 |
+| `--daily10` | `false` | 为强信号且辅助态度不冲突的标的补充最近 10 根压缩完整日线。默认关闭，避免批量扫描输出过大。 |
 | `--full-context` | `false` | 输出完整辅助因子，包括 `neutral` 和 `none`。默认仅保留有判断价值的因子，减少批量扫描输出。 |
 
 返回 `MonitorResult`：
@@ -110,8 +110,9 @@ stk stock scan 600519 --full-context
 
 有效信号口径：
 
-- 主策略：`EMA9/EMA26 + Supertrend(ATR10 x2.5)`，并补充保守确认后的反转、修复形态。
-- `signal`: `趋势买入` / `趋势退出` / `反转买入` / `反转退出` / `修复买入` / `修复退出` / `观察`。
+- 主策略：趋势共振和超卖修复两类，完整日线确认。
+- 盘前和盘中扫描使用上一根完整日线；盘后超过市场确认缓冲时间后才纳入当天日线。实时 `last` / `change_pct` 只用于展示，不参与信号、辅助因子和风控计算。
+- `signal`: `趋势买入` / `趋势退出` / `超卖修复` / `观察`。
 - `strength`: `强信号` / `普通信号` / `观察`。
 - 退出类信号表示减仓、退出或风险预警，不表达做空建议。
 - `primary_signal.adx < 20` 表示趋势强度偏弱，`>=25` 表示趋势质量较好；ADX 不直接改变 `strength`。
@@ -125,12 +126,12 @@ stk stock scan 600519 --full-context
 | `momentum` | `rsi14`、`rsi_zone`、`k`、`d`、`j`、`kdj_bias` | 判断动量是否支持主方向，以及是否过热/过冷。 |
 | `macd` | `dif`、`dea`、`hist`、`bias` | 判断 MACD 多空状态与主信号是否一致。 |
 | `boll` | `upper`、`middle`、`lower`、`position_pct`、`bandwidth_pct` | 判断价格在布林区间中的位置，以及是否处于波动收敛。 |
-| `volume_price` | `volume_ratio_5d`、`price_change_pct` | 判断上涨/下跌是否有量能确认。 |
+| `volume_price` | `volume_ratio_5d`、`price_change_pct` | 基于完整日线判断上涨/下跌是否有量能确认。 |
 | `ema_trend` | `ema5`、`ema10`、`ema20`、`arrangement` | 判断短周期均线排列是否顺势。 |
 | `money_flow` | `mfi14`、`mfi_zone` | 结合主方向判断资金流强弱和过热风险。 |
 | `divergence` | `type`、`lookback`、`price_distance_pct`、`hist_delta` | 判断 MACD 顶/底背离，只作为风险或机会提示。 |
 
-`daily10` 压缩日线字段（需显式传入 `--daily10`）：
+`daily10` 压缩完整日线字段（需显式传入 `--daily10`）：
 
 - 价格量能：`date`、`open`、`high`、`low`、`close`、`volume`、`turnover`、`change_pct`。
 - 主信号：`ema9`、`ema26`、`supertrend`、`supertrend_direction`。
@@ -193,7 +194,7 @@ stk stock scan 600519 --full-context
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
-| `--daily10` | `false` | 为强信号且辅助态度不冲突的标的补充最近 10 根压缩日线。默认关闭。 |
+| `--daily10` | `false` | 为强信号且辅助态度不冲突的标的补充最近 10 根压缩完整日线。默认关闭。 |
 | `--full-context` | `false` | 输出完整辅助因子，包括 `neutral` 和 `none`。默认精简。 |
 
 注意：

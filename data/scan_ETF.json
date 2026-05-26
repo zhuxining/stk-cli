@@ -1,0 +1,514 @@
+{
+    "ok": true,
+    "data": {
+        "run_date": "2026-05-26",
+        "universe": {
+            "name": "ETF池",
+            "total": 52,
+            "scanned": 52,
+            "failed": 0
+        },
+        "summary": {
+            "focus_count": 5,
+            "strong_signal_count": 0,
+            "entry_signal_count": 2,
+            "exit_signal_count": 3,
+            "watch_signal_count": 0
+        },
+        "focus": [
+            {
+                "symbol": "159309.SZ",
+                "name": "汇添富中证油气资源ETF",
+                "decision": {
+                    "signal": "趋势退出",
+                    "strength": "普通信号",
+                    "signal_status": "active",
+                    "signal_date": "2026-05-21 00:00:00",
+                    "bars_since_signal": 3
+                },
+                "primary_signal": {
+                    "ema9": 1.4592,
+                    "ema26": 1.4955,
+                    "supertrend": 1.4864,
+                    "supertrend_direction": "bearish",
+                    "adx": 16.2,
+                    "reasons": [
+                        "EMA9 位于 EMA26 下方 (1.46<1.50)",
+                        "Supertrend 当前为空头",
+                        "Supertrend 空头翻转发生在3根K线前",
+                        "ADX 16.2，趋势强度偏弱"
+                    ]
+                },
+                "context": {
+                    "overall_bias": "supportive",
+                    "factors": [
+                        {
+                            "name": "momentum",
+                            "state": "opportunity",
+                            "metrics": {
+                                "rsi14": 32.1401,
+                                "rsi_zone": "weak",
+                                "k": 13.4235,
+                                "d": 12.8954,
+                                "j": 14.4796,
+                                "kdj_bias": "bullish"
+                            }
+                        },
+                        {
+                            "name": "macd",
+                            "state": "confirming",
+                            "metrics": {
+                                "dif": -0.0275,
+                                "dea": -0.0211,
+                                "hist": -0.0064,
+                                "bias": "bearish"
+                            }
+                        },
+                        {
+                            "name": "boll",
+                            "state": "opportunity",
+                            "metrics": {
+                                "upper": 1.5651,
+                                "middle": 1.4946,
+                                "lower": 1.4241,
+                                "position_pct": -5.0,
+                                "bandwidth_pct": 9.4
+                            }
+                        },
+                        {
+                            "name": "ema_trend",
+                            "state": "confirming",
+                            "metrics": {
+                                "ema5": 1.4424,
+                                "ema10": 1.4624,
+                                "ema20": 1.4848,
+                                "arrangement": "bearish"
+                            }
+                        },
+                        {
+                            "name": "money_flow",
+                            "state": "opportunity",
+                            "metrics": {
+                                "mfi14": 16.226,
+                                "mfi_zone": "oversold"
+                            }
+                        }
+                    ],
+                    "warnings": []
+                },
+                "risk": {
+                    "atr": 0.0308,
+                    "stop_loss": 1.4786,
+                    "take_profit": 1.3246,
+                    "risk_reward_ratio": 1.5,
+                    "risk_level": "medium"
+                },
+                "last": "1.42",
+                "change_pct": "-0.70",
+                "source": "realtime"
+            },
+            {
+                "symbol": "159206.SZ",
+                "name": "卫星ETF永赢",
+                "decision": {
+                    "signal": "趋势退出",
+                    "strength": "普通信号",
+                    "signal_status": "new",
+                    "signal_date": "2026-05-26 00:00:00",
+                    "bars_since_signal": 0
+                },
+                "primary_signal": {
+                    "ema_cross": "death",
+                    "ema9": 1.8383,
+                    "ema26": 1.8385,
+                    "supertrend": 1.9683,
+                    "supertrend_direction": "bearish",
+                    "adx": 19.5,
+                    "reasons": [
+                        "EMA9 位于 EMA26 下方 (1.84<1.84)",
+                        "Supertrend 当前为空头",
+                        "EMA 死叉发生在当前K线",
+                        "ADX 19.5，趋势强度偏弱"
+                    ]
+                },
+                "context": {
+                    "overall_bias": "mixed",
+                    "factors": [
+                        {
+                            "name": "momentum",
+                            "state": "conflicting",
+                            "metrics": {
+                                "rsi14": 44.8971,
+                                "rsi_zone": "neutral",
+                                "k": 24.7075,
+                                "d": 20.09,
+                                "j": 33.9425,
+                                "kdj_bias": "bullish"
+                            }
+                        },
+                        {
+                            "name": "macd",
+                            "state": "confirming",
+                            "metrics": {
+                                "dif": 0.0068,
+                                "dea": 0.0252,
+                                "hist": -0.0184,
+                                "bias": "bearish"
+                            }
+                        },
+                        {
+                            "name": "boll",
+                            "state": "confirming",
+                            "metrics": {
+                                "upper": 2.0209,
+                                "middle": 1.8686,
+                                "lower": 1.7163,
+                                "position_pct": 21.6,
+                                "bandwidth_pct": 16.3
+                            }
+                        },
+                        {
+                            "name": "ema_trend",
+                            "state": "confirming",
+                            "metrics": {
+                                "ema5": 1.8201,
+                                "ema10": 1.8413,
+                                "ema20": 1.8449,
+                                "arrangement": "bearish"
+                            }
+                        },
+                        {
+                            "name": "money_flow",
+                            "state": "confirming",
+                            "metrics": {
+                                "mfi14": 35.9386,
+                                "mfi_zone": "weak"
+                            }
+                        },
+                        {
+                            "name": "divergence",
+                            "state": "opportunity",
+                            "metrics": {
+                                "type": "macd_bullish",
+                                "lookback": 20,
+                                "current_close": 1.782,
+                                "reference_price": 1.774,
+                                "current_hist": -0.0184,
+                                "reference_hist": -0.0187,
+                                "price_distance_pct": 0.45,
+                                "hist_delta": 0.0003
+                            }
+                        }
+                    ],
+                    "warnings": []
+                },
+                "risk": {
+                    "atr": 0.0718,
+                    "stop_loss": 1.9256,
+                    "take_profit": 1.5666,
+                    "risk_reward_ratio": 1.5,
+                    "risk_level": "medium"
+                },
+                "last": "1.78",
+                "change_pct": "-3.78",
+                "source": "realtime"
+            },
+            {
+                "symbol": "516160.SH",
+                "name": "南方中证新能源ETF",
+                "decision": {
+                    "signal": "趋势退出",
+                    "strength": "普通信号",
+                    "signal_status": "new",
+                    "signal_date": "2026-05-25 00:00:00",
+                    "bars_since_signal": 1
+                },
+                "primary_signal": {
+                    "ema_cross": "death",
+                    "ema9": 3.2022,
+                    "ema26": 3.2077,
+                    "supertrend": 3.3766,
+                    "supertrend_direction": "bearish",
+                    "adx": 12.6,
+                    "reasons": [
+                        "EMA9 位于 EMA26 下方 (3.20<3.21)",
+                        "Supertrend 当前为空头",
+                        "EMA 死叉发生在1根K线前",
+                        "Supertrend 空头翻转发生在3根K线前",
+                        "ADX 12.6，趋势强度偏弱"
+                    ]
+                },
+                "context": {
+                    "overall_bias": "mixed",
+                    "factors": [
+                        {
+                            "name": "momentum",
+                            "state": "conflicting",
+                            "metrics": {
+                                "rsi14": 47.7093,
+                                "rsi_zone": "neutral",
+                                "k": 22.9049,
+                                "d": 20.7674,
+                                "j": 27.1798,
+                                "kdj_bias": "bullish"
+                            }
+                        },
+                        {
+                            "name": "macd",
+                            "state": "confirming",
+                            "metrics": {
+                                "dif": 0.0022,
+                                "dea": 0.02,
+                                "hist": -0.0178,
+                                "bias": "bearish"
+                            }
+                        },
+                        {
+                            "name": "boll",
+                            "state": "confirming",
+                            "metrics": {
+                                "upper": 3.3855,
+                                "middle": 3.2484,
+                                "lower": 3.1113,
+                                "position_pct": 25.1,
+                                "bandwidth_pct": 8.4
+                            }
+                        },
+                        {
+                            "name": "ema_trend",
+                            "state": "confirming",
+                            "metrics": {
+                                "ema5": 3.1867,
+                                "ema10": 3.2053,
+                                "ema20": 3.2126,
+                                "arrangement": "bearish"
+                            }
+                        },
+                        {
+                            "name": "money_flow",
+                            "state": "opportunity",
+                            "metrics": {
+                                "mfi14": 17.8811,
+                                "mfi_zone": "oversold"
+                            }
+                        },
+                        {
+                            "name": "divergence",
+                            "state": "opportunity",
+                            "metrics": {
+                                "type": "macd_bullish",
+                                "lookback": 20,
+                                "current_close": 3.18,
+                                "reference_price": 3.146,
+                                "current_hist": -0.0178,
+                                "reference_hist": -0.0204,
+                                "price_distance_pct": 1.08,
+                                "hist_delta": 0.0026
+                            }
+                        }
+                    ],
+                    "warnings": []
+                },
+                "risk": {
+                    "atr": 0.0852,
+                    "stop_loss": 3.3504,
+                    "take_profit": 2.9244,
+                    "risk_reward_ratio": 1.5,
+                    "risk_level": "medium"
+                },
+                "last": "3.18",
+                "change_pct": "0.32",
+                "source": "realtime"
+            },
+            {
+                "symbol": "159561.SZ",
+                "name": "嘉实德国DAXETF(QDII)",
+                "decision": {
+                    "signal": "趋势买入",
+                    "strength": "普通信号",
+                    "signal_status": "new",
+                    "signal_date": "2026-05-25 00:00:00",
+                    "bars_since_signal": 1
+                },
+                "primary_signal": {
+                    "ema_cross": "golden",
+                    "ema9": 1.314,
+                    "ema26": 1.3076,
+                    "supertrend": 1.2942,
+                    "supertrend_direction": "bullish",
+                    "adx": 15.1,
+                    "reasons": [
+                        "EMA9 位于 EMA26 上方 (1.31>1.31)",
+                        "Supertrend 当前为多头",
+                        "EMA 金叉发生在1根K线前",
+                        "Supertrend 多头翻转发生在2根K线前",
+                        "ADX 15.1，趋势强度偏弱"
+                    ]
+                },
+                "context": {
+                    "overall_bias": "risky",
+                    "factors": [
+                        {
+                            "name": "momentum",
+                            "state": "risk",
+                            "metrics": {
+                                "rsi14": 59.211,
+                                "rsi_zone": "neutral",
+                                "k": 95.2868,
+                                "d": 85.2551,
+                                "j": 115.3502,
+                                "kdj_bias": "bullish"
+                            }
+                        },
+                        {
+                            "name": "macd",
+                            "state": "confirming",
+                            "metrics": {
+                                "dif": 0.0037,
+                                "dea": -0.0004,
+                                "hist": 0.0041,
+                                "bias": "bullish"
+                            }
+                        },
+                        {
+                            "name": "boll",
+                            "state": "risk",
+                            "metrics": {
+                                "upper": 1.3485,
+                                "middle": 1.3079,
+                                "lower": 1.2673,
+                                "position_pct": 94.5,
+                                "bandwidth_pct": 6.2
+                            }
+                        },
+                        {
+                            "name": "ema_trend",
+                            "state": "confirming",
+                            "metrics": {
+                                "ema5": 1.3224,
+                                "ema10": 1.3129,
+                                "ema20": 1.3081,
+                                "arrangement": "bullish"
+                            }
+                        },
+                        {
+                            "name": "divergence",
+                            "state": "risk",
+                            "metrics": {
+                                "type": "macd_bearish",
+                                "lookback": 20,
+                                "current_close": 1.344,
+                                "reference_price": 1.348,
+                                "current_hist": 0.0041,
+                                "reference_hist": 0.0061,
+                                "price_distance_pct": -0.3,
+                                "hist_delta": -0.002
+                            }
+                        }
+                    ],
+                    "warnings": []
+                },
+                "risk": {
+                    "atr": 0.0191,
+                    "stop_loss": 1.3058,
+                    "take_profit": 1.4013,
+                    "risk_reward_ratio": 1.5,
+                    "risk_level": "medium"
+                },
+                "last": "1.34",
+                "change_pct": "0.75",
+                "source": "realtime"
+            },
+            {
+                "symbol": "159866.SZ",
+                "name": "日经ETF工银",
+                "decision": {
+                    "signal": "趋势买入",
+                    "strength": "普通信号",
+                    "signal_status": "active",
+                    "signal_date": "2026-05-22 00:00:00",
+                    "bars_since_signal": 2
+                },
+                "primary_signal": {
+                    "ema9": 1.5841,
+                    "ema26": 1.545,
+                    "supertrend": 1.5482,
+                    "supertrend_direction": "bullish",
+                    "adx": 24.9,
+                    "reasons": [
+                        "EMA9 位于 EMA26 上方 (1.58>1.54)",
+                        "Supertrend 当前为多头",
+                        "Supertrend 多头翻转发生在2根K线前"
+                    ]
+                },
+                "context": {
+                    "overall_bias": "risky",
+                    "factors": [
+                        {
+                            "name": "momentum",
+                            "state": "risk",
+                            "metrics": {
+                                "rsi14": 64.4492,
+                                "rsi_zone": "strong",
+                                "k": 89.5468,
+                                "d": 68.075,
+                                "j": 132.4903,
+                                "kdj_bias": "bullish"
+                            }
+                        },
+                        {
+                            "name": "macd",
+                            "state": "confirming",
+                            "metrics": {
+                                "dif": 0.031,
+                                "dea": 0.0279,
+                                "hist": 0.0031,
+                                "bias": "bullish"
+                            }
+                        },
+                        {
+                            "name": "boll",
+                            "state": "risk",
+                            "metrics": {
+                                "upper": 1.653,
+                                "middle": 1.5619,
+                                "lower": 1.4709,
+                                "position_pct": 90.1,
+                                "bandwidth_pct": 11.7
+                            }
+                        },
+                        {
+                            "name": "ema_trend",
+                            "state": "confirming",
+                            "metrics": {
+                                "ema5": 1.6011,
+                                "ema10": 1.5813,
+                                "ema20": 1.5572,
+                                "arrangement": "bullish"
+                            }
+                        }
+                    ],
+                    "warnings": []
+                },
+                "risk": {
+                    "atr": 0.0352,
+                    "stop_loss": 1.5646,
+                    "take_profit": 1.7406,
+                    "risk_reward_ratio": 1.5,
+                    "risk_level": "medium"
+                },
+                "last": "1.64",
+                "change_pct": "-0.61",
+                "source": "realtime"
+            }
+        ],
+        "ignored": {
+            "no_signal_count": 47
+        },
+        "errors": []
+    },
+    "error": null,
+    "meta": {
+        "updated_at": "2026-05-26T17:09:38+08:00"
+    }
+}
