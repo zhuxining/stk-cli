@@ -104,6 +104,20 @@ def scan(
     output.render(result, exclude_none=True)
 
 
+@app.command("scan-live")
+def scan_live(
+    symbols: list[str] = typer.Argument(help="One or more symbols (e.g. 600519 000001 700.HK)"),
+    timeframe: str = typer.Option("15m", "--timeframe", "-t", help="Intraday timeframe: 5m/15m"),
+    count: int = typer.Option(80, "--count", "-c", help="Number of intraday bars"),
+) -> None:
+    """Intraday live scan using daily signal background and minute-bar triggers."""
+    from stk.services.live_scan import live_summary
+    from stk.utils.symbol import expand_symbols
+
+    result = live_summary(expand_symbols(symbols), timeframe=timeframe, count=count)
+    output.render(result, exclude_none=True)
+
+
 @app.command()
 def kline(
     symbols: list[str] = typer.Argument(help="One or more symbols"),

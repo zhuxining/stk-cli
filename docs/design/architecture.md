@@ -199,6 +199,7 @@ stk stock fundamental / stk market news
 
 - `services/score.py` 负责把日线 K 线转换为 `ScoreResult`，其中 `decision` 是可执行动作，`primary_signal` 是 EMA9/26 与 Supertrend 主信号，`context` 是辅助因子解释，`risk` 是独立风控字段。
 - `services/scan.py` 负责把多个 `ScoreResult` 聚合为 `MonitorResult`，并按重点关注规则生成 `focus`、`summary`、`ignored` 和 `errors`；仅为强信号且辅助态度不冲突的 `FocusItem` 补充最近 10 根压缩完整日线。
+- `services/live_scan.py` 负责实盘提醒扫描，先复用完整日线 `ScoreResult` 做背景过滤，再读取未缓存分钟 K 线生成 `LiveScanResult`；它不改写日线 `decision`。
 - `services/indicator.py` 负责输出 K 线与技术指标明细，供使用者解释信号来源，不负责判断是否入选重点关注。
 - `services/fundamental.py` 与 `services/news.py` 是补充查询能力，不参与默认每日监控筛选。
 
@@ -241,6 +242,7 @@ stk CLI process
 | `services/indicator.py` | 生成按日合并的 OHLCV、EMA9/26、Supertrend、ATR10 与其他技术指标结果 | 判断重点关注标的 |
 | `services/score.py` | 基于日线 K 线生成 `ScoreResult`，包含决策、主信号、结构化辅助因子和风控点位 | 管理自选股或批量排序 |
 | `services/scan.py` | 聚合每日监控结果，输出重点关注标的、统计、忽略数量、错误列表和强信号标的压缩完整日线 | 渲染响应或计算单标的主信号 |
+| `services/live_scan.py` | 聚合实盘提醒结果，输出日线背景、分钟触发、实时提醒强度和分钟风险线 | 替代日线扫描或生成新的日线决策 |
 | `services/fundamental.py` | 获取估值、行业对比和公司概况 | 参与默认每日监控筛选 |
 | `services/rank.py` | 获取同花顺技术筛选与行业情绪结果 | 生成每日监控决策 |
 | `services/news.py` | 获取并归一化市场新闻 | 个股监控筛选 |
@@ -248,6 +250,7 @@ stk CLI process
 | `services/health.py` | 检查数据源连通性 | 自动恢复凭证 |
 | `models/score.py` | 定义单标的监控结果契约 | 计算技术指标 |
 | `models/scan.py` | 定义每日批量监控结果契约 | 获取行情或执行筛选 |
+| `models/live_scan.py` | 定义实盘提醒结果契约 | 获取行情或执行筛选 |
 | `models/` | 定义其他跨层 Pydantic 数据契约 | 访问外部数据源 |
 | `store/` | 提供文件存储与缓存副本 | 拥有业务数据权威来源 |
 | `utils/` | 提供 symbol、价格等纯转换函数 | 读取配置或访问网络 |

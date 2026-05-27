@@ -138,6 +138,50 @@ stk stock scan 600519 --full-context
 - 辅助指标：`macd`、`macd_signal`、`macd_hist`、`rsi14`、`j`、`boll_position_pct`、`atr10`。
 - 使用方式：复核信号出现在第几根 K 线、触发后是否延续、是否放量、是否过热，不用 `daily10` 重新计算 `decision.strength`。
 
+### `stk stock scan-live <symbols...>`
+
+对一个或多个 symbol 做实盘提醒扫描。它先用 `stk stock scan` 同源的完整日线信号做底层过滤，再用完整的 5m/15m K 线判断盘中触发。
+
+示例：
+
+```bash
+stk stock scan-live 600519 300750
+stk stock scan-live 600519 --timeframe 5m
+```
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--timeframe` / `-t` | `15m` | 实盘 K 线周期：`5m` / `15m`。 |
+| `--count` / `-c` | `80` | 读取的分钟 K 线根数。 |
+
+返回 `LiveScanResult`：
+
+- `mode`: 固定为 `live`。
+- `as_of`: 本次扫描时间。
+- `timeframe`: 实盘 K 线周期。
+- `summary`: `focus_count`、`follow_count`、`weaken_count`、`overheated_count`、`observe_count`。
+- `focus[]`: 盘中触发提醒标的。
+- `ignored.no_live_signal_count`: 日线背景或分钟线未触发的数量。
+- `errors[]`: 单标的非致命错误。
+
+`focus[]` 中每个 `LiveFocusItem` 含：
+
+- `daily_signal` / `daily_strength`: 日线背景。
+- `live_signal`: `实时跟随`、`实时转弱`、`实时过热`。
+- `strength`: `强提醒` 或 `普通提醒`。
+- `trigger`: 触发原因。
+- `risk_line`: 分钟触发失效线或观察线。
+- `volume_ratio`: 最新完整分钟 K 成交额相对最近分钟均值。
+- `vwap`、`ema20`、`rsi14`: 实盘判断用的分钟指标。
+
+实盘扫描口径：
+
+- 只使用已完成的分钟 K 线；实时价只作为展示。
+- 日线为 `观察`、信号过期或强度为 `观察` 的标的不会进入实盘触发计算。
+- `实时跟随`：日线偏多，分钟收盘站上 VWAP 和 EMA20。
+- `实时转弱`：日线偏多但分钟线跌破 VWAP/EMA20 或开盘区间低点；或日线退出信号下继续弱势。
+- `实时过热`：日线偏多，但分钟 RSI 或相对 VWAP 偏离过热。
+
 ### `stk stock kline <symbols...>`
 
 获取 K 线和全部技术指标，用于解释信号来源。
@@ -202,6 +246,15 @@ stk stock scan 600519 --full-context
 - 当前命令没有 `--sort` 参数。
 - 默认只展开 `focus` 重点关注标的。
 - 观察标的进入 `ignored.no_signal_count`，不返回逐只明细。
+
+### `stk watchlist scan-live <group>`
+
+对 watchlist 分组做实盘提醒扫描，输出结构与 `stk stock scan-live <symbols...>` 相同。
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--timeframe` / `-t` | `15m` | 实盘 K 线周期：`5m` / `15m`。 |
+| `--count` / `-c` | `80` | 读取的分钟 K 线根数。 |
 
 ### `stk watchlist kline <group>`
 

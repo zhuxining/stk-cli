@@ -108,6 +108,19 @@ def scan(
     output.render(result, exclude_none=True)
 
 
+@app.command("scan-live")
+def scan_live(
+    name: str = typer.Argument(help="Watchlist group name"),
+    timeframe: str = typer.Option("15m", "--timeframe", "-t", help="Intraday timeframe: 5m/15m"),
+    count: int = typer.Option(80, "--count", "-c", help="Number of intraday bars"),
+) -> None:
+    """Intraday live scan for a watchlist group."""
+    from stk.services.live_scan import scan_live_watchlist
+
+    result = scan_live_watchlist(name, timeframe=timeframe, count=count)
+    output.render(result, exclude_none=True)
+
+
 @app.command()
 def kline(
     name: str = typer.Argument(help="Watchlist group name"),

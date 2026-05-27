@@ -24,6 +24,7 @@ compatibility:
 - 主信号：趋势共振和超卖修复两类，完整日线确认。
 - 扫描口径：信号、辅助因子、成交量和风控只使用已确认的完整日线；盘前和盘中沿用上一交易日，盘后超过确认缓冲时间后才纳入当天日线。
 - 实时行情：`last`、`change_pct`、`source` 只用于展示当前价格状态，不参与信号强弱或量价确认。
+- 实盘扫描：`scan-live` 是独立提醒模式，先用完整日线信号做底层过滤，再用完整 5m/15m K 线输出 `实时跟随`、`实时转弱`、`实时过热`；不要把它解读成新的日线 `decision`。
 - 有效窗口：最近 3 根 K 线内出现 EMA 交叉或 Supertrend 翻转，且方向一致。
 - 批量扫描：只展开 `MonitorResult.focus`；`观察` 标的只统计 `ignored.no_signal_count`。
 - 单标的解读：以 `decision` 下结论，以 `primary_signal` 给依据，以 `context` 和 `risk` 做补充。
@@ -73,6 +74,7 @@ compatibility:
 | "有没有什么热点"、"帮我找几个技术形态好的" | 技术热点 |
 | "茅台有没有信号"、"600519 怎么看" | 个股信号分析 |
 | "我的持仓/自选怎么样"、"检查一下ETF分组" | 分组每日监控 |
+| "盘中/实盘有没有触发"、"帮我盯一下自选" | 实盘提醒 |
 | "日报"、"交易日报"、"DailyReport"、"保存到 Obsidian" | DailyReport |
 | "日报 + 选股/热点/候选" | DailyReport → 技术热点 |
 
@@ -85,6 +87,7 @@ compatibility:
 | 热点、选股、技术形态、入池 | 技术热点 | `stk stock hotspot` + `stk stock candidates` + `stk stock scan` |
 | 分析某只股票、有没有信号 | 个股信号分析 | `stk stock scan <symbol>` + 可选 `kline` / `fundamental` |
 | 自选、分组、持仓、每日监控 | 分组每日监控 | `stk watchlist scan <group>` |
+| 盘中、实盘、盯盘、触发提醒 | 实盘提醒 | `stk stock scan-live <symbols...>` 或 `stk watchlist scan-live <group>` |
 
 用户要求 DailyReport 时，默认只做“市场总览 + 分组每日监控”；只有明确提到“选股、热点、候选”时才追加技术热点。
 
@@ -134,6 +137,15 @@ compatibility:
 结论必须先给 `decision.signal`、`decision.strength`、`signal_status` 和是否进入 `focus`。未进入 `focus` 时，不要强行给买卖建议。
 如果用户一次分析多只股票，使用 `templates/multi-stock-deep-comparison.md`，表格对比信号质量、辅助态度和风控，不逐只展开长段落。
 如果只分析单只股票，按“分析步骤”输出短表：结论、主信号、辅助确认、风险冲突和风控边界。
+
+### 实盘提醒
+
+用户明确要求盘中、实盘、盯盘或触发提醒时使用 `scan-live`。先看 `focus`，不要展开 `ignored` 标的；结论必须区分日线背景和实盘触发：
+
+- `daily_signal` / `daily_strength` 是日线背景。
+- `live_signal` 是盘中提醒，不改写日线 `decision`。
+- `risk_line` 是分钟触发失效线或观察线。
+- `volume_ratio` 是分钟 K 成交额对比，不等同于日线 `volume_price.volume_ratio_5d`。
 
 ### 分组每日监控
 

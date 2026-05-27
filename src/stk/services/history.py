@@ -33,22 +33,33 @@ def _get_period(period: str):
             "day": Period.Day,
             "week": Period.Week,
             "month": Period.Month,
+            "1m": Period.Min_1,
+            "2m": Period.Min_2,
+            "3m": Period.Min_3,
+            "5m": Period.Min_5,
+            "10m": Period.Min_10,
+            "15m": Period.Min_15,
+            "20m": Period.Min_20,
+            "30m": Period.Min_30,
+            "45m": Period.Min_45,
+            "60m": Period.Min_60,
+            "120m": Period.Min_120,
+            "180m": Period.Min_180,
+            "240m": Period.Min_240,
         })
     lp_period = _PERIOD_MAP.get(period)
     if lp_period is None:
-        raise SourceError(f"Unsupported period: {period}. Use day/week/month")
+        raise SourceError(f"Unsupported period: {period}. Use day/week/month or minute periods")
     return lp_period
 
 
-@cached(ttl=28800)
-def get_history(
+def _query_history(
     symbol: str,
     *,
     target_type: TargetType = TargetType.STOCK,
     period: str = "day",
     count: int = 30,
 ) -> list[Candlestick]:
-    """Get historical candlestick data from longport."""
     try:
         from longport.openapi import AdjustType
 
@@ -73,3 +84,26 @@ def get_history(
         raise
     except Exception as e:
         raise SourceError(f"Longport history API error: {e}") from e
+
+
+@cached(ttl=28800)
+def get_history(
+    symbol: str,
+    *,
+    target_type: TargetType = TargetType.STOCK,
+    period: str = "day",
+    count: int = 30,
+) -> list[Candlestick]:
+    """Get historical candlestick data from longport."""
+    return _query_history(symbol, target_type=target_type, period=period, count=count)
+
+
+def get_uncached_history(
+    symbol: str,
+    *,
+    target_type: TargetType = TargetType.STOCK,
+    period: str = "day",
+    count: int = 30,
+) -> list[Candlestick]:
+    """Get fresh candlestick data without the long-lived history cache."""
+    return _query_history(symbol, target_type=target_type, period=period, count=count)
