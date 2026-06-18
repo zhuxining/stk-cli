@@ -116,7 +116,6 @@ output.py -> models/
 - **Monitor Run**：一次 watchlist 或临时股票池扫描，包含股票池覆盖情况、重点关注列表、忽略统计和失败列表。
 - **Focus Item**：一次 Monitor Run 中被筛选进入重点关注列表的单个标的，可在强信号时携带压缩完整日线解释数据。
 - **Watchlist Group**：用户在 Longport 服务端维护的自选股分组，本地只缓存分组名称到 ID 的映射。
-- **News Item**：来自补充数据源的市场新闻条目，按来源归一为统一模型。
 - **Cache Entry**：外部数据查询结果的本地副本，按函数身份和入参生成键。
 
 ```mermaid
@@ -139,7 +138,6 @@ erDiagram
     WATCHLIST_GROUP ||--o{ SECURITY : "contains"
     CACHE_ENTRY }o--|| QUOTE_SNAPSHOT : "stores snapshot"
     CACHE_ENTRY }o--|| CANDLESTICK_SERIES : "stores series"
-    NEWS_ITEM }o--|| CACHE_ENTRY : "is stored as"
 ```
 
 ## 整体流程
@@ -183,10 +181,10 @@ stk stock kline / stk watchlist kline
     -> Output Renderer emits JSON envelope
 ```
 
-### 基本面与新闻查询路径
+### 基本面查询路径
 
 ```
-stk stock fundamental / stk market news
+stk stock fundamental
     -> Command Adapter validates request shape
     -> Domain Service calls akshare supplementary data source
     -> Domain Service maps upstream data into Pydantic models
@@ -201,7 +199,7 @@ stk stock fundamental / stk market news
 - `services/scan.py` 负责把多个 `ScoreResult` 聚合为 `MonitorResult`，并按重点关注规则生成 `focus`、`summary`、`ignored` 和 `errors`；仅为强信号且辅助态度不冲突的 `FocusItem` 补充最近 10 根压缩完整日线。
 - `services/live_scan.py` 负责实盘提醒扫描，先复用完整日线 `ScoreResult` 做背景过滤，再读取未缓存分钟 K 线生成 `LiveScanResult`；它不改写日线 `decision`。
 - `services/indicator.py` 负责输出 K 线与技术指标明细，供使用者解释信号来源，不负责判断是否入选重点关注。
-- `services/fundamental.py` 与 `services/news.py` 是补充查询能力，不参与默认每日监控筛选。
+- `services/fundamental.py` 是补充查询能力，不参与默认每日监控筛选。
 
 ## 部署架构
 
@@ -231,7 +229,7 @@ stk CLI process
 | 模块 | 职责 | 不负责 |
 |------|------|--------|
 | `cli.py` | 组装 CLI 应用、配置日志、统一错误出口 | 业务数据获取 |
-| `commands/market.py` | 暴露市场概览与新闻命令 | 市场数据转换 |
+| `commands/market.py` | 暴露市场概览命令 | 市场数据转换 |
 | `commands/stock.py` | 暴露个股排行、基本面、扫描和 K 线命令 | 技术指标计算和监控筛选 |
 | `commands/watchlist.py` | 暴露自选股 CRUD、扫描和 K 线命令 | 自选股远端数据所有权和监控筛选 |
 | `commands/doctor.py` | 暴露数据源健康检查命令 | 修复配置或网络问题 |
@@ -245,7 +243,6 @@ stk CLI process
 | `services/live_scan.py` | 聚合实盘提醒结果，输出日线背景、分钟触发、实时提醒强度和分钟风险线 | 替代日线扫描或生成新的日线决策 |
 | `services/fundamental.py` | 获取估值、行业对比和公司概况 | 参与默认每日监控筛选 |
 | `services/rank.py` | 获取同花顺技术筛选与行业情绪结果 | 生成每日监控决策 |
-| `services/news.py` | 获取并归一化市场新闻 | 个股监控筛选 |
 | `services/watchlist.py` | 通过 Longport 管理自选股分组并同步本地 ID 缓存 | 本地保存自选股成员数据 |
 | `services/health.py` | 检查数据源连通性 | 自动恢复凭证 |
 | `models/score.py` | 定义单标的监控结果契约 | 计算技术指标 |

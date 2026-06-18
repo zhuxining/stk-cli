@@ -15,18 +15,6 @@
 - `indices`: `{region: [IndexQuote]}`，含 `symbol`、`name`、`region`、`last`、`change`、`change_pct`、`volume`。
 - `temperature`: `{region: MarketTemperature}`，含 `score`、`level`、`valuation`、`sentiment`。
 
-### `stk market news`
-
-全局新闻，默认合并 CLS + THS，并按时间倒序。
-
-| 参数 | 默认 | 说明 |
-|------|------|------|
-| `--source` | `all` | `all` / `cls` / `ths` |
-| `--count` | `20` | 新闻条数 |
-| `--filter` | `全部` | CLS 专用：`全部` / `重点` |
-
-返回 `list[NewsItem]`：`title`、`summary`、`published_at`、`source`、`url`。
-
 ---
 
 ## Stock

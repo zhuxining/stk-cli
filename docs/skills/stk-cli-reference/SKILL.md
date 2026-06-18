@@ -20,7 +20,6 @@ compatibility:
 | 需求 | 命令 |
 |------|------|
 | 市场行情 | `stk market` |
-| 新闻 | `stk market news` |
 | 技术排名 | `stk stock rank` |
 | 行业热点 | `stk stock hotspot` |
 | 选股候选 | `stk stock candidates` |
@@ -44,18 +43,6 @@ compatibility:
 市场概览，指数按 `CN` / `HK` / `US` 分组，含三地温度。
 
 返回 `MarketOverview`：`indices`（`symbol`、`name`、`region`、`last`、`change`、`change_pct`、`volume`）、`temperature`（`score`、`level`、`valuation`、`sentiment`）。
-
-### `stk market news`
-
-全局新闻，合并 CLS + THS 按时间倒序。
-
-| 参数 | 默认 | 说明 |
-|------|------|------|
-| `--source` | `all` | `all` / `cls` / `ths` |
-| `--count` | `20` | 条数 |
-| `--filter` | `全部` | CLS：`全部` / `重点` |
-
-返回 `NewsItem[]`：`title`、`summary`、`published_at`、`source`、`url`。
 
 ---
 

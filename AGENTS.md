@@ -48,7 +48,7 @@ src/stk/
 ├── errors.py           # Custom exceptions + global error handler
 ├── deps.py             # Lazy singletons (longport ctx, etc.)
 ├── commands/           # Thin layer: parse args → call service → render output
-│   ├── market.py       # stk market — grouped indices + temperature; stk market news
+│   ├── market.py       # stk market — grouped indices + temperature
 │   ├── stock.py        # stk stock — scan, kline, fundamental, rank
 │   ├── watchlist.py    # stk watchlist — CRUD + scan + kline
 │   ├── doctor.py       # stk doctor — data source health check
@@ -63,7 +63,6 @@ src/stk/
 │   ├── score.py        # Multi-indicator resonance score + ATR risk control
 │   ├── scan.py         # Batch analysis: watchlist scan + stock scan + kline_watchlist
 │   ├── health.py       # Data source connectivity check
-│   ├── news.py         # Global news (CLS / THS)
 │   └── watchlist.py    # Watchlist via longport API, local group ID cache
 ├── models/             # Pydantic models (data contracts, JSON schema for agents)
 │   ├── common.py       # Envelope, ErrorDetail
@@ -89,4 +88,4 @@ src/stk/
 - **Storage**: `~/.stk/` directory for local caches (e.g. `watchlist_groups.json` for group name→id mapping). Atomic writes (tmp file + rename). Watchlist data is stored on longport server.
 
 Use `loguru` for all logging. Use `pandas` + `ta-lib` for indicator calculations in services.
-Longport is the primary data source. akshare supplements A-share features: tech screening rankings (THS), industry comparison, company profile, global news (CLS/THS).
+Longport is the primary data source. akshare supplements A-share features: tech screening rankings (THS), industry comparison, company profile.

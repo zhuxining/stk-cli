@@ -82,8 +82,8 @@ compatibility:
 
 | 用户意图 | 模式 | 主要命令 |
 |----------|------|----------|
-| 日报、市场、盘面、新闻 | 市场总览 | `stk market` + `stk market news --count 20` |
-| DailyReport、交易日报、每日复盘、保存到 Obsidian | DailyReport | `stk market` + `stk market news --count 20` + `stk watchlist scan <group>` |
+| 日报、市场、盘面 | 市场总览 | `stk market` |
+| DailyReport、交易日报、每日复盘、保存到 Obsidian | DailyReport | `stk market` + `stk watchlist scan <group>` |
 | 热点、选股、技术形态、入池 | 技术热点 | `stk stock hotspot` + `stk stock candidates` + `stk stock scan` |
 | 分析某只股票、有没有信号 | 个股信号分析 | `stk stock scan <symbol>` + 可选 `kline` / `fundamental` |
 | 自选、分组、持仓、每日监控 | 分组每日监控 | `stk watchlist scan <group>` |
@@ -97,12 +97,11 @@ compatibility:
 
 使用 `templates/market-hotspot-analysis.md`。
 
-并行运行：
+运行：
 
 - `stk market`
-- `stk market news --count 20`
 
-输出：一句话市场状态、三地市场温度、3 条重要消息、强势方向、风险方向。
+输出：一句话市场状态、三地市场温度、强势方向、风险方向。
 
 ### DailyReport
 

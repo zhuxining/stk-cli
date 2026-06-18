@@ -4,7 +4,7 @@ import typer
 
 from stk import output
 
-app = typer.Typer(help="Market overview and news", invoke_without_command=True)
+app = typer.Typer(help="Market overview", invoke_without_command=True)
 
 
 @app.callback()
@@ -17,31 +17,3 @@ def market_overview(ctx: typer.Context) -> None:
 
     result = get_market_overview()
     output.render(result)
-
-
-@app.command("news")
-def news_cmd(
-    source: str = typer.Option(
-        "all",
-        "--source",
-        "-s",
-        help="Source: all/cls(财联社)/ths(同花顺)",
-    ),
-    count: int = typer.Option(20, "--count", "-c", help="Number of items"),
-    filter_: str = typer.Option(
-        "全部",
-        "--filter",
-        "-f",
-        help="Filter (cls only): 全部/重点",
-    ),
-) -> None:
-    """Global market news. Default: all sources merged."""
-    if source == "all":
-        from stk.services.news import get_all_news
-
-        result = get_all_news(count=count, filter_=filter_)
-    else:
-        from stk.services.news import get_global_news
-
-        result = get_global_news(source=source, count=count, filter_=filter_)
-    output.render(result, meta={"count": len(result), "source": source})

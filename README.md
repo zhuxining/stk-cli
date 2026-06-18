@@ -80,28 +80,6 @@ stk market breadth
 
 输出字段：`up_count`, `down_count`, `flat_count`, `limit_up`, `limit_down`
 
-### news — 全局新闻
-
-```bash
-# 财联社新闻
-stk market news --source cls --count 20
-
-# 同花顺新闻
-stk market news --source ths --count 20
-
-# 东方财富新闻
-stk market news --source em --count 20
-
-# 财联社，只看重点
-stk market news --source cls --filter 重点
-```
-
-**参数：**
-
-- `--source`, `-s`：新闻源，可选 `cls`（财联社）/ `ths`（同花顺）/ `em`（东方财富），默认 `cls`
-- `--count`, `-c`：新闻数量，默认 20
-- `--filter`, `-f`：筛选条件（仅 cls），可选 `全部` / `重点`，默认 `全部`
-
 ---
 
 ## board — 行业/概念板块
@@ -320,18 +298,6 @@ stk stock history 000001.SH --type index --period day --count 60
 
 输出字段：`date`, `open`, `high`, `low`, `close`, `volume`, `turnover`
 
-### news — 个股新闻
-
-```bash
-# 默认 10 条
-stk stock news 600519
-
-# 指定数量
-stk stock news 700.HK --count 20
-```
-
-输出字段：`title`, `summary`, `published_at`, `source`, `url`
-
 ### flow — 个股资金流
 
 ```bash
@@ -483,7 +449,6 @@ src/stk/
 │   ├── fundamental.py
 │   ├── history.py
 │   ├── indicator.py
-│   ├── news.py
 │   ├── chip.py
 │   └── watchlist.py
 ├── models/             # 数据模型（Pydantic）
