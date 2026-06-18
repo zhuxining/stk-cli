@@ -93,7 +93,7 @@ stk stock scan 600519 --full-context
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
-| `--daily10` | `false` | 强信号标的补充最近 10 根日线 |
+| `--daily10` | `false` | 推荐信号标的补充最近 10 根日线 |
 | `--full-context` | `false` | 输出完整辅助因子（含 `neutral`/`none`） |
 
 返回 `MonitorResult`：`run_date`、`universe`、`summary`、`focus[]`、`ignored`、`errors[]`。`focus[]` 含 `decision`、`primary_signal`、`context`、`risk`，详细字段见 `references/output-schema.md`。

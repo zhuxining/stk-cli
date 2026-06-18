@@ -45,7 +45,7 @@ def _score(signal: DecisionSignal = "趋势买入") -> ScoreResult:
         symbol="600519.SH",
         decision=Decision(
             signal=signal,
-            strength="普通信号",
+            strength=None if signal == "观察" else "推荐",
             signal_status="new",
             signal_date="2026-05-25",
             bars_since_signal=0,

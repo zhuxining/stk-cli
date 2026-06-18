@@ -34,10 +34,9 @@ from stk.utils.trading_session import is_unclosed_daily_bar
 _ENTRY_SIGNALS: set[DecisionSignal] = {"趋势买入", "超卖修复"}
 _EXIT_SIGNALS: set[DecisionSignal] = {"趋势退出"}
 _FOCUS_SIGNALS = _ENTRY_SIGNALS | _EXIT_SIGNALS
-_FOCUS_STRENGTHS: set[SignalStrength] = {"强信号", "普通信号"}
-_STRONG_STRENGTHS: set[SignalStrength] = {"强信号"}
+_FOCUS_STRENGTHS: set[SignalStrength] = {"推荐", "预警"}
 _ACTIVE_SIGNAL_STATUSES = {"new", "active"}
-_STRENGTH_RANK: dict[SignalStrength, int] = {"强信号": 0, "普通信号": 1, "观察": 2}
+_STRENGTH_RANK: dict[SignalStrength | None, int] = {"推荐": 0, "预警": 1, None: 2}
 _BIAS_RANK: dict[ContextBias, int] = {
     "supportive": 0,
     "mixed": 1,
@@ -45,7 +44,7 @@ _BIAS_RANK: dict[ContextBias, int] = {
     "conflicting": 3,
 }
 _LOCAL_TZ = ZoneInfo("Asia/Shanghai")
-_STRONG_SIGNAL_DAILY_COUNT = 10
+_DAILY10_COUNT = 10
 _DEFAULT_FACTOR_STATES: set[FactorState] = {"confirming", "conflicting", "risk", "opportunity"}
 
 
@@ -104,16 +103,16 @@ def _compact_daily_row(day: dict) -> dict[str, CompactDailyValue]:
     return row
 
 
-def _get_strong_signal_daily10(symbol: str) -> list[dict[str, CompactDailyValue]]:
+def _get_daily10(symbol: str) -> list[dict[str, CompactDailyValue]]:
     try:
-        daily = get_daily(symbol, count=_STRONG_SIGNAL_DAILY_COUNT + 1)
+        daily = get_daily(symbol, count=_DAILY10_COUNT + 1)
     except Exception as err:
-        logger.debug(f"Strong signal daily supplement failed for {symbol}: {err}")
+        logger.debug(f"daily10 supplement failed for {symbol}: {err}")
         return []
     days = daily.days
     if days and is_unclosed_daily_bar(days[0].get("date"), symbol):
         days = days[1:]
-    return [_compact_daily_row(day) for day in days[:_STRONG_SIGNAL_DAILY_COUNT]]
+    return [_compact_daily_row(day) for day in days[:_DAILY10_COUNT]]
 
 
 def _run_date() -> str:
@@ -165,7 +164,8 @@ def _should_focus(score: ScoreResult) -> bool:
 
 def _needs_daily10(score: ScoreResult) -> bool:
     return (
-        score.decision.strength in _STRONG_STRENGTHS and score.context.overall_bias != "conflicting"
+        score.decision.strength in {"推荐", "预警"}
+        and score.context.overall_bias != "conflicting"
     )
 
 
@@ -196,7 +196,7 @@ def _focus_item(
         change_pct=quote.change_pct if quote else None,
         source=quote.source if quote else "unknown",
         daily10=(
-            _get_strong_signal_daily10(lp_symbol)
+            _get_daily10(lp_symbol)
             if include_daily10 and _needs_daily10(score)
             else None
         ),
@@ -216,7 +216,7 @@ def _sort_key(item: FocusItem) -> tuple[int, int, int]:
 def _summary(focus: list[FocusItem]) -> MonitorSummary:
     return MonitorSummary(
         focus_count=len(focus),
-        strong_signal_count=sum(item.decision.strength in _STRONG_STRENGTHS for item in focus),
+        recommend_count=sum(item.decision.strength == "推荐" for item in focus),
         entry_signal_count=sum(item.decision.signal in _ENTRY_SIGNALS for item in focus),
         exit_signal_count=sum(item.decision.signal in _EXIT_SIGNALS for item in focus),
         watch_signal_count=sum(item.decision.signal == "观察" for item in focus),
@@ -238,7 +238,7 @@ def _monitor_symbols(
             universe=MonitorUniverse(name=universe_name, total=0, scanned=0, failed=0),
             summary=MonitorSummary(
                 focus_count=0,
-                strong_signal_count=0,
+                recommend_count=0,
                 entry_signal_count=0,
                 exit_signal_count=0,
                 watch_signal_count=0,

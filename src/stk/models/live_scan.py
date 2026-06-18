@@ -18,7 +18,7 @@ class LiveFocusItem(BaseModel):
     symbol: str
     name: str = ""
     daily_signal: DecisionSignal
-    daily_strength: SignalStrength
+    daily_strength: SignalStrength | None
     live_signal: LiveSignal
     strength: LiveStrength
     trigger: str

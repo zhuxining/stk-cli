@@ -17,9 +17,9 @@
 - 先按 `focus` 过滤，无明确信号标的只进入统计或一句提醒。
 - 横向比较信号强弱：`decision.signal`、`decision.strength`、`signal_status`、`bars_since_signal`。
 - 信号质量比较：主信号是否新鲜、ADX 是否支持、`context.overall_bias` 是否冲突。
-- 风险收益比较：`risk_reward_ratio`、`risk_level`、`stop_loss` 距离、`take_profit` 参考。
+- 风险收益比较：`risk_reward_ratio`、`risk_level`、`stop_loss`、`target_1`/`target_2`、`trailing_stop`。
 - 辅助因子比较：只挑每只股票最重要的确认/冲突/风险因子，不堆指标。
-- 强信号标的若有 `daily10`，用一句话比较延续性、过热和量能。
+- 推荐信号标的若有 `daily10`，用一句话比较延续性、过热和量能。
 
 ## 输出结构
 
@@ -40,7 +40,7 @@
 
 | 代码 | 名称 | 主信号质量 | 辅助确认 | 风险冲突 | 近 10 日复核 |
 |------|------|------------|----------|----------|--------------|
-| {symbol} | {name} | {EMA/Supertrend/ADX 1句} | {最重要 confirming metrics；无则写”无”} | {最重要 warning/conflicting/risk；无则写”无”} | {仅强信号 + daily10 输出 1句；否则写”无”} |
+| {symbol} | {name} | {EMA/Supertrend/ADX 1句} | {最重要 confirming metrics；无则写”无”} | {最重要 warning/conflicting/risk；无则写”无”} | {仅推荐信号 + daily10 输出 1句；否则写”无”} |
 
 ## 排序建议
 
@@ -52,5 +52,5 @@
 
 ## 统计
 
-扫描 {scanned}/{total} | 重点关注 {focus_count} | 强信号 {strong_signal_count} | 买入信号 {entry_signal_count} | 退出/风险 {exit_signal_count} | 观察 {watch_signal_count} | 未入选 {no_signal_count} | 失败 {failed}
+扫描 {scanned}/{total} | 重点关注 {focus_count} | 推荐 {recommend_count} | 买入信号 {entry_signal_count} | 退出/风险 {exit_signal_count} | 观察 {watch_signal_count} | 未入选 {no_signal_count} | 失败 {failed}
 ```

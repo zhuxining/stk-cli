@@ -14,7 +14,7 @@
 - `commands/` 只负责参数解析、服务调用和结果渲染；业务逻辑只放在 `services/`。
 - `services/` 返回 Pydantic 模型或模型列表，不直接写 stdout。
 - 扫描命令默认输出重点关注标的，不输出观察标的的完整分析明细。
-- 扫描输出默认只为强信号且辅助态度不冲突的标的附带最近 10 根压缩完整日线，其他标的只保留决策、上下文和风控摘要。
+- 扫描输出默认只为推荐信号且辅助态度不冲突的标的附带最近 10 根压缩完整日线，其他标的只保留决策、上下文和风控摘要。
 - 每日监控以完整日线 K 线为确认口径；盘前和盘中沿用上一根完整日线，盘后超过市场确认缓冲时间后才纳入当天日线。
 - Longport 是跨市场主数据源；akshare 只补充 Longport 未覆盖的 A 股特色数据与新闻数据。
 - 用户输入的股票代码进入服务前必须统一为 Longport symbol 语义。
@@ -36,7 +36,7 @@
 | CLI 框架使用什么承载命令结构？ | 使用 Typer 注册根命令与子命令组 | 手写 argparse 或自定义命令解析 | Typer 的函数式命令定义能让命令入口保持薄适配，并保留类型提示 | 需要支持 Typer 无法表达的交互式协议时重新评估 |
 | 跨市场行情数据源如何统一？ | Longport 作为主数据源 | 为 A 股、港股、美股分别接入不同主数据源 | 单一主数据源降低 symbol、报价、K 线和自选股语义分裂 | Longport 无法覆盖核心市场或稳定性不满足 CLI 查询时重新评估 |
 | akshare 在系统中承担什么角色？ | akshare 作为补充数据源 | 将 akshare 作为行情主数据源 | akshare 覆盖同花顺技术榜、行业对比和新闻等补充能力，但主行情契约由 Longport 统一 | akshare 补充能力失效或 Longport 覆盖对应能力时重新评估 |
-| 每日扫描输出什么？ | 输出 `MonitorResult`，只展开 `focus` 重点关注标的，并仅为强信号且辅助态度不冲突的标的补充最近 10 根压缩完整日线 | 输出所有股票的完整分析明细，或为所有 `focus` 标的附带完整 K 线 | 用户核心场景是从 100 个以上股票中找出少数有效信号；默认过滤观察标的并限制 K 线明细能降低 Agent 上下文成本 | 需要审计完整股票池时新增显式全量输出命令 |
+| 每日扫描输出什么？ | 输出 `MonitorResult`，只展开 `focus` 重点关注标的，并仅为推荐信号且辅助态度不冲突的标的补充最近 10 根压缩完整日线 | 输出所有股票的完整分析明细，或为所有 `focus` 标的附带完整 K 线 | 用户核心场景是从 100 个以上股票中找出少数有效信号；默认过滤观察标的并限制 K 线明细能降低 Agent 上下文成本 | 需要审计完整股票池时新增显式全量输出命令 |
 | 单标的监控结果如何组织？ | 使用 `ScoreResult` 的 `decision`、`primary_signal`、`context`、`risk` 四段结构 | 返回单一 `score` 或混合自然语言信号列表 | 主信号、辅助因子和风控点位的职责不同，拆分后更利于排序、解释和自动化规则消费 | 监控策略扩展为多主策略组合时重新评估 |
 | 跨层数据契约如何表达？ | 使用 Pydantic 模型 | 在服务和命令之间传递裸 dict/DataFrame | Pydantic 模型让服务输出、JSON 序列化和 Agent schema 保持一致 | 模型构建成本成为性能瓶颈并有替代契约时重新评估 |
 | CLI 输出格式如何固定？ | 所有成功和失败响应都使用 JSON envelope | 按命令输出不同 JSON 结构或人类可读文本 | 统一 envelope 让 Agent 能以同一逻辑处理成功、失败和元信息 | 项目转为面向人类终端体验时重新评估 |
@@ -114,7 +114,7 @@ output.py -> models/
 - **Signal Context**：非主策略指标形成的辅助因子集合，用结构化指标解释主信号质量、冲突、风险或左侧机会。
 - **Risk Profile**：基于 ATR 与 Supertrend 的止损、止盈、风险收益比和风险等级。
 - **Monitor Run**：一次 watchlist 或临时股票池扫描，包含股票池覆盖情况、重点关注列表、忽略统计和失败列表。
-- **Focus Item**：一次 Monitor Run 中被筛选进入重点关注列表的单个标的，可在强信号时携带压缩完整日线解释数据。
+- **Focus Item**：一次 Monitor Run 中被筛选进入重点关注列表的单个标的，可在推荐信号时携带压缩完整日线解释数据。
 - **Watchlist Group**：用户在 Longport 服务端维护的自选股分组，本地只缓存分组名称到 ID 的映射。
 - **Cache Entry**：外部数据查询结果的本地副本，按函数身份和入参生成键。
 
@@ -196,7 +196,7 @@ stk stock fundamental
 详细策略记录在 [scoring-strategies.md](scoring-strategies.md)。架构文档只声明模块边界：
 
 - `services/score.py` 负责把日线 K 线转换为 `ScoreResult`，其中 `decision` 是可执行动作，`primary_signal` 是 EMA9/26 与 Supertrend 主信号，`context` 是辅助因子解释，`risk` 是独立风控字段。
-- `services/scan.py` 负责把多个 `ScoreResult` 聚合为 `MonitorResult`，并按重点关注规则生成 `focus`、`summary`、`ignored` 和 `errors`；仅为强信号且辅助态度不冲突的 `FocusItem` 补充最近 10 根压缩完整日线。
+- `services/scan.py` 负责把多个 `ScoreResult` 聚合为 `MonitorResult`，并按重点关注规则生成 `focus`、`summary`、`ignored` 和 `errors`；仅为推荐信号且辅助态度不冲突的 `FocusItem` 补充最近 10 根压缩完整日线。
 - `services/live_scan.py` 负责实盘提醒扫描，先复用完整日线 `ScoreResult` 做背景过滤，再读取未缓存分钟 K 线生成 `LiveScanResult`；它不改写日线 `decision`。
 - `services/indicator.py` 负责输出 K 线与技术指标明细，供使用者解释信号来源，不负责判断是否入选重点关注。
 - `services/fundamental.py` 是补充查询能力，不参与默认每日监控筛选。
@@ -239,7 +239,7 @@ stk CLI process
 | `services/history.py` | 封装 Longport K 线查询 | 指标语义计算 |
 | `services/indicator.py` | 生成按日合并的 OHLCV、EMA9/26、Supertrend、ATR10 与其他技术指标结果 | 判断重点关注标的 |
 | `services/score.py` | 基于日线 K 线生成 `ScoreResult`，包含决策、主信号、结构化辅助因子和风控点位 | 管理自选股或批量排序 |
-| `services/scan.py` | 聚合每日监控结果，输出重点关注标的、统计、忽略数量、错误列表和强信号标的压缩完整日线 | 渲染响应或计算单标的主信号 |
+| `services/scan.py` | 聚合每日监控结果，输出重点关注标的、统计、忽略数量、错误列表和推荐信号标的压缩完整日线 | 渲染响应或计算单标的主信号 |
 | `services/live_scan.py` | 聚合实盘提醒结果，输出日线背景、分钟触发、实时提醒强度和分钟风险线 | 替代日线扫描或生成新的日线决策 |
 | `services/fundamental.py` | 获取估值、行业对比和公司概况 | 参与默认每日监控筛选 |
 | `services/rank.py` | 获取同花顺技术筛选与行业情绪结果 | 生成每日监控决策 |

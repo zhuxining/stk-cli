@@ -75,14 +75,14 @@ stk stock scan 600519 --full-context
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
-| `--daily10` | `false` | 为强信号且辅助态度不冲突的标的补充最近 10 根压缩完整日线。默认关闭，避免批量扫描输出过大。 |
+| `--daily10` | `false` | 为推荐/预警信号且辅助态度不冲突的标的补充最近 10 根压缩完整日线。默认关闭，避免批量扫描输出过大。 |
 | `--full-context` | `false` | 输出完整辅助因子，包括 `neutral` 和 `none`。默认仅保留有判断价值的因子，减少批量扫描输出。 |
 
 返回 `MonitorResult`：
 
 - `run_date`: 本次运行日期。
 - `universe`: `name`、`total`、`scanned`、`failed`。
-- `summary`: `focus_count`、`strong_signal_count`、`entry_signal_count`、`exit_signal_count`、`watch_signal_count`。
+- `summary`: `focus_count`、`recommend_count`、`entry_signal_count`、`exit_signal_count`、`watch_signal_count`。
 - `focus[]`: 重点关注标的列表，默认只包含可行动的买入或退出信号。
 - `ignored`: `no_signal_count`。
 - `errors[]`: 单标的非致命错误。
@@ -93,18 +93,18 @@ stk stock scan 600519 --full-context
 - `decision`: `signal`、`strength`、`signal_status`、`signal_date`、`bars_since_signal`。
 - `primary_signal`: `ema_cross`、`ema9`、`ema26`、`supertrend`、`supertrend_direction`、`adx`、`reasons`。
 - `context`: `overall_bias`、`factors[]`、`warnings[]`；默认省略 `neutral` / `none` 因子，需要完整复盘时加 `--full-context`。
-- `risk`: `atr`、`stop_loss`、`take_profit`、`risk_reward_ratio`、`risk_level`。
-- `daily10`: 仅在传入 `--daily10` 且标的为强信号、辅助态度不冲突时出现，用于复核价格结构和指标变化。
+- `risk`: `atr`、`stop_loss`、`take_profit`、`target_1`、`target_2`、`trailing_stop`、`risk_reward_ratio`、`risk_level`。
+- `daily10`: 仅在传入 `--daily10` 且标的为推荐/预警信号、辅助态度不冲突时出现，用于复核价格结构和指标变化。
 
 有效信号口径：
 
 - 主策略：趋势共振和超卖修复两类，完整日线确认。
 - 盘前和盘中扫描使用上一根完整日线；盘后超过市场确认缓冲时间后才纳入当天日线。实时 `last` / `change_pct` 只用于展示，不参与信号、辅助因子和风控计算。
 - `signal`: `趋势买入` / `趋势退出` / `超卖修复` / `观察`。
-- `strength`: `强信号` / `普通信号` / `观察`。
+- `strength`: `推荐`（买入类信号）/ `预警`（退出类信号）；无信号时不输出该字段。
 - 退出类信号表示减仓、退出或风险预警，不表达做空建议。
 - `primary_signal.adx < 20` 表示趋势强度偏弱，`>=25` 表示趋势质量较好；ADX 不直接改变 `strength`。
-- 退出类信号中的 `risk.stop_loss` 表示上方失效线，`risk.take_profit` 表示下行风险参考，不代表做空建议。
+- 退出类信号中的 `risk.stop_loss` 表示上方失效线，`risk.target_1`/`target_2` 表示下行风险参考位，`risk.trailing_stop` 为当前 Supertrend 动态止损参考。
 - `观察` 默认不进入 `focus`，只计入 `ignored.no_signal_count`；不要升级成买入、卖出或加仓建议。
 
 辅助因子读取口径：
@@ -226,7 +226,7 @@ stk stock scan-live 600519 --timeframe 5m
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
-| `--daily10` | `false` | 为强信号且辅助态度不冲突的标的补充最近 10 根压缩完整日线。默认关闭。 |
+| `--daily10` | `false` | 为推荐/预警信号且辅助态度不冲突的标的补充最近 10 根压缩完整日线。默认关闭。 |
 | `--full-context` | `false` | 输出完整辅助因子，包括 `neutral` 和 `none`。默认精简。 |
 
 注意：

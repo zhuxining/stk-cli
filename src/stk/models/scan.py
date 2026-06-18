@@ -22,7 +22,7 @@ class MonitorSummary(BaseModel):
     """Aggregated signal counts for a monitoring run."""
 
     focus_count: int
-    strong_signal_count: int
+    recommend_count: int
     entry_signal_count: int
     exit_signal_count: int
     watch_signal_count: int

@@ -25,7 +25,7 @@ from stk.services.scan import batch_summary
 def _score_result(
     symbol: str,
     *,
-    strength: SignalStrength,
+    strength: SignalStrength | None,
     signal: DecisionSignal,
     status: SignalStatus,
     bias: ContextBias = "supportive",
@@ -156,13 +156,13 @@ def test_batch_summary_returns_focus_only(mock_score, mock_daily, mock_quotes):
         if symbol == "600519.SH":
             return _score_result(
                 symbol,
-                strength="强信号",
+                strength="推荐",
                 signal="趋势买入",
                 status="new",
             )
         return _score_result(
             symbol,
-            strength="观察",
+            strength=None,
             signal="观察",
             status="stale",
             bias="mixed",
@@ -177,7 +177,7 @@ def test_batch_summary_returns_focus_only(mock_score, mock_daily, mock_quotes):
     assert result.universe.scanned == 2
     assert result.universe.failed == 1
     assert result.summary.focus_count == 1
-    assert result.summary.strong_signal_count == 1
+    assert result.summary.recommend_count == 1
     assert result.summary.entry_signal_count == 1
     assert result.ignored.no_signal_count == 1
     assert result.errors[0].symbol == "300750.SZ"
@@ -201,7 +201,7 @@ def test_batch_summary_includes_daily10_when_requested(mock_score, mock_daily, m
     mock_daily.return_value = _daily_result()
     mock_score.return_value = _score_result(
         "600519.SH",
-        strength="强信号",
+        strength="推荐",
         signal="趋势买入",
         status="new",
     )
@@ -227,7 +227,7 @@ def test_batch_summary_daily10_drops_unclosed_current_bar(
     mock_daily.return_value = _daily_result_with_unclosed_bar()
     mock_score.return_value = _score_result(
         "600519.SH",
-        strength="强信号",
+        strength="推荐",
         signal="趋势买入",
         status="new",
     )
@@ -245,7 +245,7 @@ def test_batch_summary_compacts_context_by_default(mock_score, mock_quotes):
     mock_quotes.return_value = []
     score = _score_result(
         "600519.SH",
-        strength="强信号",
+        strength="推荐",
         signal="趋势买入",
         status="new",
     )
@@ -276,7 +276,7 @@ def test_hold_with_risk_context_is_ignored(mock_score, mock_quotes):
     mock_quotes.return_value = []
     mock_score.return_value = _score_result(
         "000001.SZ",
-        strength="观察",
+        strength=None,
         signal="观察",
         status="stale",
         bias="risky",
@@ -299,7 +299,7 @@ def test_old_hold_with_single_risk_context_is_ignored(mock_score, mock_quotes):
     mock_quotes.return_value = []
     mock_score.return_value = _score_result(
         "000001.SZ",
-        strength="观察",
+        strength=None,
         signal="观察",
         status="stale",
         bias="risky",

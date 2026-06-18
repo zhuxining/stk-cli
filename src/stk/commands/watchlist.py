@@ -89,7 +89,7 @@ def scan(
     daily10: bool = typer.Option(
         False,
         "--daily10",
-        help="Include recent 10-day compact K-line supplement for strong signals",
+        help="Include recent 10-day compact K-line supplement for focus signals",
     ),
     full_context: bool = typer.Option(
         False,

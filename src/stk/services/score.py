@@ -1,6 +1,7 @@
 """Trend-first signal scoring service."""
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import datetime
 
 import numpy as np
@@ -37,22 +38,9 @@ _EMA_SLOW = 26
 _RESONANCE_WINDOW = 3
 _MIN_HISTORY = 30
 _OVERSOLD_CONFIRMATION_THRESHOLD = 2
-_OVERSOLD_STRONG_CONFIRMATION_THRESHOLD = 3
 _MIN_ENTRY_RISK_REWARD = 1.2
 _STRONG_RISK_REWARD = 1.8
-_STRONG_TREND_ADX = 20
-_MAX_STRONG_EXTENSION_ATR = 1.5
-_PATTERN_RANK: dict[SignalPattern, int] = {"趋势共振": 0, "超卖修复": 1}
-_STRENGTH_RANK: dict[SignalStrength, int] = {"强信号": 0, "普通信号": 1, "观察": 2}
-_CONFIRMATION_FACTORS = {
-    "momentum",
-    "boll",
-    "money_flow",
-    "divergence",
-    "macd",
-    "ema_trend",
-    "volume_price",
-}
+_STRENGTH_RANK: dict[SignalStrength | None, int] = {"推荐": 0, "预警": 1, None: 2}
 
 
 def _closed_daily_df(
@@ -200,6 +188,20 @@ def _build_reasons(
     return reasons
 
 
+def _check_low_volume_cross(df: pd.DataFrame, reasons: list[str]) -> None:
+    """Warn if a fresh golden cross is accompanied by low volume (likely false breakout)."""
+    turnover = df["turnover"].astype(float)
+    if len(turnover) < 6:
+        return
+    avg_vol = turnover.iloc[-6:-1].mean()
+    cur_vol = turnover.iloc[-1]
+    if avg_vol <= 0:
+        return
+    vol_ratio = cur_vol / avg_vol
+    if vol_ratio < 0.8:
+        reasons.append(f"缩量金叉 (量比 {vol_ratio:.1f})，突破有效性存疑")
+
+
 def _build_trend_signal(
     df: pd.DataFrame,
     *,
@@ -207,6 +209,7 @@ def _build_trend_signal(
     ema26_arr: np.ndarray,
     supertrend_arr: np.ndarray,
     st_direction_arr: np.ndarray,
+    ema60_arr: np.ndarray | None = None,
 ) -> TrendSignal:
     ema9 = _safe_last(ema9_arr)
     ema26 = _safe_last(ema26_arr)
@@ -215,7 +218,7 @@ def _build_trend_signal(
 
     if ema9 is None or ema26 is None or supertrend is None:
         return TrendSignal(
-            strength="观察",
+            strength=None,
             direction="neutral",
             ema9=ema9,
             ema26=ema26,
@@ -255,7 +258,7 @@ def _build_trend_signal(
         bear_flip_age=bear_flip_age,
     )
 
-    strength: SignalStrength = "观察"
+    strength: SignalStrength | None = None
     direction: TrendDirection = "neutral"
     signal_age: int | None = None
     ema_cross: EmaCross | None = None
@@ -268,13 +271,12 @@ def _build_trend_signal(
         direction = "bullish"
         signal_age = bull_event_age
         if not price_above_ema9:
-            strength = "观察"
+            signal_age = None
             reasons.append("收盘价未站上 EMA9，多头趋势等待确认")
-        elif signal_age <= 1:
-            strength = "强信号"
         elif signal_age <= _RESONANCE_WINDOW:
-            strength = "普通信号"
+            strength = "推荐"
         else:
+            signal_age = None
             reasons.append("多头排列存在，但最近3根K线内没有新触发")
 
         if golden_age is not None and golden_age == signal_age:
@@ -286,13 +288,12 @@ def _build_trend_signal(
         direction = "bearish"
         signal_age = bear_event_age
         if not price_below_ema9:
-            strength = "观察"
+            signal_age = None
             reasons.append("收盘价未跌回 EMA9 下方，空头趋势等待确认")
-        elif signal_age <= 1:
-            strength = "强信号"
         elif signal_age <= _RESONANCE_WINDOW:
-            strength = "普通信号"
+            strength = "预警"
         else:
+            signal_age = None
             reasons.append("空头排列存在，但最近3根K线内没有新触发")
 
         if death_age is not None and death_age == signal_age:
@@ -314,6 +315,14 @@ def _build_trend_signal(
             reasons.append("空头排列存在，但收盘价未跌回 EMA9 下方")
     else:
         reasons.append("EMA 与 Supertrend 方向不一致，等待收盘确认")
+
+    if ema_cross == "golden" and strength is not None:
+        _check_low_volume_cross(df, reasons)
+
+    if ema_cross == "golden" and ema60_arr is not None and strength is not None:
+        ema60 = _safe_last(ema60_arr)
+        if ema60 is not None and current_close < ema60:
+            reasons.append(f"价格仍在 EMA60 ({ema60:.2f}) 下方，长周期趋势偏空")
 
     return TrendSignal(
         strength=strength,
@@ -341,7 +350,7 @@ def _signal_status(age: int | None) -> SignalStatus:
 
 
 def _decision_signal(trend_signal: TrendSignal) -> DecisionSignal:
-    if trend_signal.strength == "观察":
+    if trend_signal.strength is None:
         return "观察"
     match trend_signal.pattern, trend_signal.direction:
         case "趋势共振", "bullish":
@@ -508,21 +517,10 @@ def _build_oversold_repair_signal(
     if ema5 is not None and current_close <= ema5:
         return None
 
-    supertrend_bullish = base_signal.supertrend_direction == "bullish"
-    close_above_ema9 = ema9 is not None and current_close > ema9
-    strength: SignalStrength = (
-        "强信号"
-        if (
-            context.overall_bias == "supportive"
-            and supertrend_bullish
-            and close_above_ema9
-            and len(confirmations) >= _OVERSOLD_STRONG_CONFIRMATION_THRESHOLD
-        )
-        else "普通信号"
-    )
+    strength: SignalStrength = "推荐"
     reasons = [
-        f"超卖修复信号：{', '.join(triggers)} 出现超卖提示",
-        f"修复确认达到 {len(confirmations)} 项：{', '.join(confirmations)}",
+        f"超卖修复信号 ({len(confirmations)}/7 项确认)：{', '.join(triggers)} 出现超卖提示",
+        f"修复确认：{', '.join(confirmations)}",
     ]
     return _setup_signal(
         df,
@@ -536,7 +534,7 @@ def _build_oversold_repair_signal(
 
 def _with_strength(
     signal: TrendSignal,
-    strength: SignalStrength,
+    strength: SignalStrength | None,
     *,
     reason: str | None = None,
 ) -> TrendSignal:
@@ -544,62 +542,30 @@ def _with_strength(
     return signal.model_copy(update={"strength": strength, "reasons": reasons})
 
 
-def _is_extended_from_ema9(
-    signal: TrendSignal,
-    *,
-    current_price: float,
-    atr: float | None,
-) -> bool:
-    if atr is None or atr <= 0 or signal.ema9 is None:
-        return False
-    distance = abs(current_price - signal.ema9)
-    return distance > atr * _MAX_STRONG_EXTENSION_ATR
-
-
 def _quality_adjusted_signal(
     signal: TrendSignal,
     *,
     context: SignalContext,
-    adx: float | None,
     atr: float | None,
     current_price: float,
     risk_reward_ratio: float | None,
 ) -> TrendSignal:
-    if signal.strength == "观察":
+    if signal.strength is None:
         return signal
+
+    age = signal.bars_since_signal
+    if age is None or age > _RESONANCE_WINDOW:
+        return _with_strength(signal, None, reason="触发已过有效窗口")
+
     if context.overall_bias == "conflicting":
-        return _with_strength(signal, "观察", reason="辅助因子明显冲突，降为观察")
+        return _with_strength(signal, None, reason="辅助因子明显冲突，降为观察")
 
     if signal.direction == "bullish" and (
         risk_reward_ratio is None or risk_reward_ratio < _MIN_ENTRY_RISK_REWARD
     ):
-        return _with_strength(signal, "观察", reason="风险收益比不足，降为观察")
+        return _with_strength(signal, None, reason="风险收益比不足，降为观察")
 
-    if signal.pattern == "趋势共振":
-        age = signal.bars_since_signal
-        if age is None or age > _RESONANCE_WINDOW:
-            return _with_strength(signal, "观察", reason="趋势触发已过有效窗口")
-        strong = (
-            age <= 1
-            and context.overall_bias == "supportive"
-            and (adx is None or adx >= _STRONG_TREND_ADX)
-            and (risk_reward_ratio is None or risk_reward_ratio >= _STRONG_RISK_REWARD)
-            and not _is_extended_from_ema9(signal, current_price=current_price, atr=atr)
-        )
-        if strong:
-            return _with_strength(signal, "强信号")
-        return _with_strength(signal, "普通信号")
-
-    strong = (
-        signal.strength == "强信号"
-        and context.overall_bias == "supportive"
-        and risk_reward_ratio is not None
-        and risk_reward_ratio >= _STRONG_RISK_REWARD
-        and not _is_extended_from_ema9(signal, current_price=current_price, atr=atr)
-    )
-    if strong:
-        return signal
-    return _with_strength(signal, "普通信号")
+    return signal
 
 
 def _select_signal(candidates: list[TrendSignal]) -> TrendSignal:
@@ -608,7 +574,6 @@ def _select_signal(candidates: list[TrendSignal]) -> TrendSignal:
         key=lambda signal: (
             _STRENGTH_RANK[signal.strength],
             999 if signal.bars_since_signal is None else signal.bars_since_signal,
-            _PATTERN_RANK[signal.pattern],
         ),
     )
 
@@ -749,7 +714,7 @@ def _calc_boll_factor(
 
     if position_pct < 10:
         state: FactorState = "opportunity"
-    elif position_pct >= 90:
+    elif position_pct >= 95:
         state = "risk"
     else:
         bullish = position_pct >= 50
@@ -1023,19 +988,37 @@ def _risk_level(risk_reward_ratio: float | None) -> RiskLevel:
     return "high"
 
 
+@dataclass
+class _RiskPoints:
+    """Internal risk calculation result."""
+    stop_loss: float
+    target_1: float
+    target_2: float
+    trailing_stop: float | None
+    rr_ratio: float | None
+
+    @property
+    def take_profit(self) -> float:
+        """Backward compatibility alias for target_2."""
+        return self.target_2
+
+
 def _build_risk_profile(
     *,
     atr: float | None,
-    stop_loss: float | None,
-    take_profit: float | None,
-    risk_reward_ratio: float | None,
+    rp: _RiskPoints | None = None,
 ) -> RiskProfile:
+    if rp is None:
+        return RiskProfile(atr=atr, risk_level=_risk_level(None))
     return RiskProfile(
         atr=atr,
-        stop_loss=stop_loss,
-        take_profit=take_profit,
-        risk_reward_ratio=risk_reward_ratio,
-        risk_level=_risk_level(risk_reward_ratio),
+        stop_loss=rp.stop_loss,
+        take_profit=rp.take_profit,
+        target_1=rp.target_1,
+        target_2=rp.target_2,
+        trailing_stop=rp.trailing_stop,
+        risk_reward_ratio=rp.rr_ratio,
+        risk_level=_risk_level(rp.rr_ratio),
     )
 
 
@@ -1044,7 +1027,10 @@ def _risk_points(
     current_price: float,
     atr: float,
     trend_signal: TrendSignal,
-) -> tuple[float, float, float | None]:
+) -> _RiskPoints:
+    trailing_stop = (
+        round(trend_signal.supertrend, 4) if trend_signal.supertrend is not None else None
+    )
     if trend_signal.direction == "bearish":
         fallback_stop = current_price + atr * 2.0
         stop_loss = fallback_stop
@@ -1054,9 +1040,10 @@ def _risk_points(
             and trend_signal.supertrend > current_price
         ):
             stop_loss = min(trend_signal.supertrend, fallback_stop)
-        take_profit = max(current_price - atr * 3.0, 0.0)
+        target_1 = max(current_price - atr * 2.0, 0.0)
+        target_2 = max(current_price - atr * 3.0, 0.0)
         risk = stop_loss - current_price
-        reward = current_price - take_profit
+        reward = current_price - target_2
     else:
         fallback_stop = current_price - atr * 2.0
         stop_loss = fallback_stop
@@ -1066,12 +1053,19 @@ def _risk_points(
             and trend_signal.supertrend < current_price
         ):
             stop_loss = max(trend_signal.supertrend, fallback_stop)
-        take_profit = current_price + atr * 3.0
+        target_1 = current_price + atr * 2.0
+        target_2 = current_price + atr * 3.0
         risk = current_price - stop_loss
-        reward = take_profit - current_price
+        reward = target_2 - current_price
 
     rr_ratio = round(reward / risk, 1) if risk > 0 else None
-    return round(stop_loss, 4), round(take_profit, 4), rr_ratio
+    return _RiskPoints(
+        stop_loss=round(stop_loss, 4),
+        target_1=round(target_1, 4),
+        target_2=round(target_2, 4),
+        trailing_stop=trailing_stop,
+        rr_ratio=rr_ratio,
+    )
 
 
 def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
@@ -1092,6 +1086,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
 
     ema9_arr = talib.EMA(close, timeperiod=_EMA_FAST)
     ema26_arr = talib.EMA(close, timeperiod=_EMA_SLOW)
+    ema60_arr = talib.EMA(close, timeperiod=60)
     supertrend_arr, st_direction_arr, atr_arr = _calc_supertrend_arrays(high, low, close)
 
     trend_signal = _build_trend_signal(
@@ -1100,6 +1095,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
         ema26_arr=ema26_arr,
         supertrend_arr=supertrend_arr,
         st_direction_arr=st_direction_arr,
+        ema60_arr=ema60_arr,
     )
 
     adx_series = talib.ADX(high, low, close, timeperiod=14)
@@ -1135,18 +1131,16 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     def _candidate_rr(signal: TrendSignal) -> float | None:
         if atr_last is None or atr_last <= 0 or signal.direction == "neutral":
             return None
-        _, _, rr = _risk_points(
+        return _risk_points(
             current_price=current_price,
             atr=atr_last,
             trend_signal=signal,
-        )
-        return rr
+        ).rr_ratio
 
     adjusted_candidates = [
         _quality_adjusted_signal(
             candidate,
             context=context_for(candidate.direction),
-            adx=adx_val,
             atr=atr_last,
             current_price=current_price,
             risk_reward_ratio=_candidate_rr(candidate),
@@ -1155,12 +1149,9 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     ]
     selected_signal = _select_signal(adjusted_candidates)
 
-    stop_loss = None
-    take_profit = None
-    rr_ratio = None
-
+    rp = None
     if atr_last is not None and atr_last > 0:
-        stop_loss, take_profit, rr_ratio = _risk_points(
+        rp = _risk_points(
             current_price=current_price,
             atr=atr_last,
             trend_signal=selected_signal,
@@ -1169,12 +1160,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     decision = _build_decision(selected_signal)
     primary_signal = _build_primary_signal(selected_signal, adx=adx_val)
     context = context_for(selected_signal.direction)
-    risk_profile = _build_risk_profile(
-        atr=atr_val,
-        stop_loss=stop_loss,
-        take_profit=take_profit,
-        risk_reward_ratio=rr_ratio,
-    )
+    risk_profile = _build_risk_profile(atr=atr_val, rp=rp)
 
     return ScoreResult(
         symbol=symbol,

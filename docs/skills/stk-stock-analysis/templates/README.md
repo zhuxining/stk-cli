@@ -23,15 +23,15 @@
 - 结论先行，第一屏回答“今天是否需要关注”，结论不超过 2 句。
 - 多只股票必须用表格，不逐只写长段落。
 - 只展开 `MonitorResult.focus`；观察标的只进入统计。
-- 数字优先：`strength`、`signal_status`、`bars_since_signal`、`stop_loss`、`take_profit`、`risk_reward_ratio`。
-- 强信号标的若有 `daily10`，只补 1 句复核。
+- 数字优先：`strength`、`signal_status`、`bars_since_signal`、`stop_loss`、`target_1`、`target_2`、`trailing_stop`、`risk_reward_ratio`。
+- 推荐/预警信号标的若有 `daily10`，只补 1 句复核。
 - 辅助因子只引用 `state` 和 `metrics`。
-- 退出类信号中 `stop_loss` 写”上方失效线”，`take_profit` 写”下行参考”。
+- 退出类信号中 `stop_loss` 写”上方失效线”，`target_1`/`target_2` 写”下行参考位”，`trailing_stop` 写”动态止损参考”。
 - `观察` 只写观察、等待确认、风险提示、左侧机会，不写买卖动作。
 
 ## 固定动作口径
 
-- `跟踪突破`：买入类 `signal` + `强信号`，未明显过热，量能或趋势延续较好。
+- `跟踪突破`：买入类 `signal` + `推荐`，未明显过热，量能或趋势延续较好。
 - `等待回踩`：买入类 `signal` 但过热、缩量或 RR 一般。
 - `风险退出`：退出类 `signal`。
 - `仅观察`：`观察`。
@@ -39,6 +39,6 @@
 
 ## 风控口径
 
-- 买入类 `signal`：`止损 {stop_loss} / 止盈 {take_profit} / RR {risk_reward_ratio}`。
-- 退出类 `signal`：`失效线 {stop_loss} / 下行参考 {take_profit}`。
+- 买入类 `signal`：`止损 {stop_loss} / 目标 {target_1}→{target_2} / 追踪 {trailing_stop} / RR {risk_reward_ratio}`。
+- 退出类 `signal`：`失效线 {stop_loss} / 下行 {target_1}→{target_2} / 追踪 {trailing_stop}`。
 - `观察`：`观察 / 风险 {risk_level}`。

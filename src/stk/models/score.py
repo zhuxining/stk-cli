@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-type SignalStrength = Literal["强信号", "普通信号", "观察"]
+type SignalStrength = Literal["推荐", "预警"]
 type TrendDirection = Literal["bullish", "bearish", "neutral"]
 type EmaCross = Literal["golden", "death"]
 type SupertrendFlip = Literal["bullish", "bearish"]
@@ -25,7 +25,7 @@ type MetricValue = str | int | float | bool | None
 class TrendSignal(BaseModel):
     """Internal trend signal derived from EMA9/26 and Supertrend."""
 
-    strength: SignalStrength
+    strength: SignalStrength | None = None
     direction: TrendDirection
     pattern: SignalPattern = "趋势共振"
     signal_date: str | None = None
@@ -43,7 +43,7 @@ class Decision(BaseModel):
     """Monitoring decision used to select focus symbols."""
 
     signal: DecisionSignal
-    strength: SignalStrength
+    strength: SignalStrength | None = None
     signal_status: SignalStatus
     signal_date: str | None = None
     bars_since_signal: int | None = None
@@ -82,7 +82,10 @@ class RiskProfile(BaseModel):
 
     atr: float | None = None
     stop_loss: float | None = None
-    take_profit: float | None = None
+    take_profit: float | None = None    # 保留向后兼容
+    target_1: float | None = None        # 2xATR 保守目标（减仓参考）
+    target_2: float | None = None        # 3xATR 激进目标（清仓参考）
+    trailing_stop: float | None = None   # Supertrend 动态止损参考
     risk_reward_ratio: float | None = None
     risk_level: RiskLevel = "medium"
 

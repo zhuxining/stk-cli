@@ -83,6 +83,30 @@ def _get_temperature_for_market(region: str) -> MarketTemperature:
         raise SourceError(f"Longport temperature API error ({region}): {e}") from e
 
 
+def _detect_regime(indices: list[IndexQuote]) -> str:
+    """Detect market regime from index moves.
+
+    Returns "trending" if most indices move >1% in the same direction,
+    "ranging" if most are nearly flat (<0.5%), "mixed" otherwise.
+    """
+    if not indices:
+        return "mixed"
+    changes = [float(idx.change_pct) for idx in indices if idx.change_pct is not None]
+    if not changes:
+        return "mixed"
+
+    up = sum(c > 1.0 for c in changes)
+    down = sum(c < -1.0 for c in changes)
+    flat = sum(abs(c) < 0.5 for c in changes)
+    total = len(changes)
+
+    if up >= total / 2 or down >= total / 2:
+        return "trending"
+    if flat >= total / 2:
+        return "ranging"
+    return "mixed"
+
+
 def get_market_overview() -> MarketOverview:
     """Get combined market overview: grouped indices + temperature per region."""
     indices = get_indices()
@@ -101,4 +125,5 @@ def get_market_overview() -> MarketOverview:
             with contextlib.suppress(SourceError):
                 temps[region] = future.result()
 
-    return MarketOverview(indices=dict(grouped), temperature=temps)
+    regime = {r: _detect_regime(indices) for r, indices in grouped.items()}
+    return MarketOverview(indices=dict(grouped), temperature=temps, regime=regime)

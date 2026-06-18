@@ -29,14 +29,15 @@ compatibility:
 - 批量扫描：只展开 `MonitorResult.focus`；`观察` 标的只统计 `ignored.no_signal_count`。
 - 单标的解读：以 `decision` 下结论，以 `primary_signal` 给依据，以 `context` 和 `risk` 做补充。
 - `decision.signal` 取值为 `趋势买入`、`趋势退出`、`超卖修复`、`观察`。
-- `decision.strength` 表示强弱，取值为 `强信号`、`普通信号`、`观察`。
+- `decision.strength` 表示动作类型，取值为 `推荐`（买入类信号）或 `预警`（退出类信号）；无信号时不输出该字段。
 - 辅助因子读取 `context.factors[].state` 与 `context.factors[].metrics`；默认扫描结果已省略 `neutral` / `none` 因子，完整复盘时给命令加 `--full-context`。
-- `daily10` 默认不返回；只有命令显式传入 `--daily10` 后，强信号标的才可能包含最近 10 根压缩完整日线。
+- `daily10` 默认不返回；只有命令显式传入 `--daily10` 后，推荐/预警信号标的才可能包含最近 10 根压缩完整日线。
 - 退出类信号只表示减仓、退出或风险预警，不表达做空建议。
 - `观察` 默认不会进入批量扫描 `focus`；单标的解读时也只作为风险、机会或波动提示，不写成买入、卖出或加仓建议。
-- 退出类信号的 `risk.stop_loss` 是上方失效线，`risk.take_profit` 是下行风险参考。
+- 退出类信号的 `risk.stop_loss` 是上方失效线，`risk.target_1`/`target_2` 是下行风险参考位，`risk.trailing_stop` 为当前 Supertrend 动态止损参考。
 
-- 信号强弱：`强信号` 需要趋势质量或修复质量、辅助态度和风险收益比同时达标；`普通信号` 是基础条件成立；`观察` 是无效、过期、冲突、确认不足或风险收益比不足。
+- 信号增强：`reasons` 中可能出现 `缩量金叉`（量比<0.8）或 `长周期趋势偏空`（价格<EMA60）提示，不改变 `strength` 但影响置信度。
+- 信号强弱：`推荐` 是买入类信号成立（趋势买入或超卖修复），基础条件全部满足；`预警` 是退出类信号成立（趋势退出）；无信号表示指标未形成、趋势排列无新触发、辅助因子冲突或风险收益比不足，不进入 `focus`。
 
 ## 分析步骤
 
@@ -46,8 +47,8 @@ compatibility:
 2. **先下结论**：用 `decision.signal`、`strength`、`signal_status` 判断今天的处理意图、强度与信号来源。
 3. **验证主信号**：用 `primary_signal.ema_cross`、`ema9/ema26`、`supertrend_direction`、`reasons` 说明触发来源；`bars_since_signal` 越小，信号越新。
 4. **校验辅助因子**：统计 `context.factors` 中 `confirming`、`conflicting`、`risk`、`opportunity` 的数量和名称，再读对应 `metrics` 给出原因。
-5. **复核强信号标的**：有 `daily10` 时，检查最近 10 日价格是否贴近信号日、量能是否配合、RSI/J 是否过热、BOLL 位置是否过高、ATR 风险是否放大。
-6. **给执行边界**：最后用 `risk.stop_loss`、`take_profit`、`risk_reward_ratio`、`risk_level` 判断是否值得跟踪；多头写止损/止盈，空头写上方失效线/下行参考，盈亏比差时结论降为观察。
+5. **复核推荐信号标的**：有 `daily10` 时，检查最近 10 日价格是否贴近信号日、量能是否配合、RSI/J 是否过热、BOLL 位置是否过高、ATR 风险是否放大。
+6. **给执行边界**：用 `risk.stop_loss`、`target_1`、`target_2`、`trailing_stop`、`risk_reward_ratio`、`risk_level` 给出执行参考；多头按 target_1/target_2 分层止盈，空头按 target_1/target_2 作为下行风险参考位，trailing_stop 作为后续动态止损参考。
 
 ## 指标解释口径
 
@@ -70,7 +71,7 @@ compatibility:
 
 | 用户问法 | 触发模式 |
 |----------|----------|
-| "今天市场怎么样"、"有什么重要新闻" | 市场总览 |
+| "今天市场怎么样" | 市场总览 |
 | "有没有什么热点"、"帮我找几个技术形态好的" | 技术热点 |
 | "茅台有没有信号"、"600519 怎么看" | 个股信号分析 |
 | "我的持仓/自选怎么样"、"检查一下ETF分组" | 分组每日监控 |

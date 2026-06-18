@@ -31,6 +31,7 @@ class MarketOverview(BaseModel):
 
     indices: dict[str, list[IndexQuote]]  # {"CN": [...], "HK": [...], "US": [...]}
     temperature: dict[str, MarketTemperature]  # {"CN": ..., "HK": ..., "US": ...}
+    regime: dict[str, str] | None = None  # {"CN": "trending"/"ranging"/"mixed", ...}
 
 
 class TechRankItem(BaseModel):

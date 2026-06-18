@@ -47,8 +47,8 @@ stk stock scan <symbols...>
 
 | 阶段 | 模板 | 作用 |
 |------|------|------|
-| 市场与热点 | `templates/market-hotspot-analysis.md` | 判断市场状态、新闻影响和可选技术热点。 |
-| 分组追踪 | `templates/group-signal-tracking.md` | 汇总 watchlist 分组扫描、focus 明细、强信号复核和明日动作。 |
+| 市场与热点 | `templates/market-hotspot-analysis.md` | 判断市场状态和可选技术热点。 |
+| 分组追踪 | `templates/group-signal-tracking.md` | 汇总 watchlist 分组扫描、focus 明细、推荐信号复核和明日动作。 |
 | 深入比较 | `templates/multi-stock-deep-comparison.md` | 仅在用户要求时，横向比较多只股票的信号质量和风控。 |
 
 ## 分析方法
@@ -56,7 +56,7 @@ stk stock scan <symbols...>
 ### 市场热点分析
 
 - 使用 `templates/market-hotspot-analysis.md`。
-- 默认只输出市场状态和重要消息。
+- 默认只输出市场状态。
 - 如果用户要求“热点/选股/候选”，追加技术热点；候选股必须经过 `stk stock scan` 确认。
 - 三地市场方向冲突时，今日结论写“市场分化”。
 
@@ -83,7 +83,7 @@ stk stock scan <symbols...>
 4. 如用户要求深入比较，再用 `multi-stock-deep-comparison.md` 生成对比段。
 5. 生成 `今日结论`：
    - 1-2 句。
-   - 必须包含市场状态、是否有重点关注标的、强信号数量、主要风险方向。
+   - 必须包含市场状态、是否有重点关注标的、推荐信号数量、主要风险方向。
    - 如果所有分组 `focus_count=0`，写“今日暂无明确趋势触发”。
 6. 组装最终 Obsidian 页面：
 

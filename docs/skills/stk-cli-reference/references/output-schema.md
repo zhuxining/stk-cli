@@ -8,7 +8,7 @@
 | ---------- | ----------------------------------------------------------------------------------------------------- |
 | `run_date` | 运行日期                                                                                              |
 | `universe` | `name`、`total`、`scanned`、`failed`                                                                  |
-| `summary`  | `focus_count`、`strong_signal_count`、`entry_signal_count`、`exit_signal_count`、`watch_signal_count` |
+| `summary`  | `focus_count`、`recommend_count`、`entry_signal_count`、`exit_signal_count`、`watch_signal_count` |
 | `focus[]`  | 重点关注标的                                                                                          |
 | `ignored`  | `no_signal_count`                                                                                     |
 | `errors[]` | 单标的非致命错误                                                                                      |
@@ -18,11 +18,11 @@
 | 分组             | 字段                                                                                                                                                         |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 展示             | `symbol`、`name`、`last`、`change_pct`、`source`                                                                                                             |
-| `decision`       | `signal`（`趋势买入` / `趋势退出` / `超卖修复` / `观察`）、`strength`（`强信号` / `普通信号` / `观察`）、`signal_status`、`signal_date`、`bars_since_signal` |
+| `decision`       | `signal`（`趋势买入` / `趋势退出` / `超卖修复` / `观察`）、`strength`（`推荐` / `预警`，无信号时不输出）、`signal_status`、`signal_date`、`bars_since_signal` |
 | `primary_signal` | `ema_cross`、`ema9`、`ema26`、`supertrend`、`supertrend_direction`、`adx`、`reasons`                                                                         |
 | `context`        | `overall_bias`、`factors[]`、`warnings[]`                                                                                                                    |
-| `risk`           | `atr`、`stop_loss`、`take_profit`、`risk_reward_ratio`、`risk_level`                                                                                         |
-| `daily10`        | 仅 `--daily10` 且强信号、辅助不冲突时出现                                                                                                                    |
+| `risk`           | `atr`、`stop_loss`、`take_profit`、`target_1`、`target_2`、`trailing_stop`、`risk_reward_ratio`、`risk_level`                                                |
+| `daily10`        | 仅 `--daily10` 且推荐/预警信号、辅助不冲突时出现                                                                                                             |
 
 ### context.factors[]
 

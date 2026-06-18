@@ -12,7 +12,12 @@ import pytest
 from stk.errors import IndicatorError
 from stk.models.history import Candlestick
 from stk.models.score import ContextFactor, FactorState, SignalContext
-from stk.services.score import _calc_money_flow_factor, _closed_daily_df, calc_score
+from stk.services.score import (
+    _calc_money_flow_factor,
+    _check_low_volume_cross,
+    _closed_daily_df,
+    calc_score,
+)
 
 
 def _candles_from_closes(closes: list[float], *, width: float = 1.0) -> list[Candlestick]:
@@ -110,7 +115,7 @@ def test_calc_score_basic(mock_history, make_candles):
     result = calc_score("600519")
 
     assert result.symbol == "600519"
-    assert result.decision.strength in {"强信号", "普通信号", "观察"}
+    assert result.decision.strength in {"推荐", "预警", None}
     assert result.decision.signal in {
         "趋势买入",
         "趋势退出",
@@ -192,7 +197,7 @@ def test_trend_buy_signal(mock_history):
 
     result = calc_score("600519")
 
-    assert result.decision.strength == "普通信号"
+    assert result.decision.strength == "推荐"
     assert result.decision.signal == "趋势买入"
     assert result.decision.signal_status == "new"
     assert result.decision.bars_since_signal == 0
@@ -206,7 +211,7 @@ def test_trend_sell_signal(mock_history):
 
     result = calc_score("600519")
 
-    assert result.decision.strength == "普通信号"
+    assert result.decision.strength == "预警"
     assert result.decision.signal == "趋势退出"
     assert result.decision.signal_status == "new"
     assert result.decision.bars_since_signal == 0
@@ -238,7 +243,7 @@ def test_mismatch_holds_signal(mock_history, _mock_context):
 
     result = calc_score("600519")
 
-    assert result.decision.strength == "观察"
+    assert result.decision.strength is None
     assert result.decision.signal == "观察"
     assert any("方向不一致" in reason for reason in result.primary_signal.reasons)
 
@@ -250,7 +255,7 @@ def test_old_cross_no_strong_signal(mock_history):
 
     result = calc_score("600519")
 
-    assert result.decision.strength == "观察"
+    assert result.decision.strength is None
     assert result.decision.signal == "观察"
     assert result.decision.signal_status == "stale"
     assert result.decision.bars_since_signal is None
@@ -292,7 +297,7 @@ def test_oversold_repair_signal_requires_repair_confirmations(mock_history, mock
     result = calc_score("600519")
 
     assert result.decision.signal == "超卖修复"
-    assert result.decision.strength == "普通信号"
+    assert result.decision.strength == "推荐"
     assert result.decision.signal_status == "new"
 
 
@@ -386,3 +391,33 @@ def test_money_flow_factor_respects_direction(mock_mfi):
 
     assert bullish.state == "confirming"
     assert bearish.state == "conflicting"
+
+
+def test_low_volume_golden_cross_adds_warning():
+    """Low volume golden cross should trigger a validity warning."""
+    df = pd.DataFrame({
+        "turnover": [1000000.0, 1100000.0, 1050000.0, 1080000.0, 1020000.0, 500000.0],
+    })
+    reasons: list[str] = []
+    _check_low_volume_cross(df, reasons)
+    assert len(reasons) == 1
+    assert "缩量金叉" in reasons[0]
+    assert "0.5" in reasons[0]  # vol_ratio ≈ 0.48
+
+
+def test_normal_volume_golden_cross_no_warning():
+    """Normal volume golden cross should not trigger warning."""
+    df = pd.DataFrame({
+        "turnover": [1000000.0, 1000000.0, 1000000.0, 1000000.0, 1000000.0, 1000000.0],
+    })
+    reasons: list[str] = []
+    _check_low_volume_cross(df, reasons)
+    assert len(reasons) == 0
+
+
+def test_insufficient_turnover_data_no_warning():
+    """Less than 6 bars should skip the check silently."""
+    df = pd.DataFrame({"turnover": [1000000.0, 500000.0]})
+    reasons: list[str] = []
+    _check_low_volume_cross(df, reasons)
+    assert len(reasons) == 0
