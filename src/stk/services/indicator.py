@@ -252,3 +252,51 @@ def get_daily(
 
     days.reverse()
     return DailyResult(symbol=symbol, days=days)
+
+
+def zigzag_pivots(closes: list[float], *, pct: float = 3.0) -> list[dict]:
+    """Detect zigzag pivot points from close prices.
+
+    Args:
+        closes: Close prices, most recent last.
+        pct: Minimum reversal percentage to register a pivot.
+
+    Returns:
+        Pivots sorted by index: [{index, price, type}].
+    """
+    if len(closes) < 4:
+        return []
+
+    pivots: list[dict] = []
+    direction = 0  # 1=seek high, -1=seek low
+
+    for i in range(1, len(closes) - 1):
+        prev, curr, nxt = closes[i - 1], closes[i], closes[i + 1]
+
+        if curr > prev and curr > nxt:  # Local high
+            if not pivots:
+                pivots.append({"index": i, "price": curr, "type": "high"})
+                direction = -1
+            elif direction == -1:  # Extension, update if higher
+                if curr > pivots[-1]["price"]:
+                    pivots[-1] = {"index": i, "price": curr, "type": "high"}
+            elif direction == 1:  # Reversal from low
+                chg = abs(curr - pivots[-1]["price"]) / pivots[-1]["price"] * 100
+                if chg >= pct:
+                    pivots.append({"index": i, "price": curr, "type": "high"})
+                    direction = -1
+
+        elif curr < prev and curr < nxt:  # Local low
+            if not pivots:
+                pivots.append({"index": i, "price": curr, "type": "low"})
+                direction = 1
+            elif direction == 1:  # Extension, update if lower
+                if curr < pivots[-1]["price"]:
+                    pivots[-1] = {"index": i, "price": curr, "type": "low"}
+            elif direction == -1:  # Reversal from high
+                chg = abs(pivots[-1]["price"] - curr) / pivots[-1]["price"] * 100
+                if chg >= pct:
+                    pivots.append({"index": i, "price": curr, "type": "low"})
+                    direction = 1
+
+    return pivots

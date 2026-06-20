@@ -219,3 +219,44 @@ def route_signals(
         source_summary=scan_result.summary,
         destinations=destinations,
     )
+
+
+def zigzag_picks(src: str, dst: str) -> WorkflowResult:
+    """Find symbols with zigzag pivot points and add to dst group."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from loguru import logger
+
+    from stk.services.indicator import get_daily, zigzag_pivots
+
+    watchlist = get_watchlist(src)
+    symbols = [s.symbol for s in watchlist.securities]
+    if not symbols:
+        return WorkflowResult(action="zigzag", candidates_found=0)
+
+    picks: list[str] = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(get_daily, s, count=60): s for s in symbols}
+        for future in as_completed(futures):
+            symbol = futures[future]
+            try:
+                result = future.result()
+                closes = [
+                    float(d["close"]) for d in result.days if d.get("close") is not None
+                ]
+                pivots = zigzag_pivots(closes, pct=3.0)
+                lows = [p for p in pivots if p["type"] == "low"]
+                highs = [p for p in pivots if p["type"] == "high"]
+                if lows and highs:
+                    picks.append(symbol)
+            except Exception as err:
+                logger.debug(f"Zigzag failed for {symbol}: {err}")
+
+    if picks:
+        add_symbols(dst, picks)
+
+    return WorkflowResult(
+        action="zigzag",
+        candidates_found=len(symbols),
+        destinations=[get_watchlist(dst)] if picks else [],
+    )

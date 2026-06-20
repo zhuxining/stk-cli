@@ -162,3 +162,15 @@ def route(
 
     result = route_signals(src, entry_dst, exit_dst, replace=replace)
     output.render(result)
+
+
+@app.command()
+def zigzag(
+    src: str = typer.Argument(help="Source watchlist group"),
+    dst: str = typer.Argument(help="Destination group for picks"),
+) -> None:
+    """Find symbols with zigzag pivot points (lows+highs) and add to dst group."""
+    from stk.services.watchlist import zigzag_picks
+
+    result = zigzag_picks(src, dst)
+    output.render(result)
