@@ -94,6 +94,7 @@ JSON envelope on stdout
 ```
 commands/ -> services/ -> deps.py -> external SDKs
 commands/ -> output.py
+services/sync.py -> services/ths_wrapper.py -> ths-favorite library
 services/ -> models/
 services/ -> store/
 services/ -> utils/
@@ -212,6 +213,7 @@ Shell / Agent / Automation
 stk CLI process
     |-------------------> Longport OpenAPI
     |-------------------> akshare upstream APIs
+    |-------------------> ths-favorite (同花顺自选 API)
     '-------------------> ~/.stk local files
 ```
 
@@ -234,6 +236,7 @@ stk CLI process
 | `commands/watchlist.py` | 暴露自选股 CRUD、扫描和 K 线命令 | 自选股远端数据所有权和监控筛选 |
 | `commands/doctor.py` | 暴露数据源健康检查命令 | 修复配置或网络问题 |
 | `commands/cache.py` | 暴露缓存清理命令 | 决定服务缓存策略 |
+| `commands/sync.py` | 暴露跨平台自选股同步命令 | 同步编排逻辑和对端 API 调用 |
 | `services/market.py` | 聚合主要指数和市场温度 | CLI 输出 |
 | `services/quote.py` | 封装 Longport 实时行情查询 | 技术指标计算 |
 | `services/history.py` | 封装 Longport K 线查询 | 指标语义计算 |
@@ -245,9 +248,12 @@ stk CLI process
 | `services/rank.py` | 获取同花顺技术筛选与行业情绪结果 | 生成每日监控决策 |
 | `services/watchlist.py` | 通过 Longport 管理自选股分组并同步本地 ID 缓存 | 本地保存自选股成员数据 |
 | `services/health.py` | 检查数据源连通性 | 自动恢复凭证 |
+| `services/sync.py` | 跨平台自选同步编排：差异计算、方向控制、自动创建目标分组 | 对端 API 调用和符号转换 |
+| `services/ths_wrapper.py` | 薄封装同花顺 PortfolioManager，异常翻译为 StkError | 同步决策和分组管理 |
 | `models/score.py` | 定义单标的监控结果契约 | 计算技术指标 |
 | `models/scan.py` | 定义每日批量监控结果契约 | 获取行情或执行筛选 |
 | `models/live_scan.py` | 定义实盘提醒结果契约 | 获取行情或执行筛选 |
+| `models/sync.py` | 定义 SyncItem、SyncDiff、SyncResult 等同步数据契约 | 执行同步操作 |
 | `models/` | 定义其他跨层 Pydantic 数据契约 | 访问外部数据源 |
 | `store/` | 提供文件存储与缓存副本 | 拥有业务数据权威来源 |
 | `utils/` | 提供 symbol、价格等纯转换函数 | 读取配置或访问网络 |

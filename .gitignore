@@ -12,3 +12,4 @@ wheels/
 
 # Agent config (local overrides, not portable)
 .claude/settings.local.json
+ths_favorite_cache.json

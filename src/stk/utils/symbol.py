@@ -92,6 +92,54 @@ def extract_code(symbol: str) -> str:
     return symbol.split(".")[0] if "." in symbol else symbol
 
 
+# ---------------------------------------------------------------------------
+# THS (同花顺) symbol conversion
+# ---------------------------------------------------------------------------
+
+# A-share codes that need different market suffix in THS
+# 科创板: 688xxx → .KC (THS market code 18)
+# 创业板: 300xxx/301xxx → .CY (THS market code 38)
+_KC_PREFIXES = ("688",)
+_CY_PREFIXES = ("300", "301")
+
+
+def to_ths_symbol(longport_symbol: str) -> str:
+    """Convert longport symbol to THS format (CODE.MARKET).
+
+    600519.SH → 600519.SH
+    688001.SH → 688001.KC  (科创板)
+    300001.SZ → 300001.CY  (创业板)
+    00700.HK  → 00700.HK
+    AAPL.US   → AAPL.US
+    """
+    lp = to_longport_symbol(longport_symbol)
+    if "." not in lp:
+        return lp
+    code, market = lp.split(".", 1)
+    if market == "SH" and code.startswith(_KC_PREFIXES):
+        return f"{code}.KC"
+    if market == "SZ" and code.startswith(_CY_PREFIXES):
+        return f"{code}.CY"
+    return lp
+
+
+def from_ths_symbol(ths_symbol: str) -> str:
+    """Convert THS symbol back to longport format.
+
+    600519.SH → 600519.SH
+    688001.KC → 688001.SH
+    300001.CY → 300001.SZ
+    """
+    if "." not in ths_symbol:
+        return ths_symbol
+    code, market = ths_symbol.split(".", 1)
+    if market == "KC":
+        return f"{code}.SH"
+    if market == "CY":
+        return f"{code}.SZ"
+    return ths_symbol
+
+
 def is_etf(symbol: str) -> bool:
     """Check if symbol is an A-share ETF (SH:5xxxxx / SZ:159xxx)."""
     lp = to_longport_symbol(symbol)

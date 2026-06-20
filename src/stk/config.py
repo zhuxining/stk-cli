@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     cache_enabled: bool = True
     cache_dir: Path = Path.home() / ".stk" / "cache"
 
+    # THS (同花顺) sync
+    ths_username: str = ""
+    """同花顺账号（手机号）"""
+    ths_password: str = ""
+    """同花顺密码"""
+
     # Logging
     log_level: str = "WARNING"
 

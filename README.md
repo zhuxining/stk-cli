@@ -25,6 +25,13 @@ LONGPORT_ACCESS_TOKEN=your_access_token
 
 从 [Longport OpenAPI 控制台](https://open.longportapp.com/account) 获取凭证。注意 access_token 有有效期，过期后需重新获取。
 
+### 同花顺同步（可选）
+
+```env
+THS_USERNAME=手机号
+THS_PASSWORD=密码
+```
+
 ## 符号格式
 
 | 市场 | 格式 | 示例 |
@@ -48,7 +55,8 @@ LONGPORT_ACCESS_TOKEN=your_access_token
 stk
 ├── market      # 市场整体：指数、温度、技术排名、行业多空、候选股
 ├── stock       # 个股：扫描、K线、同业对比
-└── watchlist   # 自选股管理
+├── watchlist   # 自选股管理
+└── sync        # 跨平台自选股同步
 ```
 
 ---
@@ -253,6 +261,51 @@ stk watchlist delete mywatchlist
 
 ---
 
+## sync — 跨平台自选股同步
+
+将长桥自选分组同步到其他平台。当前支持同花顺（雪球待后续支持）。
+
+### sync ths list — 列出同花顺分组
+
+```bash
+stk sync ths list
+```
+
+### sync ths diff — 对比差异
+
+```bash
+# 对比长桥分组与同花顺同名分组
+stk sync ths diff -f "重点关注"
+
+# 指定不同目标分组名
+stk sync ths diff -f "重点关注" -t "自选"
+```
+
+### sync ths push — 推送同步
+
+```bash
+# 差异同步（只增删差异部分）
+stk sync ths push -f "重点关注"
+
+# 指定目标分组
+stk sync ths push -f "重点关注" -t "同花顺自选"
+
+# 全量覆盖（清空目标再写入）
+stk sync ths push -f "重点关注" --replace
+```
+
+**同步规则：**
+
+- 默认差异同步：长桥有而目标没有的 → 添加；目标有而长桥没有的 → 删除
+- `--replace` 模式：先清空目标分组，再全量写入长桥数据
+- 目标分组不存在时自动创建
+- 自动跳过指数等不支持品种
+- 科创板自动转换：`688xxx.SH`（长桥）→ `688xxx.KC`（同花顺）
+- 创业板自动转换：`300xxx.SZ`（长桥）→ `300xxx.CY`（同花顺）
+- 只读分组（同花顺动态板块）不可写入
+
+---
+
 ## 输出格式
 
 所有命令输出统一的 JSON envelope 格式：
@@ -336,6 +389,7 @@ src/stk/
 ├── commands/           # 命令层（参数解析 → 服务调用 → 输出）
 │   ├── market.py
 │   ├── stock.py
+│   ├── sync.py         # 跨平台自选同步
 │   └── watchlist.py
 ├── services/           # 服务层（业务逻辑 + API 调用）
 │   ├── comparison.py
@@ -348,10 +402,14 @@ src/stk/
 │   ├── rank.py
 │   ├── scan.py
 │   ├── score.py
+│   ├── sync.py         # 同步编排逻辑
+│   ├── ths_wrapper.py  # 同花顺 API 薄封装
 │   └── watchlist.py
 ├── models/             # 数据模型（Pydantic）
+│   ├── sync.py         # 同步数据契约
+│   └── ...
 ├── utils/              # 工具函数
-│   ├── symbol.py       # 符号转换 + 数据工具
+│   ├── symbol.py       # 符号转换（含同花顺格式）
 │   └── price.py        # 价格格式化
 └── store/              # 本地存储 (~/.stk/)
 ```

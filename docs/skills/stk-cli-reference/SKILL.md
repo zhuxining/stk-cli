@@ -1,6 +1,6 @@
 ---
 name: stk-cli-reference
-description: "stk-cli 全部命令的参数说明和返回结构参考。覆盖 market、stock、watchlist、doctor、cache 等所有子命令。用到 stk 命令时触发。"
+description: "stk-cli 全部命令的参数说明和返回结构参考。覆盖 market、stock、watchlist、sync、doctor、cache 等所有子命令。用到 stk 命令时触发。"
 compatibility:
   requires: [stk-cli]
   data_source: longport
@@ -34,6 +34,7 @@ compatibility:
 | 候选入库 | `stk watchlist scoop <name>` |
 | 信号分流 | `stk watchlist route <src> <entry> <exit> [--replace]` |
 | Zigzag 信号 | `stk watchlist zigzag <src> <dst>` |
+| 同花顺同步 | `stk sync ths push/diff/list` |
 | 健康检查 | `stk doctor check` |
 | 清缓存 | `stk cache clear` |
 
@@ -226,6 +227,54 @@ stk watchlist zigzag ETF股池 zigzag-picks
 | `--count` `-c` | `20` | 每只标的 K 线数量 |
 
 返回 `DailyResult[]`，结构同 `stk stock kline`。
+
+---
+
+## Sync — 跨平台自选股同步
+
+将长桥自选分组同步到同花顺。需要先配置 `.env`：
+
+```env
+THS_USERNAME=手机号
+THS_PASSWORD=密码
+```
+
+### `stk sync ths list`
+
+列出同花顺所有自选分组（含"我的自选"）。
+
+返回 `ThsGroup[]`：`name`、`group_id`、`count`、`readonly`。
+
+### `stk sync ths diff`
+
+对比长桥与同花顺分组差异，不修改。
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--from` `-f` | 必填 | 长桥分组名 |
+| `--to` `-t` | 同 `--from` | 同花顺分组名 |
+
+返回 `SyncResult`：`action`（`diff`）、`diff`（`from_group`、`to_group`、`to_add[]`、`to_remove[]`、`unchanged`）。
+
+### `stk sync ths push`
+
+将长桥分组推送到同花顺（差异增删）。目标分组不存在时自动创建。
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--from` `-f` | 必填 | 长桥分组名 |
+| `--to` `-t` | 同 `--from` | 同花顺分组名 |
+| `--replace` `-r` | `false` | 全量覆盖（清空目标再写入） |
+
+返回 `SyncResult`：`action`（`push`）、`diff`、`added`、`removed`、`errors[]`。
+
+**同步规则**：
+- 默认差异同步：长桥有而目标没有 → 添加，目标有而长桥没有 → 删除
+- `--replace` 模式：先清空目标全部标的，再写入长桥全量
+- 自动跳过指数等不支持品种
+- 科创板自动映射：`688xxx.SH` → `688xxx.KC`
+- 创业板自动映射：`300xxx/301xxx.SZ` → `300xxx/301xxx.CY`
+- 只读分组（同花顺动态板块）不可写入，仅警告
 
 ---
 

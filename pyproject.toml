@@ -14,7 +14,11 @@ dependencies = [
     "ta-lib>=0.6.8",
     "pandas>=3.0.1",
     "httpx>=0.28.1",
+    "ths-favorite",
 ]
+
+[tool.uv.sources]
+ths-favorite = { git = "https://github.com/sunnysab/ths-favorite.git" }
 
 [dependency-groups]
 dev = [
