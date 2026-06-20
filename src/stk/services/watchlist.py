@@ -7,7 +7,6 @@ from longport.openapi import SecuritiesUpdateMode, WatchlistGroup
 
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
-from stk.models.scan import MonitorSummary
 from stk.models.watchlist import Watchlist, WatchlistSecurity, WatchlistSummary, WorkflowResult
 from stk.store.file_store import load_json, save_json
 from stk.utils.symbol import to_longport_symbol
@@ -220,93 +219,3 @@ def route_signals(
         source_summary=scan_result.summary,
         destinations=destinations,
     )
-
-
-def grid_candidates(src: str, dst: str) -> WorkflowResult:
-    """Evaluate symbols in src group for grid trading suitability."""
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    from loguru import logger
-
-    from stk.services.indicator import get_daily
-
-    watchlist = get_watchlist(src)
-    symbols = [s.symbol for s in watchlist.securities]
-    if not symbols:
-        return WorkflowResult(action="grid", candidates_found=0)
-
-    grid_symbols: list[str] = []
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        futures = {executor.submit(get_daily, s, count=60): s for s in symbols}
-        for future in as_completed(futures):
-            symbol = futures[future]
-            try:
-                result = future.result()
-                if _is_grid_candidate(result):
-                    grid_symbols.append(symbol)
-            except Exception as err:
-                logger.debug(f"Grid check failed for {symbol}: {err}")
-
-    if grid_symbols:
-        add_symbols(dst, grid_symbols)
-
-    return WorkflowResult(
-        action="grid",
-        candidates_found=len(symbols),
-        source_summary=MonitorSummary(
-            focus_count=len(grid_symbols),
-            recommend_count=0,
-            entry_signal_count=0,
-            exit_signal_count=0,
-            watch_signal_count=0,
-        ),
-        destinations=[get_watchlist(dst)] if grid_symbols else [],
-    )
-
-
-def _is_grid_candidate(daily_result: object) -> bool:
-    """Check if a symbol is suitable for grid trading.
-
-    Analyzes trailing 20-day behavior:
-    - Average Bollinger bandwidth > 12% (enough volatility)
-    - Price on both sides of middle band (oscillates, not trending)
-    - Average ADX14 < 25 (no strong trend)
-    - RSI has been both below 40 and above 60 (actually swings)
-    """
-    if not hasattr(daily_result, "days") or not daily_result.days:  # type: ignore
-        return False
-
-    days = daily_result.days  # type: ignore
-    if len(days) < 20:
-        return False
-
-    recent = days[-20:]
-
-    # 1. Average Bollinger bandwidth > 12%
-    bandwidths: list[float] = []
-    for day in recent:
-        up, mid, low = day.get("upper"), day.get("middle"), day.get("lower")
-        if None not in (up, mid, low) and mid:
-            bandwidths.append((up - low) / mid * 100)
-    if not bandwidths or sum(bandwidths) / len(bandwidths) < 12:
-        return False
-
-    # 2. Price has been on both sides of middle band (oscillation evidence)
-    positions: list[bool] = []
-    for day in recent:
-        close, middle = day.get("close"), day.get("middle")
-        if close is not None and middle is not None and middle:
-            positions.append(close > middle)
-    if not positions or not (any(positions) and not all(positions)):
-        return False
-
-    # 3. Average ADX14 < 25 (no strong persistent trend)
-    adx_values = [day.get("ADX14") for day in recent if day.get("ADX14") is not None]
-    if not adx_values or sum(adx_values) / len(adx_values) >= 25:
-        return False
-
-    # 4. RSI has swung both low and high (proves oscillation)
-    rsi_values = [day.get("RSI") for day in recent if day.get("RSI") is not None]
-    has_rsi_low = any(r <= 40 for r in rsi_values)
-    has_rsi_high = any(r >= 60 for r in rsi_values)
-    return bool(rsi_values and has_rsi_low and has_rsi_high)

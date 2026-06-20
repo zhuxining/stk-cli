@@ -54,15 +54,6 @@ def _calc_rsi(df: pd.DataFrame, params: dict) -> list[dict]:
     ]
 
 
-def _calc_adx(df: pd.DataFrame, params: dict) -> list[dict]:
-    period = params.get("timeperiod", 14)
-    result = talib.ADX(df["high"], df["low"], df["close"], timeperiod=period)
-    return [
-        {"date": d, f"ADX{period}": None if np.isnan(v) else round(v, 1)}
-        for d, v in zip(df["date"], result, strict=False)
-    ]
-
-
 def _calc_kdj(df: pd.DataFrame, params: dict) -> list[dict]:
     fastk_period = params.get("fastk_period", 9)
     slowk_period = params.get("slowk_period", 3)
@@ -200,7 +191,6 @@ _INDICATOR_MAP: dict[str, collections.abc.Callable] = {
     "KDJ": _calc_kdj,
     "BOLL": _calc_boll,
     "ATR": _calc_atr,
-    "ADX": _calc_adx,
     "SUPERTREND": _calc_supertrend,
 }
 

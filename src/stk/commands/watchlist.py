@@ -162,25 +162,3 @@ def route(
 
     result = route_signals(src, entry_dst, exit_dst, replace=replace)
     output.render(result)
-
-
-@app.command()
-def grid(
-    src: str = typer.Argument(help="Source group to evaluate"),
-) -> None:
-    """Evaluate a group for grid trading suitability, adds matches to 'grid-candidates'."""
-    from stk.services.watchlist import grid_candidates
-
-    result = grid_candidates(src, "grid-candidates")
-    output.render(result)
-
-
-@app.command(name="etf-status")
-def etf_status(
-    name: str = typer.Argument(help="Watchlist group name"),
-) -> None:
-    """Classify ETFs in a group into trading states (定投/网格/过热/观察)."""
-    from stk.services.etf import classify_watchlist
-
-    result = classify_watchlist(name)
-    output.render(result)
