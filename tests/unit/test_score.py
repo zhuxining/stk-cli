@@ -264,7 +264,7 @@ def test_old_cross_no_strong_signal(mock_history):
 @patch("stk.services.score._build_context")
 @patch("stk.services.score.get_history")
 def test_oversold_repair_signal_requires_repair_confirmations(mock_history, mock_context):
-    """Oversold repair needs an oversold trigger plus price/indicator repair."""
+    """Oversold repair: RSI≤30 + MACD hist>0 + price above EMA5."""
     mock_history.return_value = _mismatch_candles()
     bullish_context = SignalContext(
         overall_bias="supportive",
@@ -272,7 +272,7 @@ def test_oversold_repair_signal_requires_repair_confirmations(mock_history, mock
             ContextFactor(
                 name="momentum",
                 state="opportunity",
-                metrics={"rsi14": 32, "j": 8, "kdj_bias": "bullish"},
+                metrics={"rsi14": 28, "j": 8, "kdj_bias": "bullish"},
             ),
             ContextFactor(name="macd", state="confirming", metrics={"hist": 0.2}),
             ContextFactor(name="boll", state="neutral", metrics={"position_pct": 22}),

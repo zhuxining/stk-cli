@@ -37,7 +37,6 @@ _EMA_FAST = 9
 _EMA_SLOW = 26
 _RESONANCE_WINDOW = 2
 _MIN_HISTORY = 30
-_OVERSOLD_CONFIRMATION_THRESHOLD = 2
 _MIN_ENTRY_RISK_REWARD = 1.2
 _STRONG_RISK_REWARD = 1.8
 _STRENGTH_RANK: dict[SignalStrength | None, int] = {"推荐": 0, "预警": 1, None: 2}
@@ -402,71 +401,6 @@ def _metric_number(factor: ContextFactor | None, name: str) -> float | None:
     return float(value) if isinstance(value, int | float) else None
 
 
-def _oversold_trigger_names(context: SignalContext) -> list[str]:
-    momentum = _factor_by_name(context, "momentum")
-    boll = _factor_by_name(context, "boll")
-    money_flow = _factor_by_name(context, "money_flow")
-    divergence = _factor_by_name(context, "divergence")
-
-    triggers: list[str] = []
-    rsi = _metric_number(momentum, "rsi14")
-    j_value = _metric_number(momentum, "j")
-    if (rsi is not None and rsi <= 35) or (j_value is not None and j_value <= 10):
-        triggers.append("momentum")
-
-    boll_position = _metric_number(boll, "position_pct")
-    if boll_position is not None and boll_position <= 15:
-        triggers.append("boll")
-
-    mfi = _metric_number(money_flow, "mfi14")
-    if mfi is not None and mfi <= 25:
-        triggers.append("money_flow")
-
-    if divergence is not None and divergence.state == "opportunity":
-        triggers.append("divergence")
-
-    return triggers
-
-
-def _oversold_confirmation_names(
-    context: SignalContext,
-    *,
-    current_close: float,
-    ema5: float | None,
-    ema9: float | None,
-) -> list[str]:
-    names: list[str] = []
-    if ema5 is not None and current_close > ema5:
-        names.append("close_above_ema5")
-    if ema9 is not None and current_close > ema9:
-        names.append("close_above_ema9")
-
-    momentum = _factor_by_name(context, "momentum")
-    if momentum is not None and (
-        momentum.state == "confirming" or momentum.metrics.get("kdj_bias") == "bullish"
-    ):
-        names.append("momentum")
-
-    macd = _factor_by_name(context, "macd")
-    macd_hist = _metric_number(macd, "hist")
-    if macd is not None and (
-        macd.state == "confirming" or (macd_hist is not None and macd_hist > 0)
-    ):
-        names.append("macd")
-
-    boll = _factor_by_name(context, "boll")
-    boll_position = _metric_number(boll, "position_pct")
-    if boll_position is not None and boll_position > 15:
-        names.append("boll_reclaim")
-
-    for name in ("volume_price", "money_flow"):
-        factor = _factor_by_name(context, name)
-        if factor is not None and factor.state == "confirming":
-            names.append(name)
-
-    return names
-
-
 def _setup_signal(
     df: pd.DataFrame,
     base_signal: TrendSignal,
@@ -502,32 +436,34 @@ def _build_oversold_repair_signal(
         return None
 
     current_close = round(float(close_arr[-1]), 4)
-    ema9 = _safe_last(ema9_arr)
     ema5 = _metric_number(_factor_by_name(context, "ema_trend"), "ema5")
-    triggers = _oversold_trigger_names(context)
-    confirmations = _oversold_confirmation_names(
-        context,
-        current_close=current_close,
-        ema5=ema5,
-        ema9=ema9,
-    )
-    if not triggers or len(confirmations) < _OVERSOLD_CONFIRMATION_THRESHOLD:
+
+    # Condition 1: RSI ≤ 30 (true oversold)
+    momentum = _factor_by_name(context, "momentum")
+    rsi = _metric_number(momentum, "rsi14")
+    if rsi is None or rsi > 30:
         return None
 
-    if ema5 is not None and current_close <= ema5:
+    # Condition 2: MACD柱转正 (momentum turning up)
+    macd = _factor_by_name(context, "macd")
+    macd_hist = _metric_number(macd, "hist")
+    if macd_hist is None or macd_hist <= 0:
         return None
 
-    strength: SignalStrength = "推荐"
+    # Condition 3: 站上EMA5 (short-term price stabilization)
+    if ema5 is None or current_close <= ema5:
+        return None
+
     reasons = [
-        f"超卖修复信号 ({len(confirmations)}/7 项确认)：{', '.join(triggers)} 出现超卖提示",
-        f"修复确认：{', '.join(confirmations)}",
+        f"超卖修复：RSI {rsi} ≤ 30，MACD 柱转正 ({macd_hist:.4f})",
+        f"收盘价 {current_close} 站上 EMA5 {ema5}",
     ]
     return _setup_signal(
         df,
         base_signal,
         pattern="超卖修复",
         direction="bullish",
-        strength=strength,
+        strength="推荐",
         reasons=reasons,
     )
 
