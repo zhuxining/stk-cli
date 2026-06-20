@@ -46,8 +46,8 @@ LONGPORT_ACCESS_TOKEN=your_access_token
 
 ```
 stk
-├── market      # 市场整体：指数、温度
-├── stock       # 个股：扫描、K线、基本面、排名
+├── market      # 市场整体：指数、温度、技术排名、行业多空、候选股
+├── stock       # 个股：扫描、K线、同业对比
 └── watchlist   # 自选股管理
 ```
 
@@ -71,34 +71,39 @@ stk market temp
 
 输出字段：`score` (0-100), `level` (描述), `valuation`, `sentiment`
 
+### rank — 技术排名
+
+```bash
+stk market rank --screen lxsz
+stk market rank --screen cxfl
+stk market rank --screen xstp --ma 20日均线
+stk market rank --screen ljqs
+```
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--screen`, `-s` | `lxsz` | `lxsz` / `cxfl` / `xstp` / `ljqs` / `cxsl` / `lxxd` / `xxtp` / `ljqd` |
+| `--ma` | `20日均线` | xstp/xxtp 专用均线 |
+
+### hotspot — 行业多空情绪
+
+```bash
+stk market hotspot
+```
+
+统计各行业在多方/空方 screen 中的出现数量。
+
+### candidates — 技术候选股
+
+```bash
+stk market candidates
+```
+
+出现在 3+ 个多方 screen 且无空方冲突的股票。
+
 ---
 
 ## stock — 个股查询
-
-### rank — 统一排名入口
-
-```bash
-# 人气榜
-stk stock rank --type hot
-
-# 技术选股：连续上涨
-stk stock rank --type tech --screen lxsz
-
-# 技术选股：持续放量
-stk stock rank --type tech --screen cxfl
-
-# 技术选股：向上突破（需指定均线）
-stk stock rank --type tech --screen xstp --ma 20 日均线
-
-# 技术选股：量价齐升
-stk stock rank --type tech --screen ljqs
-```
-
-**参数：**
-
-- `--type`, `-t`：排名类型，可选 `hot`（人气）/ `tech`（技术），默认 `hot`
-- `--screen`, `-s`：技术筛选类型，可选 `lxsz`（连续上涨）/ `cxfl`（持续放量）/ `xstp`（向上突破）/ `ljqs`（量价齐升），默认 `lxsz`
-- `--ma`：均线周期（xstp 专用），可选 `5 日均线`/`10 日均线`/`20 日均线`/`60 日均线`/`250 日均线`，默认 `20 日均线`
 
 ### quote — 实时报价
 

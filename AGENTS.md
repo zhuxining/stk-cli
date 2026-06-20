@@ -48,8 +48,8 @@ src/stk/
 ├── errors.py           # Custom exceptions + global error handler
 ├── deps.py             # Lazy singletons (longport ctx, etc.)
 ├── commands/           # Thin layer: parse args → call service → render output
-│   ├── market.py       # stk market — grouped indices + temperature
-│   ├── stock.py        # stk stock — scan, kline, comparison, rank
+│   ├── market.py       # stk market — indices, temperature, rank, hotspot, candidates
+│   ├── stock.py        # stk stock — scan, kline, comparison
 │   ├── watchlist.py    # stk watchlist — CRUD + scan + kline
 │   ├── doctor.py       # stk doctor — data source health check
 │   └── cache.py        # stk cache — cache management

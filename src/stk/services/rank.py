@@ -186,7 +186,7 @@ def get_tech_hotspot(ma: str = "20日均线") -> TechHotspot:
             target = stock_bull if is_bull else stock_bear
             target.setdefault(item.code, set()).add(screen_type)
 
-    # 只保留出现在 2+ 个多方 screen 且未出现在任何空方 screen 的股票
+    # 只保留出现在 3+ 个多方 screen 且未出现在任何空方 screen 的股票
     candidates = sorted(
         [
             TechCandidate(
@@ -214,6 +214,6 @@ def get_tech_industries(ma: str = "20日均线") -> TechIndustries:
 
 
 def get_tech_candidates(ma: str = "20日均线") -> TechCandidates:
-    """交叉验证候选股（出现在 2+ 多方 screen）。"""
+    """交叉验证候选股（出现在 3+ 多方 screen，排除空方冲突）。"""
     h = get_tech_hotspot(ma=ma)
     return TechCandidates(candidates=h.candidates, total=h.total_candidates)

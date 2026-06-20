@@ -61,7 +61,7 @@ class IndustryStats(BaseModel):
 
 
 class TechCandidate(BaseModel):
-    """在 2+ 个多方 screen 同时出现的候选股。"""
+    """在 3+ 个多方 screen 同时出现、且未出现在空方 screen 的候选股。"""
 
     code: str
     name: str
@@ -72,7 +72,7 @@ class TechHotspot(BaseModel):
     """行业分析 + 技术选股候选。"""
 
     industries: list[IndustryStats]  # 按 bull_count 降序
-    candidates: list[TechCandidate]  # 在 2+ 多方 screen 的股票
+    candidates: list[TechCandidate]  # 在 3+ 多方 screen 的股票
     total_candidates: int
 
 
@@ -83,7 +83,7 @@ class TechIndustries(BaseModel):
 
 
 class TechCandidates(BaseModel):
-    """交叉验证候选股。"""
+    """交叉验证候选股（3+ 多方 screen，排除空方冲突）。"""
 
     candidates: list[TechCandidate]
     total: int

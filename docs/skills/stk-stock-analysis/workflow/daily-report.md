@@ -26,8 +26,8 @@ stk watchlist scan <group>
 3. 用户明确要求”热点/选股/候选”时，补充技术热点取数：
 
 ```bash
-stk stock hotspot
-stk stock candidates
+stk market hotspot
+stk market candidates
 stk stock scan <candidate-symbols>
 ```
 

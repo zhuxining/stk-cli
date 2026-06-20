@@ -229,8 +229,8 @@ stk CLI process
 | 模块 | 职责 | 不负责 |
 |------|------|--------|
 | `cli.py` | 组装 CLI 应用、配置日志、统一错误出口 | 业务数据获取 |
-| `commands/market.py` | 暴露市场概览命令 | 市场数据转换 |
-| `commands/stock.py` | 暴露个股排行、基本面、扫描和 K 线命令 | 技术指标计算和监控筛选 |
+| `commands/market.py` | 暴露市场概览和技术排名命令 | 市场数据转换 |
+| `commands/stock.py` | 暴露个股扫描、K 线、同业对比命令 | 技术指标计算和监控筛选 |
 | `commands/watchlist.py` | 暴露自选股 CRUD、扫描和 K 线命令 | 自选股远端数据所有权和监控筛选 |
 | `commands/doctor.py` | 暴露数据源健康检查命令 | 修复配置或网络问题 |
 | `commands/cache.py` | 暴露缓存清理命令 | 决定服务缓存策略 |

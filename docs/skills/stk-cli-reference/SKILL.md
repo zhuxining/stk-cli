@@ -19,10 +19,10 @@ compatibility:
 
 | 需求 | 命令 |
 |------|------|
-| 市场行情 | `stk market` |
-| 技术排名 | `stk stock rank` |
-| 行业热点 | `stk stock hotspot` |
-| 选股候选 | `stk stock candidates` |
+| 市场行情 | `stk market index` |
+| 技术排名 | `stk market rank` |
+| 行业热点 | `stk market hotspot` |
+| 选股候选 | `stk market candidates` |
 | 个股扫描 | `stk stock scan <symbols...>` |
 | 实盘提醒 | `stk stock scan-live <symbols...>` |
 | K线/指标 | `stk stock kline <symbols...>` |
@@ -38,7 +38,7 @@ compatibility:
 
 ## Market
 
-### `stk market`
+### `stk market index`
 
 市场概览，指数按 `CN` / `HK` / `US` 分组，含三地温度。
 
@@ -48,7 +48,7 @@ compatibility:
 
 ## Stock
 
-### `stk stock rank`
+### `stk market rank`
 
 同花顺技术 screen 排名。
 
@@ -59,7 +59,7 @@ compatibility:
 
 返回 `TechRank`：`type`、`label`、`items[]`（`code`、`name`、`metrics`）。
 
-### `stk stock hotspot`
+### `stk market hotspot`
 
 行业多空情绪统计。
 
@@ -69,9 +69,9 @@ compatibility:
 
 返回 `TechIndustries`：`industries[]`（`industry`、`bull_count`、`bear_count`、`bull_screens`、`bear_screens`）。
 
-### `stk stock candidates`
+### `stk market candidates`
 
-跨 screen 候选股，返回出现在 ≥2 个多方 screen 的股票。
+跨 screen 候选股，返回出现在 ≥3 个多方 screen 且无空方冲突的股票。
 
 | 参数 | 默认 | 说明 |
 |------|------|------|

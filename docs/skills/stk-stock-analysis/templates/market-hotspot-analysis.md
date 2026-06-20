@@ -7,9 +7,9 @@
 
 ## 输入数据
 
-- `stk market`
-- 可选：`stk stock hotspot`
-- 可选：`stk stock candidates`
+- `stk market index`
+- 可选：`stk market hotspot`
+- 可选：`stk market candidates`
 - 可选：对候选股执行 `stk stock scan <candidate-symbols>`
 
 ## 分析方法

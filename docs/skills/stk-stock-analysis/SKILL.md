@@ -83,9 +83,9 @@ compatibility:
 
 | 用户意图 | 模式 | 主要命令 |
 |----------|------|----------|
-| 日报、市场、盘面 | 市场总览 | `stk market` |
-| DailyReport、交易日报、每日复盘、保存到 Obsidian | DailyReport | `stk market` + `stk watchlist scan <group>` |
-| 热点、选股、技术形态、入池 | 技术热点 | `stk stock hotspot` + `stk stock candidates` + `stk stock scan` |
+| 日报、市场、盘面 | 市场总览 | `stk market index` |
+| DailyReport、交易日报、每日复盘、保存到 Obsidian | DailyReport | `stk market index` + `stk watchlist scan <group>` |
+| 热点、选股、技术形态、入池 | 技术热点 | `stk market hotspot` + `stk market candidates` + `stk stock scan` |
 | 分析某只股票、有没有信号 | 个股信号分析 | `stk stock scan <symbol>` + 可选 `kline` / `comparison` |
 | 自选、分组、持仓、每日监控 | 分组每日监控 | `stk watchlist scan <group>` |
 | 盘中、实盘、盯盘、触发提醒 | 实盘提醒 | `stk stock scan-live <symbols...>` 或 `stk watchlist scan-live <group>` |
@@ -100,7 +100,7 @@ compatibility:
 
 运行：
 
-- `stk market`
+- `stk market index`
 
 输出：一句话市场状态、三地市场温度、强势方向、风险方向。
 
@@ -122,8 +122,8 @@ compatibility:
 
 先并行运行：
 
-- `stk stock hotspot`
-- `stk stock candidates`
+- `stk market hotspot`
+- `stk market candidates`
 
 再对候选股运行 `stk stock scan <code1> <code2> ...`。只把 `MonitorResult.focus` 作为重点候选；若 `focus` 为空，明确说明“候选池暂无趋势确认信号”。
 

@@ -14,7 +14,7 @@
 
 | 模板 | 场景 | 默认命令 |
 |------|------|----------|
-| `market-hotspot-analysis.md` | 市场热点分析：市场温度、可选技术热点。 | `stk market`，可选 `stk stock hotspot` / `stk stock candidates` / `stk stock scan` |
+| `market-hotspot-analysis.md` | 市场热点分析：市场温度、可选技术热点。 | `stk market`，可选 `stk market hotspot` / `stk market candidates` / `stk stock scan` |
 | `group-signal-tracking.md` | 分组信号追踪：watchlist 分组每日监控、focus 追踪、明日动作。 | `stk watchlist scan <group>` |
 | `multi-stock-deep-comparison.md` | 多股深入对比：多只股票横向比较信号质量、风险收益、辅助因子和 high 日线复核。 | `stk stock scan <symbols...>`，可选 `kline` / `comparison` |
 
