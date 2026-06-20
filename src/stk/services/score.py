@@ -560,6 +560,9 @@ def _quality_adjusted_signal(
     if context.overall_bias == "conflicting":
         return _with_strength(signal, None, reason="辅助因子明显冲突，降为观察")
 
+    if context.overall_bias == "mixed" and age is not None and age >= _RESONANCE_WINDOW:
+        return _with_strength(signal, None, reason="信号陈旧且辅助因子态度不明确，降为观察")
+
     if signal.direction == "bullish" and (
         risk_reward_ratio is None or risk_reward_ratio < _MIN_ENTRY_RISK_REWARD
     ):
