@@ -19,18 +19,8 @@ uv sync
 # Run the CLI
 uv run stk
 
-# Lint & format (auto-fix enabled)
-uv run ruff check .
-uv run ruff format .
-
-# Type check
-uv run ty check
-
-# Run all tests
-uv run pytest
-
-# Run tests excluding external service calls
-uv run pytest -m "not integration"
+# All checks (lint + format + type + tests)
+make check
 
 # Run a single test file
 uv run pytest tests/path/to/test_file.py
@@ -89,3 +79,11 @@ src/stk/
 
 Use `loguru` for all logging. Use `pandas` + `ta-lib` for indicator calculations in services.
 Longport is the primary data source. akshare supplements A-share features: tech screening rankings (THS), industry comparison, company profile.
+
+## Non-goals
+
+- **Not a trading advisor.** Outputs data and signals; does not generate buy/sell orders or portfolio allocations.
+- **Not a human-facing UI.** All output is JSON envelope to stdout; logs go to stderr.
+- **Not a real-time trading system.** Daily monitoring uses confirmed daily candles; intraday (`scan-live`) is alert-only, not execution.
+- **Not a backtesting engine.** Signal strategies are documented but not backtested.
+- **Not a data warehouse.** Caches are transient copies; longport and akshare are the source of truth.

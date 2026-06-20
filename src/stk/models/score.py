@@ -82,10 +82,10 @@ class RiskProfile(BaseModel):
 
     atr: float | None = None
     stop_loss: float | None = None
-    take_profit: float | None = None    # 保留向后兼容
-    target_1: float | None = None        # 2xATR 保守目标（减仓参考）
-    target_2: float | None = None        # 3xATR 激进目标（清仓参考）
-    trailing_stop: float | None = None   # Supertrend 动态止损参考
+    take_profit: float | None = None  # 保留向后兼容
+    target_1: float | None = None  # 2xATR 保守目标（减仓参考）
+    target_2: float | None = None  # 3xATR 激进目标（清仓参考）
+    trailing_stop: float | None = None  # Supertrend 动态止损参考
     risk_reward_ratio: float | None = None
     risk_level: RiskLevel = "medium"
 

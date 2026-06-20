@@ -164,8 +164,7 @@ def _should_focus(score: ScoreResult) -> bool:
 
 def _needs_daily10(score: ScoreResult) -> bool:
     return (
-        score.decision.strength in {"推荐", "预警"}
-        and score.context.overall_bias != "conflicting"
+        score.decision.strength in {"推荐", "预警"} and score.context.overall_bias != "conflicting"
     )
 
 
@@ -195,11 +194,7 @@ def _focus_item(
         last=quote.last if quote else None,
         change_pct=quote.change_pct if quote else None,
         source=quote.source if quote else "unknown",
-        daily10=(
-            _get_daily10(lp_symbol)
-            if include_daily10 and _needs_daily10(score)
-            else None
-        ),
+        daily10=(_get_daily10(lp_symbol) if include_daily10 and _needs_daily10(score) else None),
     )
 
 

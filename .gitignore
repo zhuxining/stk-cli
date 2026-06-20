@@ -9,3 +9,6 @@ wheels/
 # Virtual environments
 .venv
 .env
+
+# Agent config (local overrides, not portable)
+.claude/settings.local.json

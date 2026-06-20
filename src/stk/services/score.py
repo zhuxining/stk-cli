@@ -991,6 +991,7 @@ def _risk_level(risk_reward_ratio: float | None) -> RiskLevel:
 @dataclass
 class _RiskPoints:
     """Internal risk calculation result."""
+
     stop_loss: float
     target_1: float
     target_2: float
