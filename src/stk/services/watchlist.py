@@ -267,28 +267,46 @@ def grid_candidates(src: str, dst: str) -> WorkflowResult:
 def _is_grid_candidate(daily_result: object) -> bool:
     """Check if a symbol is suitable for grid trading.
 
-    Criteria:
-    - ADX14 < 18 (no trend, stricter)
-    - Bollinger bandwidth 10-50% (not too tight or wide)
-    - RSI between 40-60 (neutral oscillation zone)
+    Analyzes trailing 20-day behavior:
+    - Average Bollinger bandwidth > 12% (enough volatility)
+    - Price on both sides of middle band (oscillates, not trending)
+    - Average ADX14 < 25 (no strong trend)
+    - RSI has been both below 40 and above 60 (actually swings)
     """
     if not hasattr(daily_result, "days") or not daily_result.days:  # type: ignore
         return False
 
-    latest = daily_result.days[-1]  # type: ignore
-
-    adx = latest.get("ADX14")
-    if adx is None or adx >= 18:
+    days = daily_result.days  # type: ignore
+    if len(days) < 20:
         return False
 
-    upper = latest.get("upper")
-    lower = latest.get("lower")
-    middle = latest.get("middle")
-    if None in (upper, lower, middle) or middle == 0:
-        return False
-    bandwidth = (upper - lower) / middle * 100
-    if bandwidth < 10 or bandwidth > 50:
+    recent = days[-20:]
+
+    # 1. Average Bollinger bandwidth > 12%
+    bandwidths: list[float] = []
+    for day in recent:
+        up, mid, low = day.get("upper"), day.get("middle"), day.get("lower")
+        if None not in (up, mid, low) and mid:
+            bandwidths.append((up - low) / mid * 100)
+    if not bandwidths or sum(bandwidths) / len(bandwidths) < 12:
         return False
 
-    rsi = latest.get("RSI")
-    return not (rsi is None or rsi <= 40 or rsi >= 60)
+    # 2. Price has been on both sides of middle band (oscillation evidence)
+    positions: list[bool] = []
+    for day in recent:
+        close, middle = day.get("close"), day.get("middle")
+        if close is not None and middle is not None and middle:
+            positions.append(close > middle)
+    if not positions or not (any(positions) and not all(positions)):
+        return False
+
+    # 3. Average ADX14 < 25 (no strong persistent trend)
+    adx_values = [day.get("ADX14") for day in recent if day.get("ADX14") is not None]
+    if not adx_values or sum(adx_values) / len(adx_values) >= 25:
+        return False
+
+    # 4. RSI has swung both low and high (proves oscillation)
+    rsi_values = [day.get("RSI") for day in recent if day.get("RSI") is not None]
+    has_rsi_low = any(r <= 40 for r in rsi_values)
+    has_rsi_high = any(r >= 60 for r in rsi_values)
+    return bool(rsi_values and has_rsi_low and has_rsi_high)
