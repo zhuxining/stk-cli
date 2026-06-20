@@ -132,3 +132,33 @@ def kline(
 
     results = kline_watchlist(name, period=period, count=count)
     output.render(results, meta={"group": name, "count": len(results)})
+
+
+@app.command()
+def scoop(
+    name: str = typer.Argument(help="Destination watchlist group name"),
+) -> None:
+    """Scoop today's market candidates into a watchlist group."""
+    from stk.services.watchlist import scoop_candidates
+
+    result = scoop_candidates(name)
+    output.render(result)
+
+
+@app.command()
+def route(
+    src: str = typer.Argument(help="Source group to scan"),
+    entry_dst: str = typer.Argument(help="Destination for entry signals (buy/oversold)"),
+    exit_dst: str = typer.Argument(help="Destination for exit signals"),
+    replace: bool = typer.Option(
+        False,
+        "--replace",
+        "-r",
+        help="Replace destinations instead of appending",
+    ),
+) -> None:
+    """Scan a group and route entry/exit signals to destination groups."""
+    from stk.services.watchlist import route_signals
+
+    result = route_signals(src, entry_dst, exit_dst, replace=replace)
+    output.render(result)

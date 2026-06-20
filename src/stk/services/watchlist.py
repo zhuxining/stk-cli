@@ -1,12 +1,13 @@
 """Watchlist service — backed by longport watchlist API + local group ID cache."""
 
+import contextlib
 import time
 
 from longport.openapi import SecuritiesUpdateMode, WatchlistGroup
 
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
-from stk.models.watchlist import Watchlist, WatchlistSecurity, WatchlistSummary
+from stk.models.watchlist import Watchlist, WatchlistSecurity, WatchlistSummary, WorkflowResult
 from stk.store.file_store import load_json, save_json
 from stk.utils.symbol import to_longport_symbol
 
@@ -99,8 +100,16 @@ def create_group(name: str, symbols: list[str] | None = None) -> Watchlist:
     return Watchlist(id=group_id, name=name, securities=[])
 
 
-def add_symbols(name: str, symbols: list[str]) -> None:
-    """Add one or more symbols to a watchlist group (batch)."""
+def add_symbols(
+    name: str, symbols: list[str], mode: SecuritiesUpdateMode = SecuritiesUpdateMode.Add
+) -> None:
+    """Add/replace symbols in a watchlist group (batch).
+
+    Args:
+        name: Watchlist group name.
+        symbols: Symbols to add/replace.
+        mode: Add (append) or Replace (clear + set). Default Add.
+    """
     gid = _get_group_id(name)
     if gid is None:
         create_group(name, symbols=symbols)
@@ -110,7 +119,7 @@ def add_symbols(name: str, symbols: list[str]) -> None:
     ctx.update_watchlist_group(
         id=gid,
         securities=lp_symbols,
-        mode=SecuritiesUpdateMode.Add,
+        mode=mode,
     )
 
 
@@ -139,3 +148,76 @@ def delete_group(name: str) -> None:
     mapping = load_json(_CACHE_FILE)
     mapping.pop(name, None)
     save_json(_CACHE_FILE, mapping)
+
+
+_ENTRY_SIGNALS = {"趋势买入", "超卖修复"}
+_EXIT_SIGNALS = {"趋势退出"}
+
+
+def scoop_candidates(name: str) -> WorkflowResult:
+    """Scoop today's market candidates into a watchlist group.
+
+    Gets tech candidates from THS, scans them for signal reference,
+    and adds ALL candidates to the destination group.
+    """
+    from stk.services.rank import get_tech_candidates
+    from stk.services.scan import batch_summary
+    from stk.utils.symbol import expand_symbols
+
+    candidates = get_tech_candidates()
+    if not candidates.candidates:
+        return WorkflowResult(action="scoop", candidates_found=0)
+
+    symbols = expand_symbols([c.code for c in candidates.candidates])
+
+    scan_result = batch_summary(symbols, include_daily10=False, include_full_context=False)
+
+    add_symbols(name, symbols)
+
+    return WorkflowResult(
+        action="scoop",
+        candidates_found=len(candidates.candidates),
+        source_summary=scan_result.summary,
+        destinations=[get_watchlist(name)],
+    )
+
+
+def route_signals(
+    src: str,
+    entry_dst: str,
+    exit_dst: str,
+    *,
+    replace: bool = False,
+) -> WorkflowResult:
+    """Scan a group and route entry/exit signals to destination groups."""
+    from stk.services.scan import scan_watchlist
+
+    scan_result = scan_watchlist(src, include_daily10=False, include_full_context=False)
+
+    entry_symbols: list[str] = []
+    exit_symbols: list[str] = []
+    for item in scan_result.focus:
+        signal = item.decision.signal
+        if signal in _ENTRY_SIGNALS:
+            entry_symbols.append(item.symbol)
+        elif signal in _EXIT_SIGNALS:
+            exit_symbols.append(item.symbol)
+
+    mode = SecuritiesUpdateMode.Replace if replace else SecuritiesUpdateMode.Add
+
+    if entry_symbols:
+        add_symbols(entry_dst, entry_symbols, mode=mode)
+    if exit_symbols:
+        add_symbols(exit_dst, exit_symbols, mode=mode)
+
+    destinations: list[Watchlist] = []
+    with contextlib.suppress(SourceError):
+        destinations.append(get_watchlist(entry_dst))
+    with contextlib.suppress(SourceError):
+        destinations.append(get_watchlist(exit_dst))
+
+    return WorkflowResult(
+        action="route",
+        source_summary=scan_result.summary,
+        destinations=destinations,
+    )
