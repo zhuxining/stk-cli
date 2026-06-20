@@ -10,7 +10,7 @@
 
 - `stk stock scan <symbols...>` 的 `MonitorResult`。
 - 可选：`stk stock kline <symbols...> --count 20`。
-- 可选：用户要求基本面时补 `stk stock fundamental <symbol>`。
+- 可选：用户要求基本面时补 `stk stock comparison <symbol>`。
 
 ## 分析方法
 

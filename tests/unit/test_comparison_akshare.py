@@ -1,4 +1,4 @@
-"""Tests for fundamental service (akshare-based: industry comparison)."""
+"""Tests for comparison service (akshare-based: industry comparison)."""
 
 from decimal import Decimal
 from unittest.mock import patch
@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from stk.errors import SourceError
-from stk.services.fundamental import get_comparison
+from stk.services.comparison import get_comparison
 
 
 def _make_comparison_df(columns: list[str], rows: list[list]) -> pd.DataFrame:
@@ -15,7 +15,7 @@ def _make_comparison_df(columns: list[str], rows: list[list]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=columns)
 
 
-@patch("stk.services.fundamental.ak")
+@patch("stk.services.comparison.ak")
 def test_get_comparison_growth(mock_ak):
     """Test growth comparison returns correct structure."""
     df = _make_comparison_df(
@@ -41,7 +41,7 @@ def test_get_comparison_growth(mock_ak):
     assert result.companies[2].metrics["营收同比增长率"] == Decimal("15.30")
 
 
-@patch("stk.services.fundamental.ak")
+@patch("stk.services.comparison.ak")
 def test_get_comparison_valuation(mock_ak):
     """Test valuation comparison."""
     df = _make_comparison_df(
@@ -60,7 +60,7 @@ def test_get_comparison_valuation(mock_ak):
     assert result.companies[2].metrics["PEG"] == Decimal("0.80")
 
 
-@patch("stk.services.fundamental.ak")
+@patch("stk.services.comparison.ak")
 def test_get_comparison_dupont(mock_ak):
     """Test DuPont comparison."""
     df = _make_comparison_df(
@@ -79,7 +79,7 @@ def test_get_comparison_dupont(mock_ak):
     assert result.companies[2].metrics["净利率"] == Decimal("50.00")
 
 
-@patch("stk.services.fundamental.ak")
+@patch("stk.services.comparison.ak")
 def test_get_comparison_empty(mock_ak):
     """Test empty DataFrame raises SourceError."""
     mock_ak.stock_zh_growth_comparison_em.return_value = pd.DataFrame()
@@ -94,7 +94,7 @@ def test_get_comparison_bad_category():
         get_comparison("600519", category="unknown")
 
 
-@patch("stk.services.fundamental.ak")
+@patch("stk.services.comparison.ak")
 def test_get_comparison_nan_handling(mock_ak):
     """Test NaN/dash values become None in metrics."""
     df = _make_comparison_df(

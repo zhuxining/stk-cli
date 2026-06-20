@@ -184,7 +184,7 @@ stk stock kline / stk watchlist kline
 ### 基本面查询路径
 
 ```
-stk stock fundamental
+stk stock comparison
     -> Command Adapter validates request shape
     -> Domain Service calls akshare supplementary data source
     -> Domain Service maps upstream data into Pydantic models
@@ -199,7 +199,7 @@ stk stock fundamental
 - `services/scan.py` 负责把多个 `ScoreResult` 聚合为 `MonitorResult`，并按重点关注规则生成 `focus`、`summary`、`ignored` 和 `errors`；仅为推荐信号且辅助态度不冲突的 `FocusItem` 补充最近 10 根压缩完整日线。
 - `services/live_scan.py` 负责实盘提醒扫描，先复用完整日线 `ScoreResult` 做背景过滤，再读取未缓存分钟 K 线生成 `LiveScanResult`；它不改写日线 `decision`。
 - `services/indicator.py` 负责输出 K 线与技术指标明细，供使用者解释信号来源，不负责判断是否入选重点关注。
-- `services/fundamental.py` 是补充查询能力，不参与默认每日监控筛选。
+- `services/comparison.py` 是补充查询能力，不参与默认每日监控筛选。
 
 ## 部署架构
 
@@ -241,7 +241,7 @@ stk CLI process
 | `services/score.py` | 基于日线 K 线生成 `ScoreResult`，包含决策、主信号、结构化辅助因子和风控点位 | 管理自选股或批量排序 |
 | `services/scan.py` | 聚合每日监控结果，输出重点关注标的、统计、忽略数量、错误列表和推荐信号标的压缩完整日线 | 渲染响应或计算单标的主信号 |
 | `services/live_scan.py` | 聚合实盘提醒结果，输出日线背景、分钟触发、实时提醒强度和分钟风险线 | 替代日线扫描或生成新的日线决策 |
-| `services/fundamental.py` | 获取估值、行业对比和公司概况 | 参与默认每日监控筛选 |
+| `services/comparison.py` | 获取估值、行业对比和公司概况 | 参与默认每日监控筛选 |
 | `services/rank.py` | 获取同花顺技术筛选与行业情绪结果 | 生成每日监控决策 |
 | `services/watchlist.py` | 通过 Longport 管理自选股分组并同步本地 ID 缓存 | 本地保存自选股成员数据 |
 | `services/health.py` | 检查数据源连通性 | 自动恢复凭证 |

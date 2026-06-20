@@ -11,8 +11,8 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
-class TestFundamentalAPIs:
-    """Test fundamental service APIs."""
+class TestComparisonAPIs:
+    """Test comparison service APIs."""
 
     def test_stock_zyjs_ths(self):
         """Test main operations summary API."""

@@ -86,7 +86,7 @@ compatibility:
 | 日报、市场、盘面 | 市场总览 | `stk market` |
 | DailyReport、交易日报、每日复盘、保存到 Obsidian | DailyReport | `stk market` + `stk watchlist scan <group>` |
 | 热点、选股、技术形态、入池 | 技术热点 | `stk stock hotspot` + `stk stock candidates` + `stk stock scan` |
-| 分析某只股票、有没有信号 | 个股信号分析 | `stk stock scan <symbol>` + 可选 `kline` / `fundamental` |
+| 分析某只股票、有没有信号 | 个股信号分析 | `stk stock scan <symbol>` + 可选 `kline` / `comparison` |
 | 自选、分组、持仓、每日监控 | 分组每日监控 | `stk watchlist scan <group>` |
 | 盘中、实盘、盯盘、触发提醒 | 实盘提醒 | `stk stock scan-live <symbols...>` 或 `stk watchlist scan-live <group>` |
 
@@ -132,7 +132,7 @@ compatibility:
 优先运行 `stk stock scan <symbol>`。如果用户需要解释信号来源或基本面，再并行补充：
 
 - `stk stock kline <symbol>`
-- `stk stock fundamental <symbol>`
+- `stk stock comparison <symbol>`
 
 结论必须先给 `decision.signal`、`decision.strength`、`signal_status` 和是否进入 `focus`。未进入 `focus` 时，不要强行给买卖建议。
 如果用户一次分析多只股票，使用 `templates/multi-stock-deep-comparison.md`，表格对比信号质量、辅助态度和风控，不逐只展开长段落。

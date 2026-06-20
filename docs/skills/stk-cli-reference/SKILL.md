@@ -26,7 +26,7 @@ compatibility:
 | 个股扫描 | `stk stock scan <symbols...>` |
 | 实盘提醒 | `stk stock scan-live <symbols...>` |
 | K线/指标 | `stk stock kline <symbols...>` |
-| 基本面 | `stk stock fundamental <symbol>` |
+| 同业对比 | `stk stock comparison <symbol>` |
 | 自选管理 | `stk watchlist list/show/create/add/remove/delete` |
 | 自选扫描 | `stk watchlist scan <group>` |
 | 自选实盘 | `stk watchlist scan-live <group>` |
@@ -126,9 +126,9 @@ K 线 + 全部技术指标。
 
 返回 `DailyResult[]`：`symbol`、`days[]`（OHLCV + `change_pct` + 指标）。指标含 `EMA5/9/10/20/26/60`、`MACD/signal/hist`、`RSI`、`K/D/J`（KDJ）、`upper/middle/lower`（BOLL）、`ATR10/ATR14`、`Supertrend/SupertrendDirection`。
 
-### `stk stock fundamental <symbol>`
+### `stk stock comparison <symbol>`
 
-同业对比：估值、成长性、杜邦分析。
+同业业绩对比：估值、成长性、杜邦分析。
 
 | 参数 | 默认 | 说明 |
 |------|------|------|

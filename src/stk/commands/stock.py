@@ -57,7 +57,7 @@ def candidates(
 
 
 @app.command()
-def fundamental(
+def comparison(
     symbol: str = typer.Argument(help="Stock symbol (e.g. 600519, 700.HK)"),
     type: str = typer.Option(
         "all",
@@ -66,13 +66,13 @@ def fundamental(
         help="Category: all/growth/valuation (A-share also: dupont)",
     ),
 ) -> None:
-    """Industry comparison. Default: all categories."""
+    """Industry comparison — peer performance. Default: all categories."""
     if type == "all":
-        from stk.services.fundamental import get_full_comparison
+        from stk.services.comparison import get_full_comparison
 
         result = get_full_comparison(symbol)
     else:
-        from stk.services.fundamental import get_comparison
+        from stk.services.comparison import get_comparison
 
         result = get_comparison(symbol, category=type)
     output.render(result)

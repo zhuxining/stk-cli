@@ -49,14 +49,14 @@ src/stk/
 ├── deps.py             # Lazy singletons (longport ctx, etc.)
 ├── commands/           # Thin layer: parse args → call service → render output
 │   ├── market.py       # stk market — grouped indices + temperature
-│   ├── stock.py        # stk stock — scan, kline, fundamental, rank
+│   ├── stock.py        # stk stock — scan, kline, comparison, rank
 │   ├── watchlist.py    # stk watchlist — CRUD + scan + kline
 │   ├── doctor.py       # stk doctor — data source health check
 │   └── cache.py        # stk cache — cache management
 ├── services/           # Business logic: call APIs → return Pydantic models
 │   ├── rank.py         # Stock technical rankings (THS)
 │   ├── market.py       # Market overview: indices (CN/HK/US), temperature
-│   ├── fundamental.py  # Valuation (via calc_indexes), industry comparison, profile
+│   ├── comparison.py  # Valuation (via calc_indexes), industry comparison, profile
 │   ├── quote.py # Longport raw API wrapper
 │   ├── history.py      # K-line history fetch + caching
 │   ├── indicator.py    # ta-lib calculations + get_daily (OHLCV + all indicators merged)

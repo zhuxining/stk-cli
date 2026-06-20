@@ -126,20 +126,20 @@ stk stock profile 600519
 
 输出字段：`symbol`, `main_business`（主营业务）, `product_type`（产品类型）, `product_name`（产品名称）, `business_scope`（经营范围）
 
-### fundamental — 基本面分析（同业对比）
+### comparison — 同业业绩对比
 
 ```bash
 # 成长能力对比
-stk stock fundamental 600519 --type growth
+stk stock comparison 600519 --type growth
 
 # 估值对比
-stk stock fundamental 600519 --type valuation
+stk stock comparison 600519 --type valuation
 
 # 杜邦分析（仅 A 股）
-stk stock fundamental 600519 --type dupont
+stk stock comparison 600519 --type dupont
 
 # 港股成长能力
-stk stock fundamental 700.HK --type growth
+stk stock comparison 700.HK --type growth
 ```
 
 **参数：**
@@ -333,7 +333,7 @@ src/stk/
 │   ├── stock.py
 │   └── watchlist.py
 ├── services/           # 服务层（业务逻辑 + API 调用）
-│   ├── fundamental.py
+│   ├── comparison.py
 │   ├── health.py
 │   ├── history.py
 │   ├── indicator.py

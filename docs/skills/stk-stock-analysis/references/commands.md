@@ -195,9 +195,9 @@ stk stock scan-live 600519 --timeframe 5m
 - ATR：`ATR10`、`ATR14`
 - Supertrend：`Supertrend`、`SupertrendDirection`
 
-### `stk stock fundamental <symbol>`
+### `stk stock comparison <symbol>`
 
-同业对比，用于补充估值、成长性和杜邦分析。
+同业业绩对比，用于补充估值、成长性和杜邦分析。
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
