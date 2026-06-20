@@ -47,10 +47,6 @@ compatibility:
 
 返回 `MarketOverview`：`indices`（`symbol`、`name`、`region`、`last`、`change`、`change_pct`、`volume`）、`temperature`（`score`、`level`、`valuation`、`sentiment`）。
 
----
-
-## Stock
-
 ### `stk market rank`
 
 同花顺技术 screen 排名。
@@ -83,6 +79,10 @@ compatibility:
 返回 `TechCandidates`：`candidates[]`（`code`、`name`、`bull_screens`）、`total`。
 
 > `candidates` 是技术初筛，不代表趋势确认；需要继续 `stk stock scan <symbols...>`。
+
+---
+
+## Stock
 
 ### `stk stock scan <symbols...>`
 
