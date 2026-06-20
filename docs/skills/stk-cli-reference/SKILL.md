@@ -33,6 +33,7 @@ compatibility:
 | 自选K线 | `stk watchlist kline <group>` |
 | 候选入库 | `stk watchlist scoop <name>` |
 | 信号分流 | `stk watchlist route <src> <entry> <exit> [--replace]` |
+| Zigzag 信号 | `stk watchlist zigzag <src> <dst>` |
 | 健康检查 | `stk doctor check` |
 | 清缓存 | `stk cache clear` |
 
@@ -180,6 +181,18 @@ stk watchlist route A股池 观察 预警 --replace
 信号分类：entry（趋势买入/超卖修复）→ `entry-dst`；exit（趋势退出）→ `exit-dst`。
 
 返回 `WorkflowResult`：`action`、`source_summary`、`destinations[]`。
+
+### `stk watchlist zigzag <src> <dst>`
+
+识别分组内过去 5 根 K 线出现 zigzag 高点或低点的标的。
+
+```bash
+stk watchlist zigzag ETF股池 zigzag-picks
+```
+
+算法参数：Depth=10（前后各 5 根确认 pivot），Deviation=5%（最小反转幅度）。检测到 zigzag 低点或高点且在最近 5 根 K 线内的标的加入目标分组。
+
+返回 `WorkflowResult`：`action`、`candidates_found`、`destinations[]`。
 
 ### `stk watchlist scan <group>`
 
