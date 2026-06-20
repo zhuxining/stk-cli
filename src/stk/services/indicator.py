@@ -1,6 +1,7 @@
 """Technical indicator calculation service (ta-lib + pandas)."""
 
 import collections.abc
+import operator
 
 import numpy as np
 import pandas as pd
@@ -254,49 +255,74 @@ def get_daily(
     return DailyResult(symbol=symbol, days=days)
 
 
-def zigzag_pivots(closes: list[float], *, pct: float = 3.0) -> list[dict]:
-    """Detect zigzag pivot points from close prices.
+def zigzag_pivots(
+    highs: list[float],
+    lows: list[float],
+    *,
+    legs: int = 10,
+    pct: float = 5.0,
+) -> list[dict]:
+    """Detect zigzag pivot points using TradingView's algorithm.
+
+    Pivot detection uses a lookback window (legs) rather than adjacent bars:
+    - A pivot high requires the bar's high to be the highest in the window.
+    - A pivot low requires the bar's low to be the lowest in the window.
+    - Constructs zigzag by connecting alternating pivots with a minimum
+      reversal percentage.
 
     Args:
-        closes: Close prices, most recent last.
-        pct: Minimum reversal percentage to register a pivot.
+        highs: High prices, most recent last.
+        lows: Low prices, most recent last.
+        legs: Total bars to confirm a pivot (divided by 2 for left/right).
+        pct: Minimum reversal %% to register a pivot.
 
     Returns:
-        Pivots sorted by index: [{index, price, type}].
+        Pivots from earliest to latest: [{index, price, type}].
     """
-    if len(closes) < 4:
+    n = len(highs)
+    if n < legs:
         return []
 
-    pivots: list[dict] = []
-    direction = 0  # 1=seek high, -1=seek low
+    half = legs // 2
 
-    for i in range(1, len(closes) - 1):
-        prev, curr, nxt = closes[i - 1], closes[i], closes[i + 1]
+    # Step 1: Find all confirmed pivot highs and lows
+    pivot_highs: list[dict] = []
+    pivot_lows: list[dict] = []
 
-        if curr > prev and curr > nxt:  # Local high
-            if not pivots:
-                pivots.append({"index": i, "price": curr, "type": "high"})
-                direction = -1
-            elif direction == -1:  # Extension, update if higher
-                if curr > pivots[-1]["price"]:
-                    pivots[-1] = {"index": i, "price": curr, "type": "high"}
-            elif direction == 1:  # Reversal from low
-                chg = abs(curr - pivots[-1]["price"]) / pivots[-1]["price"] * 100
-                if chg >= pct:
-                    pivots.append({"index": i, "price": curr, "type": "high"})
-                    direction = -1
+    for i in range(half, n - half):
+        left_high = max(highs[i - half : i])
+        right_high = max(highs[i + 1 : i + half + 1])
+        if highs[i] > left_high and highs[i] >= right_high:
+            pivot_highs.append({"index": i, "price": highs[i], "type": "high"})
 
-        elif curr < prev and curr < nxt:  # Local low
-            if not pivots:
-                pivots.append({"index": i, "price": curr, "type": "low"})
-                direction = 1
-            elif direction == 1:  # Extension, update if lower
-                if curr < pivots[-1]["price"]:
-                    pivots[-1] = {"index": i, "price": curr, "type": "low"}
-            elif direction == -1:  # Reversal from high
-                chg = abs(pivots[-1]["price"] - curr) / pivots[-1]["price"] * 100
-                if chg >= pct:
-                    pivots.append({"index": i, "price": curr, "type": "low"})
-                    direction = 1
+        left_low = min(lows[i - half : i])
+        right_low = min(lows[i + 1 : i + half + 1])
+        if lows[i] < left_low and lows[i] <= right_low:
+            pivot_lows.append({"index": i, "price": lows[i], "type": "low"})
 
-    return pivots
+    # Step 2: Merge by index and construct zigzag
+    all_pivots = sorted(pivot_highs + pivot_lows, key=operator.itemgetter("index"))
+    if not all_pivots:
+        return []
+
+    result = [all_pivots[0]]
+    for pivot in all_pivots[1:]:
+        last = result[-1]
+
+        if pivot["type"] == last["type"]:
+            # Same direction: keep more extreme (higher high / lower low)
+            if (pivot["type"] == "high" and pivot["price"] > last["price"]) or (
+                pivot["type"] == "low" and pivot["price"] < last["price"]
+            ):
+                result[-1] = pivot
+        else:
+            # Opposite direction: check reversal percentage
+            chg = (
+                (last["price"] - pivot["price"]) / last["price"] * 100
+                if last["type"] == "high"
+                else (pivot["price"] - last["price"]) / last["price"] * 100
+            )
+            if chg >= pct:
+                result.append(pivot)
+
+    return result

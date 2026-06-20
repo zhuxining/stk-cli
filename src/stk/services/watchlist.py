@@ -241,13 +241,15 @@ def zigzag_picks(src: str, dst: str) -> WorkflowResult:
             symbol = futures[future]
             try:
                 result = future.result()
-                closes = [
-                    float(d["close"]) for d in result.days if d.get("close") is not None
-                ]
-                pivots = zigzag_pivots(closes, pct=3.0)
-                lows = [p for p in pivots if p["type"] == "low"]
-                highs = [p for p in pivots if p["type"] == "high"]
-                if lows and highs:
+                days = result.days  # most recent first
+                # Reverse to chronological order (oldest first) for zigzag
+                days_rev = list(reversed(days))
+                highs = [float(d["high"]) for d in days_rev if d.get("high") is not None]
+                lows = [float(d["low"]) for d in days_rev if d.get("low") is not None]
+                pivots = zigzag_pivots(highs, lows, legs=10, pct=5.0)
+                pivot_lows = [p for p in pivots if p["type"] == "low"]
+                pivot_highs = [p for p in pivots if p["type"] == "high"]
+                if pivot_lows and pivot_highs:
                     picks.append(symbol)
             except Exception as err:
                 logger.debug(f"Zigzag failed for {symbol}: {err}")
