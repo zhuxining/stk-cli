@@ -498,7 +498,7 @@ def _build_oversold_repair_signal(
     close_arr: np.ndarray,
     ema9_arr: np.ndarray,
 ) -> TrendSignal | None:
-    if context.overall_bias == "conflicting":
+    if context.overall_bias in ("conflicting", "mixed"):
         return None
 
     current_close = round(float(close_arr[-1]), 4)
