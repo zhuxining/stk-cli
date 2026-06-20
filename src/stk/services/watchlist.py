@@ -246,7 +246,7 @@ def zigzag_picks(src: str, dst: str) -> WorkflowResult:
                 days_rev = list(reversed(days))
                 highs = [float(d["high"]) for d in days_rev if d.get("high") is not None]
                 lows = [float(d["low"]) for d in days_rev if d.get("low") is not None]
-                pivots = zigzag_pivots(highs, lows, legs=10, pct=5.0)
+                pivots = zigzag_pivots(highs, lows, legs=6, pct=3.0)
                 pivot_lows = [p for p in pivots if p["type"] == "low"]
                 pivot_highs = [p for p in pivots if p["type"] == "high"]
                 if pivot_lows and pivot_highs:
