@@ -174,3 +174,16 @@ def zigzag(
 
     result = zigzag_picks(src, dst)
     output.render(result)
+
+
+@app.command(name="zigzag-signals")
+def zigzag_signals(
+    src: str = typer.Argument(help="Source watchlist group"),
+    high_dst: str = typer.Argument(help="Destination for symbols at a zigzag high"),
+    low_dst: str = typer.Argument(help="Destination for symbols at a zigzag low"),
+) -> None:
+    """Classify symbols by latest zigzag pivot: highs → high_dst, lows → low_dst."""
+    from stk.services.watchlist import zigzag_signals as _zigzag_signals
+
+    result = _zigzag_signals(src, high_dst, low_dst)
+    output.render(result)

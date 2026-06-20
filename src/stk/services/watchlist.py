@@ -7,7 +7,13 @@ from longport.openapi import SecuritiesUpdateMode, WatchlistGroup
 
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
-from stk.models.watchlist import Watchlist, WatchlistSecurity, WatchlistSummary, WorkflowResult
+from stk.models.watchlist import (
+    Watchlist,
+    WatchlistSecurity,
+    WatchlistSummary,
+    WorkflowResult,
+    ZigzagSignal,
+)
 from stk.store.file_store import load_json, save_json
 from stk.utils.symbol import to_longport_symbol
 
@@ -262,3 +268,59 @@ def zigzag_picks(src: str, dst: str) -> WorkflowResult:
         candidates_found=len(symbols),
         destinations=[get_watchlist(dst)] if picks else [],
     )
+
+
+def zigzag_signals(src: str, high_dst: str, low_dst: str) -> list[ZigzagSignal]:
+    """Classify symbols by their latest zigzag pivot (high or low)."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from loguru import logger
+
+    from stk.services.indicator import get_daily, zigzag_pivots
+
+    watchlist = get_watchlist(src)
+    symbols = [s.symbol for s in watchlist.securities]
+    if not symbols:
+        return []
+
+    high_picks: list[str] = []
+    low_picks: list[str] = []
+    signals: list[ZigzagSignal] = []
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(get_daily, s, count=60): s for s in symbols}
+        for future in as_completed(futures):
+            symbol = futures[future]
+            try:
+                result = future.result()
+                days = result.days
+                days_rev = list(reversed(days))
+                highs = [float(d["high"]) for d in days_rev if d.get("high") is not None]
+                lows = [float(d["low"]) for d in days_rev if d.get("low") is not None]
+                pivots = zigzag_pivots(highs, lows, legs=6, pct=3.0)
+                if not pivots:
+                    continue
+
+                latest = pivots[-1]
+                age = len(highs) - 1 - latest["index"]
+                signals.append(
+                    ZigzagSignal(
+                        symbol=symbol,
+                        latest_pivot=latest["type"],
+                        pivot_price=latest["price"],
+                        pivot_age=age,
+                    )
+                )
+                if latest["type"] == "high":
+                    high_picks.append(symbol)
+                else:
+                    low_picks.append(symbol)
+            except Exception as err:
+                logger.debug(f"Zigzag signal failed for {symbol}: {err}")
+
+    if high_picks:
+        add_symbols(high_dst, high_picks, mode=SecuritiesUpdateMode.Replace)
+    if low_picks:
+        add_symbols(low_dst, low_picks, mode=SecuritiesUpdateMode.Replace)
+
+    return signals

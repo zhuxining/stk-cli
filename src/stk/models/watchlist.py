@@ -36,3 +36,12 @@ class WorkflowResult(BaseModel):
     candidates_found: int = 0
     source_summary: MonitorSummary | None = None
     destinations: list[Watchlist] = []
+
+
+class ZigzagSignal(BaseModel):
+    """Zigzag pivot status for a single symbol."""
+
+    symbol: str
+    latest_pivot: str  # "high" or "low"
+    pivot_price: float
+    pivot_age: int  # bars since this pivot
