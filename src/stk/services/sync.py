@@ -1,12 +1,15 @@
 """Cross-platform watchlist sync orchestration."""
 
+from collections.abc import Sequence
+from typing import Any
+
 from loguru import logger
 
 from stk.models.sync import SyncDiff, SyncItem, SyncResult
 from stk.utils.symbol import to_ths_symbol
 
 
-def _build_ths_set(group_data: dict) -> set[str]:
+def _build_ths_set(group_data: dict[str, Any]) -> set[str]:
     """Build a set of normalized THS symbols from group data.
 
     THS StockItem uses (code, market) format. We normalize to 'CODE.MARKET'
@@ -21,7 +24,7 @@ def _build_ths_set(group_data: dict) -> set[str]:
     return result
 
 
-def _normalize_longport_symbols(symbols: list[str]) -> set[str]:
+def _normalize_longport_symbols(symbols: Sequence[str]) -> set[str]:
     """Convert longport symbols to THS-comparable format."""
     result: set[str] = set()
     for s in symbols:
