@@ -268,9 +268,9 @@ def _is_grid_candidate(daily_result: object) -> bool:
     """Check if a symbol is suitable for grid trading.
 
     Criteria:
-    - ADX14 < 20 (no trend)
+    - ADX14 < 18 (no trend, stricter)
     - Bollinger bandwidth 10-50% (not too tight or wide)
-    - RSI between 25-75 (not extreme)
+    - RSI between 40-60 (neutral oscillation zone)
     """
     if not hasattr(daily_result, "days") or not daily_result.days:  # type: ignore
         return False
@@ -278,7 +278,7 @@ def _is_grid_candidate(daily_result: object) -> bool:
     latest = daily_result.days[-1]  # type: ignore
 
     adx = latest.get("ADX14")
-    if adx is None or adx >= 20:
+    if adx is None or adx >= 18:
         return False
 
     upper = latest.get("upper")
@@ -291,4 +291,4 @@ def _is_grid_candidate(daily_result: object) -> bool:
         return False
 
     rsi = latest.get("RSI")
-    return not (rsi is None or rsi <= 25 or rsi >= 75)
+    return not (rsi is None or rsi <= 40 or rsi >= 60)
