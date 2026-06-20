@@ -223,16 +223,16 @@
 - `EMA9` 从上向下穿越 `EMA26` 记为 `ema_cross=death`。
 - Supertrend 从空头翻为多头记为 `supertrend_flip=bullish`。
 - Supertrend 从多头翻为空头记为 `supertrend_flip=bearish`。
-- 共振窗口固定为最近 3 根 K 线。
+- 共振窗口固定为最近 2 根 K 线。
 
 信号分类与强弱：
 
 | signal | strength | 判定规则 |
 |--------|----------|----------|
-| `趋势买入` | `推荐` | `EMA9 > EMA26`，Supertrend 多头，收盘价站上 EMA9，且最近 3 根 K 线内出现 EMA 金叉或 Supertrend 多头翻转。 |
-| `趋势退出` | `预警` | `EMA9 < EMA26`，Supertrend 空头，收盘价跌回 EMA9 下方，且最近 3 根 K 线内出现 EMA 死叉或 Supertrend 空头翻转。 |
+| `趋势买入` | `推荐` | `EMA9 > EMA26`，Supertrend 多头，收盘价站上 EMA9，且最近 2 根 K 线内出现 EMA 金叉或 Supertrend 多头翻转。 |
+| `趋势退出` | `预警` | `EMA9 < EMA26`，Supertrend 空头，收盘价跌回 EMA9 下方，且最近 2 根 K 线内出现 EMA 死叉或 Supertrend 空头翻转。 |
 | `超卖修复` | `推荐` | RSI、KDJ J、BOLL 位置、MFI 或 MACD 底背离至少 1 项出现超卖提示，且收盘价重新站上 EMA5，并至少 2 项修复确认成立。 |
-| `观察` | `None` | 指标未形成、EMA 与 Supertrend 不一致、趋势排列存在但最近 3 根 K 线内无新触发、超卖后未修复、辅助因子冲突，或风险收益比不足。 |
+| `观察` | `None` | 指标未形成、EMA 与 Supertrend 不一致、趋势排列存在但最近 2 根 K 线内无新触发、超卖后未修复、辅助因子冲突，或风险收益比不足。 |
 
 若多个形态同时命中，先按 `strength` 优先级（推荐 > 预警 > None）选择，再按 `bars_since_signal` 新旧选择。
 
@@ -242,7 +242,7 @@
 |--------|----------|
 | `new` | `bars_since_signal <= 1`。 |
 | `active` | `2 <= bars_since_signal <= 3`。 |
-| `stale` | 没有触发事件，或触发事件超过 3 根 K 线。 |
+| `stale` | 没有触发事件，或触发事件超过 2 根 K 线。 |
 
 ## 辅助因子策略
 

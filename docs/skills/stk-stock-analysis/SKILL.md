@@ -25,7 +25,7 @@ compatibility:
 - 扫描口径：信号、辅助因子、成交量和风控只使用已确认的完整日线；盘前和盘中沿用上一交易日，盘后超过确认缓冲时间后才纳入当天日线。
 - 实时行情：`last`、`change_pct`、`source` 只用于展示当前价格状态，不参与信号强弱或量价确认。
 - 实盘扫描：`scan-live` 是独立提醒模式，先用完整日线信号做底层过滤，再用完整 5m/15m K 线输出 `实时跟随`、`实时转弱`、`实时过热`；不要把它解读成新的日线 `decision`。
-- 有效窗口：最近 3 根 K 线内出现 EMA 交叉或 Supertrend 翻转，且方向一致。
+- 有效窗口：最近 2 根 K 线内出现 EMA 交叉或 Supertrend 翻转，且方向一致。
 - 批量扫描：只展开 `MonitorResult.focus`；`观察` 标的只统计 `ignored.no_signal_count`。
 - 单标的解读：以 `decision` 下结论，以 `primary_signal` 给依据，以 `context` 和 `risk` 做补充。
 - `decision.signal` 取值为 `趋势买入`、`趋势退出`、`超卖修复`、`观察`。

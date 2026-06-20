@@ -35,7 +35,7 @@ from stk.utils.trading_session import is_unclosed_daily_bar
 
 _EMA_FAST = 9
 _EMA_SLOW = 26
-_RESONANCE_WINDOW = 3
+_RESONANCE_WINDOW = 2
 _MIN_HISTORY = 30
 _OVERSOLD_CONFIRMATION_THRESHOLD = 2
 _MIN_ENTRY_RISK_REWARD = 1.2
