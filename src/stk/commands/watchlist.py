@@ -167,10 +167,9 @@ def route(
 @app.command()
 def grid(
     src: str = typer.Argument(help="Source group to evaluate"),
-    dst: str = typer.Argument(help="Destination group for grid candidates"),
 ) -> None:
-    """Evaluate a group for grid trading suitability (ADX<20, moderate volatility)."""
+    """Evaluate a group for grid trading suitability, adds matches to 'grid-candidates'."""
     from stk.services.watchlist import grid_candidates
 
-    result = grid_candidates(src, dst)
+    result = grid_candidates(src, "grid-candidates")
     output.render(result)
