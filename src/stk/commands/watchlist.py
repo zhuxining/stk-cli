@@ -169,21 +169,8 @@ def zigzag(
     src: str = typer.Argument(help="Source watchlist group"),
     dst: str = typer.Argument(help="Destination group for picks"),
 ) -> None:
-    """Find symbols with zigzag pivot points (lows+highs) and add to dst group."""
+    """Find symbols with a zigzag pivot (high or low) in the last 5 bars."""
     from stk.services.watchlist import zigzag_picks
 
     result = zigzag_picks(src, dst)
-    output.render(result)
-
-
-@app.command(name="zigzag-signals")
-def zigzag_signals(
-    src: str = typer.Argument(help="Source watchlist group"),
-    high_dst: str = typer.Argument(help="Destination for symbols at a zigzag high"),
-    low_dst: str = typer.Argument(help="Destination for symbols at a zigzag low"),
-) -> None:
-    """Classify symbols by latest zigzag pivot: highs → high_dst, lows → low_dst."""
-    from stk.services.watchlist import zigzag_signals as _zigzag_signals
-
-    result = _zigzag_signals(src, high_dst, low_dst)
     output.render(result)
