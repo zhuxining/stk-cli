@@ -31,6 +31,8 @@ compatibility:
 | 自选扫描 | `stk watchlist scan <group>` |
 | 自选实盘 | `stk watchlist scan-live <group>` |
 | 自选K线 | `stk watchlist kline <group>` |
+| 候选入库 | `stk watchlist scoop <name>` |
+| 信号分流 | `stk watchlist route <src> <entry> <exit> [--replace]` |
 | 健康检查 | `stk doctor check` |
 | 清缓存 | `stk cache clear` |
 
@@ -150,6 +152,34 @@ K 线 + 全部技术指标。
 | `stk watchlist add <group> <symbols...>` | 批量添加 |
 | `stk watchlist remove <group> <symbols...>` | 批量移除 |
 | `stk watchlist delete <group>` | 删除分组 |
+
+### `stk watchlist scoop <name>`
+
+捕获今日市场候选股到指定分组。
+
+```bash
+stk watchlist scoop 热点股
+```
+
+获取 candidates → 扫描获取信号参考 → 全部候选股加入目标分组。
+
+返回 `WorkflowResult`：`action`、`candidates_found`、`source_summary`、`destinations[]`。
+
+### `stk watchlist route <src> <entry-dst> <exit-dst>`
+
+扫描源分组，将买入/卖出信号分流到不同分组。
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--replace` `-r` | `false` | 替换模式（先清空再添加） |
+
+```bash
+stk watchlist route A股池 观察 预警 --replace
+```
+
+信号分类：entry（趋势买入/超卖修复）→ `entry-dst`；exit（趋势退出）→ `exit-dst`。
+
+返回 `WorkflowResult`：`action`、`source_summary`、`destinations[]`。
 
 ### `stk watchlist scan <group>`
 

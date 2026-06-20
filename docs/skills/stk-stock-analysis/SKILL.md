@@ -88,6 +88,8 @@ compatibility:
 | 热点、选股、技术形态、入池 | 技术热点 | `stk market hotspot` + `stk market candidates` + `stk stock scan` |
 | 分析某只股票、有没有信号 | 个股信号分析 | `stk stock scan <symbol>` + 可选 `kline` / `comparison` |
 | 自选、分组、持仓、每日监控 | 分组每日监控 | `stk watchlist scan <group>` |
+| 热点入库、扩充股池 | 候选股入库 | `stk watchlist scoop <name>` |
+| 信号分流到观察/预警 | 信号路由 | `stk watchlist route <src> <entry> <exit> [--replace]` |
 | 盘中、实盘、盯盘、触发提醒 | 实盘提醒 | `stk stock scan-live <symbols...>` 或 `stk watchlist scan-live <group>` |
 
 用户要求 DailyReport 时，默认只做“市场总览 + 分组每日监控”；只有明确提到“选股、热点、候选”时才追加技术热点。

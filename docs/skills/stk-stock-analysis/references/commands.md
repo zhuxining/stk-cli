@@ -220,6 +220,40 @@ stk stock scan-live 600519 --timeframe 5m
 | `stk watchlist remove <group> <symbols...>` | 批量移除标的 |
 | `stk watchlist delete <group>` | 删除分组 |
 
+### `stk watchlist scoop <name>`
+
+捕获今日市场候选股到指定分组。
+
+```bash
+stk watchlist scoop 热点股
+```
+
+获取 candidates（3+ 多方 screen 交叉验证），扫描获取信号参考，然后将全部候选股加入目标分组。
+
+返回 `WorkflowResult`：`action`、`candidates_found`、`source_summary`、`destinations[]`。
+
+### `stk watchlist route <src> <entry-dst> <exit-dst> [--replace]`
+
+扫描源分组，将买入/卖出信号分流到不同分组。
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--replace` / `-r` | `false` | 替换模式：先清空目标分组再添加 |
+
+```bash
+# 追加模式：新信号追加到目标分组
+stk watchlist route A股池 观察 预警
+
+# 替换模式：先清空再添加
+stk watchlist route A股池 观察 预警 --replace
+```
+
+信号分类：
+- entry（趋势买入/超卖修复）→ `entry-dst`
+- exit（趋势退出）→ `exit-dst`
+
+返回 `WorkflowResult`：`action`、`source_summary`、`destinations[]`。
+
 ### `stk watchlist scan <group>`
 
 对 watchlist 分组做每日监控,返回 `MonitorResult`。输出结构与 `stk stock scan <symbols...>` 相同。
