@@ -259,8 +259,8 @@ def zigzag_pivots(
     highs: list[float],
     lows: list[float],
     *,
-    legs: int = 5,
-    pct: float = 10.0,
+    legs: int = 10,
+    pct: float = 5.0,
 ) -> list[dict]:
     """Detect zigzag pivot points using TradingView's algorithm.
 
@@ -274,8 +274,8 @@ def zigzag_pivots(
         highs: High prices, most recent last.
         lows: Low prices, most recent last.
         legs: Total bars to confirm a pivot (divided by 2 for left/right).
-              Default 5 (2-3 bars each side).
-        pct: Minimum reversal %% to register a pivot. Default 10.0.
+              Default 10 (5 bars each side).
+        pct: Minimum reversal %% to register a pivot. Default 5.0.
 
     Returns:
         Pivots from earliest to latest: [{index, price, type}].
