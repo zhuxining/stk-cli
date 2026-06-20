@@ -173,3 +173,14 @@ def grid(
 
     result = grid_candidates(src, "grid-candidates")
     output.render(result)
+
+
+@app.command(name="etf-status")
+def etf_status(
+    name: str = typer.Argument(help="Watchlist group name"),
+) -> None:
+    """Classify ETFs in a group into trading states (定投/网格/过热/观察)."""
+    from stk.services.etf import classify_watchlist
+
+    result = classify_watchlist(name)
+    output.render(result)
