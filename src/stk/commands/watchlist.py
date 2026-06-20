@@ -162,3 +162,15 @@ def route(
 
     result = route_signals(src, entry_dst, exit_dst, replace=replace)
     output.render(result)
+
+
+@app.command()
+def grid(
+    src: str = typer.Argument(help="Source group to evaluate"),
+    dst: str = typer.Argument(help="Destination group for grid candidates"),
+) -> None:
+    """Evaluate a group for grid trading suitability (ADX<20, moderate volatility)."""
+    from stk.services.watchlist import grid_candidates
+
+    result = grid_candidates(src, dst)
+    output.render(result)
