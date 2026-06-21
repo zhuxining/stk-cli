@@ -30,12 +30,8 @@ def ths_list() -> None:
 
 @ths_app.command("diff")
 def ths_diff(
-    from_group: str = typer.Option(
-        ..., "--from", "-f", help="长桥自选分组名"
-    ),
-    to_group: str = typer.Option(
-        None, "--to", "-t", help="同花顺分组名（默认与长桥同名）"
-    ),
+    from_group: str = typer.Option(..., "--from", "-f", help="长桥自选分组名"),
+    to_group: str = typer.Option(None, "--to", "-t", help="同花顺分组名（默认与长桥同名）"),
 ) -> None:
     """对比长桥与同花顺分组的差异（不修改）。"""
     from stk.services.sync import compute_diff
@@ -48,19 +44,27 @@ def ths_diff(
 
 @ths_app.command("push")
 def ths_push(
-    from_group: str = typer.Option(
-        ..., "--from", "-f", help="长桥自选分组名（源）"
-    ),
-    to_group: str = typer.Option(
-        None, "--to", "-t", help="同花顺分组名（目标，默认与长桥同名）"
-    ),
-    replace: bool = typer.Option(
-        False, "--replace", "-r", help="全量覆盖（清空目标再写入）"
-    ),
+    from_group: str = typer.Option(..., "--from", "-f", help="长桥自选分组名（源）"),
+    to_group: str = typer.Option(None, "--to", "-t", help="同花顺分组名（目标，默认与长桥同名）"),
+    replace: bool = typer.Option(False, "--replace", "-r", help="全量覆盖（清空目标再写入）"),
 ) -> None:
     """将长桥自选分组推送到同花顺（差异增删）。"""
     from stk.services.sync import push_to_ths
 
     target = to_group or from_group
     result = push_to_ths(from_group, target, replace=replace)
+    output.render(result)
+
+
+@ths_app.command("pull")
+def ths_pull(
+    from_group: str = typer.Option(..., "--from", "-f", help="同花顺自选分组名（源）"),
+    to_group: str = typer.Option(None, "--to", "-t", help="长桥分组名（目标，默认与同花顺同名）"),
+    replace: bool = typer.Option(False, "--replace", "-r", help="全量覆盖（清空目标再写入）"),
+) -> None:
+    """将同花顺自选分组拉取到长桥（差异增删）。"""
+    from stk.services.sync import pull_from_ths
+
+    target = to_group or from_group
+    result = pull_from_ths(from_group, target, replace=replace)
     output.render(result)

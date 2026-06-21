@@ -7,13 +7,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+# Patch: override the library's default CACHE_FILE to live under ~/.stk/
+import config as _ths_config  # type: ignore[import-untyped]
 from loguru import logger
 
 from stk.config import settings
 from stk.errors import ConfigError, SourceError
-
-# Patch: override the library's default CACHE_FILE to live under ~/.stk/
-import config as _ths_config  # type: ignore[import-untyped]
 
 _ths_config.CACHE_FILE = str(settings.data_dir / "ths_favorite_cache.json")
 
@@ -21,23 +20,16 @@ if TYPE_CHECKING:
     from stk.models.sync import ThsGroup
 
 
-def _resolve_ths_auth() -> dict[str, str]:
-    """Resolve THS auth kwargs for PortfolioManager."""
-    if settings.ths_username and settings.ths_password:
-        logger.info("使用账号密码登录同花顺")
-        return {
-            "username": settings.ths_username,
-            "password": settings.ths_password,
-        }
-    raise ConfigError(
-        "同花顺认证未配置。请在 .env 中设置：\n"
-        "  THS_USERNAME=手机号\n"
-        "  THS_PASSWORD=密码"
-    )
+def _check_ths_auth() -> None:
+    """Check THS auth is configured."""
+    if not settings.ths_username or not settings.ths_password:
+        raise ConfigError(
+            "同花顺认证未配置。请在 .env 中设置：\n  THS_USERNAME=手机号\n  THS_PASSWORD=密码"
+        )
 
 
 @contextmanager
-def get_ths_portfolio() -> Generator[None]:
+def get_ths_portfolio() -> Generator:  # type: ignore[type-arg]
     """Yield a PortfolioManager instance.
 
     Uses username+password auth. Cookie cache stored under ~/.stk/.
@@ -48,11 +40,12 @@ def get_ths_portfolio() -> Generator[None]:
     from exceptions import THSError  # type: ignore[import-untyped]
     from service import PortfolioManager  # type: ignore[import-untyped]
 
-    auth_kwargs = _resolve_ths_auth()
+    _check_ths_auth()
 
     try:
         with PortfolioManager(
-            **auth_kwargs,
+            username=settings.ths_username,
+            password=settings.ths_password,
             cookie_cache_path=str(settings.data_dir / "ths_cookie_cache.json"),
         ) as pm:
             yield pm

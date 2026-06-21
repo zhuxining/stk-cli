@@ -6,7 +6,7 @@ from typing import Any
 from loguru import logger
 
 from stk.models.sync import SyncDiff, SyncItem, SyncResult
-from stk.utils.symbol import to_ths_symbol
+from stk.utils.symbol import from_ths_symbol, to_ths_symbol
 
 
 def _build_ths_set(group_data: dict[str, Any]) -> set[str]:
@@ -138,9 +138,7 @@ def push_to_ths(from_group: str, to_group: str, *, replace: bool = False) -> Syn
         diff.to_remove = [
             SyncItem(symbol=t, action="remove", ths_symbol=t) for t in sorted(all_ths)
         ]
-        diff.to_add = [
-            SyncItem(symbol=t, action="add", ths_symbol=t) for t in sorted(all_lp)
-        ]
+        diff.to_add = [SyncItem(symbol=t, action="add", ths_symbol=t) for t in sorted(all_lp)]
         diff.unchanged = 0
 
     added = 0
@@ -162,6 +160,102 @@ def push_to_ths(from_group: str, to_group: str, *, replace: bool = False) -> Syn
 
     return SyncResult(
         action="push",
+        diff=diff,
+        added=added,
+        removed=removed,
+        errors=errors,
+    )
+
+
+def _ths_group_to_lp_symbols(group_data: dict[str, Any]) -> list[str]:
+    """Convert THS group items to Longport symbols."""
+    result: list[str] = []
+    for item in group_data["items"]:
+        market = (item.market or "").upper()
+        if item.code and market:
+            ths_sym = f"{item.code}.{market}"
+            lp = from_ths_symbol(ths_sym)
+            if "." in lp and lp.split(".")[0].isdigit():
+                result.append(lp)
+    return result
+
+
+def pull_from_ths(from_group: str, to_group: str, *, replace: bool = False) -> SyncResult:
+    """Pull a THS watchlist group into a Longport group.
+
+    Args:
+        from_group: THS group name (source).
+        to_group: Longport group name (target). Created if not exists.
+        replace: If True, clear target group first then add all.
+    """
+    from stk.errors import SourceError
+    from stk.services.ths_wrapper import get_ths_group
+    from stk.services.watchlist import add_symbols, create_group, get_watchlist, remove_symbols
+
+    errors: list[str] = []
+
+    # Get THS group stocks
+    ths_group = get_ths_group(from_group)
+    if ths_group["readonly"]:
+        logger.warning(f"同花顺分组 '{from_group}' 是动态板块，不支持拉取")
+    ths_lp_symbols = _ths_group_to_lp_symbols(ths_group)
+    ths_set = set(ths_lp_symbols)
+
+    # Ensure target Longport group exists
+    try:
+        get_watchlist(to_group)
+    except Exception:
+        logger.info(f"长桥分组 '{to_group}' 不存在，自动创建")
+        try:
+            create_group(to_group)
+        except Exception as e:
+            raise SourceError(f"创建长桥分组 '{to_group}' 失败: {e}") from e
+
+    # Get Longport group securities
+    try:
+        watchlist = get_watchlist(to_group)
+    except Exception as e:
+        raise SourceError(f"获取长桥分组 '{to_group}' 失败: {e}") from e
+    lp_set = {s.symbol for s in watchlist.securities}
+
+    to_add = ths_set - lp_set
+    to_remove = lp_set - ths_set
+    unchanged = len(ths_set & lp_set)
+
+    diff = SyncDiff(
+        from_group=from_group,
+        to_group=to_group,
+        to_add=[SyncItem(symbol=s, action="add") for s in sorted(to_add)],
+        to_remove=[SyncItem(symbol=s, action="remove") for s in sorted(to_remove)],
+        unchanged=unchanged,
+    )
+
+    if replace:
+        diff.to_remove = [SyncItem(symbol=s, action="remove") for s in sorted(lp_set)]
+        diff.to_add = [SyncItem(symbol=s, action="add") for s in sorted(ths_set)]
+        diff.unchanged = 0
+
+    added = 0
+    removed = 0
+
+    if diff.to_remove:
+        try:
+            symbols = [item.symbol for item in diff.to_remove]
+            remove_symbols(to_group, symbols)
+            removed = len(symbols)
+        except Exception as e:
+            errors.append(f"删除失败: {e}")
+
+    if diff.to_add:
+        try:
+            symbols = [item.symbol for item in diff.to_add]
+            add_symbols(to_group, symbols)
+            added = len(symbols)
+        except Exception as e:
+            errors.append(f"添加失败: {e}")
+
+    return SyncResult(
+        action="pull",
         diff=diff,
         added=added,
         removed=removed,
