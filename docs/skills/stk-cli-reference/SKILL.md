@@ -1,6 +1,6 @@
 ---
 name: stk-cli-reference
-description: "stk-cli 全部命令的参数说明和返回结构参考。覆盖 market、stock、watchlist、sync、doctor、cache 等所有子命令。用到 stk 命令时触发。"
+description: "stk-cli 全部命令的参数说明和返回结构参考。覆盖 market、stock、watchlist、sync、scripts、doctor、cache 等所有子命令。用到 stk 命令时触发。"
 compatibility:
   requires: [stk-cli]
   data_source: longport
@@ -35,6 +35,7 @@ compatibility:
 | 信号分流 | `stk watchlist route <src> <entry> <exit> [--replace]` |
 | Zigzag 信号 | `stk watchlist zigzag <src> <dst>` |
 | 同花顺同步 | `stk sync ths push/diff/list` |
+| 工作流脚本 | `stk scripts install/list` |
 | 健康检查 | `stk doctor check` |
 | 清缓存 | `stk cache clear` |
 
@@ -293,6 +294,44 @@ THS_PASSWORD=密码
 - `--replace` 模式：先清空目标长桥分组，再写入同花顺全量
 - 科创板自动映射：`688xxx.KC` → `688xxx.SH`
 - 创业板自动映射：`300xxx/301xxx.CY` → `300xxx/301xxx.SZ`
+
+---
+
+## Scripts — 工作流脚本管理
+
+```bash
+# 安装 Makefile 到 ~/.stk/
+stk scripts install
+
+# 列出可用目标
+stk scripts list
+```
+
+安装后通过 `make -f ~/.stk/Makefile` 执行工作流：
+
+| 目标 | 说明 |
+|------|------|
+| `daily` | 每日监控全流程：候选股→入库→扫描→分流→同步 |
+| `push GROUP=xxx` | 推送指定分组到同花顺 |
+| `pull GROUP=xxx` | 从同花顺拉取指定分组 |
+| `push-replace GROUP=xxx` | 全量覆盖推送 |
+| `sync-push` | 推送所有常用分组 |
+| `sync-pull` | 拉取所有常用分组 |
+| `scan-group GROUP=xxx` | 扫描指定分组 |
+| `route` | 信号分流（候选股→观察/预警） |
+| `diff GROUP=xxx` | 对比分组差异 |
+| `ths-list` | 列出同花顺分组 |
+| `zigzag SRC=xxx DST=xxx` | 检测 zigzag 信号 |
+| `kline GROUP=xxx` | 分组 K 线 |
+| `quote SYM=xxx` | 查询报价 |
+| `doctor` | 数据源健康检查 |
+| `cache-clear` | 清除缓存 |
+
+推荐别名（`~/.zshrc`）：
+```bash
+alias stk='make -f ~/.stk/Makefile'
+stk daily
+```
 
 ---
 

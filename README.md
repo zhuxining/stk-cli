@@ -56,7 +56,8 @@ stk
 ├── market      # 市场整体：指数、温度、技术排名、行业多空、候选股
 ├── stock       # 个股：扫描、K线、同业对比
 ├── watchlist   # 自选股管理
-└── sync        # 跨平台自选股同步
+├── sync        # 跨平台自选股同步
+└── scripts     # 工作流脚本管理
 ```
 
 ---
@@ -327,6 +328,39 @@ stk sync ths pull -f "重点关注" --replace
 
 ---
 
+## scripts — 工作流脚本管理
+
+将常用命令编排为 Makefile 工作流，复制到 `~/.stk/` 后通过 `make` 执行。
+
+```bash
+# 安装 Makefile 到 ~/.stk/
+stk scripts install
+
+# 列出可用目标
+stk scripts list
+```
+
+安装后使用：
+
+```bash
+# 加别名（~/.zshrc）
+alias stk='make -f ~/.stk/Makefile'
+
+# 每日监控全流程
+stk daily
+
+# 推送分组到同花顺
+stk push GROUP=重点关注
+
+# 从同花顺拉取
+stk pull GROUP=重点关注
+
+# 扫描分组
+stk scan-group GROUP=候选股
+```
+
+---
+
 ## 输出格式
 
 所有命令输出统一的 JSON envelope 格式：
@@ -411,6 +445,7 @@ src/stk/
 │   ├── market.py
 │   ├── stock.py
 │   ├── sync.py         # 跨平台自选同步
+│   ├── scripts.py      # 工作流脚本管理
 │   └── watchlist.py
 ├── services/           # 服务层（业务逻辑 + API 调用）
 │   ├── comparison.py
