@@ -12,6 +12,11 @@ from loguru import logger
 from stk.config import settings
 from stk.errors import ConfigError, SourceError
 
+# Patch: override the library's default CACHE_FILE to live under ~/.stk/
+import config as _ths_config  # type: ignore[import-untyped]
+
+_ths_config.CACHE_FILE = str(settings.data_dir / "ths_favorite_cache.json")
+
 if TYPE_CHECKING:
     from stk.models.sync import ThsGroup
 
@@ -44,12 +49,11 @@ def get_ths_portfolio() -> Generator[None]:
     from service import PortfolioManager  # type: ignore[import-untyped]
 
     auth_kwargs = _resolve_ths_auth()
-    cache_dir = Path(settings.data_dir)
 
     try:
         with PortfolioManager(
             **auth_kwargs,
-            cookie_cache_path=str(cache_dir / "ths_cookie_cache.json"),
+            cookie_cache_path=str(settings.data_dir / "ths_cookie_cache.json"),
         ) as pm:
             yield pm
     except THSError as e:
