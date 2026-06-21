@@ -72,8 +72,8 @@ select = [
     "PD",   # pandas-specific
 ]
 ignore = [
-    "F401", # module imported but unused (handled by pyflakes)
-    "B008", # Typer calls in defaults (standard practice for Typer)
+    "F401",   # module imported but unused (handled by pyflakes)
+    "B008",   # Typer calls in defaults (standard practice for Typer)
     "RUF076", # autouse fixtures intentional (cache isolation)
 ]
 allowed-confusables = ["，", "。", "：", "；", "！", "？", "（", "）", "“", "”"]
