@@ -34,7 +34,7 @@ compatibility:
 | 候选入库 | `stk watchlist scoop <name>` |
 | 信号分流 | `stk watchlist route <src> <entry> <exit> [--replace]` |
 | Zigzag 信号 | `stk watchlist zigzag <src> <dst>` |
-| 同花顺同步 | `stk sync ths push/diff/list` |
+| 同花顺同步 | `stk sync ths push/diff/list/pull` |
 | 健康检查 | `stk doctor check` |
 | 清缓存 | `stk cache clear` |
 
@@ -46,7 +46,7 @@ compatibility:
 
 市场概览，指数按 `CN` / `HK` / `US` 分组，含三地温度。
 
-返回 `MarketOverview`：`indices`（`symbol`、`name`、`region`、`last`、`change`、`change_pct`、`volume`）、`temperature`（`score`、`level`、`valuation`、`sentiment`）。
+返回 `MarketOverview`：`indices`（`symbol`、`name`、`region`、`last`、`change`、`change_pct`、`volume`）、`temperature`（`score`、`level`、`valuation`、`sentiment`）、`regime`（各区域市场体制 `trending` / `ranging` / `mixed`）。
 
 ### `stk market rank`
 

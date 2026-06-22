@@ -55,6 +55,7 @@
 | `mode`      | 固定 `live`                                                                        |
 | `as_of`     | 扫描时间                                                                           |
 | `timeframe` | K 线周期（`5m` / `15m`）                                                           |
+| `universe`  | `name`、`total`、`scanned`、`failed`                                               |
 | `summary`   | `focus_count`、`follow_count`、`weaken_count`、`overheated_count`、`observe_count` |
 | `focus[]`   | 盘中触发提醒标的                                                                   |
 | `ignored`   | `no_live_signal_count`                                                             |
