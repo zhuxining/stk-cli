@@ -259,50 +259,44 @@ def zigzag_pivots(
     highs: list[float],
     lows: list[float],
     *,
-    legs: int = 10,
+    order: int = 5,
     pct: float = 5.0,
 ) -> list[dict]:
-    """Detect zigzag pivot points using TradingView's algorithm.
+    """Detect zigzag pivot points using scipy argrelextrema.
 
-    Pivot detection uses a lookback window (legs) rather than adjacent bars:
-    - A pivot high requires the bar's high to be the highest in the window.
-    - A pivot low requires the bar's low to be the lowest in the window.
+    - Pivot highs: local maxima of the high series (order bars each side).
+    - Pivot lows: local minima of the low series (order bars each side).
     - Constructs zigzag by connecting alternating pivots with a minimum
       reversal percentage.
 
     Args:
         highs: High prices, most recent last.
         lows: Low prices, most recent last.
-        legs: Total bars to confirm a pivot (divided by 2 for left/right).
-              Default 10 (5 bars each side).
+        order: Bars to compare each side for extrema detection. Default 5.
         pct: Minimum reversal %% to register a pivot. Default 5.0.
 
     Returns:
         Pivots from earliest to latest: [{index, price, type}].
     """
+    from scipy.signal import argrelextrema
+
     n = len(highs)
-    if n < legs:
+    if n < order * 2 + 1:
         return []
 
-    half = legs // 2
+    high_arr = np.array(highs)
+    low_arr = np.array(lows)
 
-    # Step 1: Find all confirmed pivot highs and lows
-    pivot_highs: list[dict] = []
-    pivot_lows: list[dict] = []
+    # Find local extrema indices
+    high_idx: set[int] = {int(i) for i in argrelextrema(high_arr, np.greater, order=order)[0]}
+    low_idx: set[int] = {int(i) for i in argrelextrema(low_arr, np.less, order=order)[0]}
 
-    for i in range(half, n - half):
-        left_high = max(highs[i - half : i])
-        right_high = max(highs[i + 1 : i + half + 1])
-        if highs[i] > left_high and highs[i] >= right_high:
-            pivot_highs.append({"index": i, "price": highs[i], "type": "high"})
-
-        left_low = min(lows[i - half : i])
-        right_low = min(lows[i + 1 : i + half + 1])
-        if lows[i] < left_low and lows[i] <= right_low:
-            pivot_lows.append({"index": i, "price": lows[i], "type": "low"})
-
-    # Step 2: Merge by index and construct zigzag
-    all_pivots = sorted(pivot_highs + pivot_lows, key=operator.itemgetter("index"))
+    # Merge by index and construct zigzag
+    all_pivots = sorted(
+        [{"index": i, "price": highs[i], "type": "high"} for i in high_idx]
+        + [{"index": i, "price": lows[i], "type": "low"} for i in low_idx],
+        key=operator.itemgetter("index"),
+    )
     if not all_pivots:
         return []
 
