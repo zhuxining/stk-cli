@@ -16,3 +16,11 @@ def clear(
 
     count = clear_cache(prefix)
     output.render({"cleared": count, "prefix": prefix or "(all)"})
+
+
+@app.command()
+def stats() -> None:
+    """Show cache statistics (memory + disk)."""
+    from stk.store.cache import cache_stats
+
+    output.render(cache_stats())

@@ -86,7 +86,7 @@ def _query_history(
         raise SourceError(f"Longport history API error: {e}") from e
 
 
-@cached(ttl=28800)
+@cached(ttl=3600, disk=True)
 def get_history(
     symbol: str,
     *,

@@ -23,9 +23,19 @@ def _setup_logging() -> None:
 
 
 @app.callback()
-def _callback() -> None:
+def _callback(
+    no_cache: bool = typer.Option(
+        False,
+        "--no-cache",
+        help="Skip all caches — fetch fresh data from APIs",
+    ),
+) -> None:
     """Stk — Stock Query CLI for Agents."""
     _setup_logging()
+    if no_cache:
+        from stk.store.cache import disable
+
+        disable()
 
 
 # Register subcommand groups
