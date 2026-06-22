@@ -157,7 +157,7 @@ _ENTRY_SIGNALS = {"趋势买入", "超卖修复"}
 _EXIT_SIGNALS = {"趋势退出"}
 
 
-def scoop_candidates(name: str) -> WorkflowResult:
+def scoop_candidates(name: str, *, replace: bool = False) -> WorkflowResult:
     """Scoop today's market candidates into a watchlist group.
 
     Gets tech candidates from THS, scans them for signal reference,
@@ -175,7 +175,8 @@ def scoop_candidates(name: str) -> WorkflowResult:
 
     scan_result = batch_summary(symbols, include_daily10=False, include_full_context=False)
 
-    add_symbols(name, symbols)
+    mode = SecuritiesUpdateMode.Replace if replace else SecuritiesUpdateMode.Add
+    add_symbols(name, symbols, mode=mode)
 
     return WorkflowResult(
         action="scoop",

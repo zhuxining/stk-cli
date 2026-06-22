@@ -137,11 +137,17 @@ def kline(
 @app.command()
 def scoop(
     name: str = typer.Argument(help="Destination watchlist group name"),
+    replace: bool = typer.Option(
+        False,
+        "--replace",
+        "-r",
+        help="Replace destination instead of appending",
+    ),
 ) -> None:
     """Scoop today's market candidates into a watchlist group."""
     from stk.services.watchlist import scoop_candidates
 
-    result = scoop_candidates(name)
+    result = scoop_candidates(name, replace=replace)
     output.render(result)
 
 
