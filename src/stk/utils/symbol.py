@@ -45,6 +45,17 @@ def to_em_symbol(symbol: str) -> str:
     return f"{market}{code}"
 
 
+def from_em_symbol(em_symbol: str) -> str:
+    """Convert EastMoney format back to longport: SH600519 → 600519.SH, SZ000001 → 000001.SZ."""
+    if len(em_symbol) < 3:
+        return em_symbol
+    market = em_symbol[:2]
+    code = em_symbol[2:]
+    if market in ("SH", "SZ"):
+        return f"{code}.{market}"
+    return em_symbol
+
+
 def to_ak_market(symbol: str) -> tuple[str, str]:
     """
     Convert symbol to akshare (stock, market) format.

@@ -157,11 +157,16 @@ _ENTRY_SIGNALS = {"趋势买入", "超卖修复"}
 _EXIT_SIGNALS = {"趋势退出"}
 
 
-def scoop_candidates(name: str, *, replace: bool = False) -> WorkflowResult:
+def scoop_candidates(name: str, *, do_scan: bool = False, replace: bool = False) -> WorkflowResult:
     """Scoop today's market candidates into a watchlist group.
 
-    Gets tech candidates from THS, scans them,
-    and only adds stocks with "推荐" signal to the destination group.
+    Without --scan: add all THS candidates directly.
+    With --scan: filter by scan "推荐" signal before adding.
+
+    Args:
+        name: Destination watchlist group name.
+        do_scan: If True, scan and only add "推荐" signals.
+        replace: Replace destination instead of appending.
     """
     from stk.services.rank import get_tech_candidates
     from stk.services.scan import batch_summary
@@ -173,9 +178,17 @@ def scoop_candidates(name: str, *, replace: bool = False) -> WorkflowResult:
 
     symbols = expand_symbols([c.code for c in candidates.candidates])
 
-    scan_result = batch_summary(symbols, include_daily10=False, include_full_context=False)
+    if not do_scan:
+        mode = SecuritiesUpdateMode.Replace if replace else SecuritiesUpdateMode.Add
+        add_symbols(name, symbols, mode=mode)
+        return WorkflowResult(
+            action="scoop",
+            candidates_found=len(symbols),
+            destinations=[get_watchlist(name)],
+        )
 
-    # 过滤：只有扫描出"推荐"信号的才加入 watchlist
+    # --scan: 扫描过滤，只保留"推荐"信号
+    scan_result = batch_summary(symbols, include_daily10=False, include_full_context=False)
     recommended = [
         item.symbol
         for item in scan_result.focus
@@ -193,6 +206,74 @@ def scoop_candidates(name: str, *, replace: bool = False) -> WorkflowResult:
 
     return WorkflowResult(
         action="scoop",
+        candidates_found=len(recommended),
+        source_summary=scan_result.summary,
+        destinations=[get_watchlist(name)],
+    )
+
+
+def hot_candidates(
+    name: str,
+    *,
+    source: str = "rank",
+    do_scan: bool = False,
+    replace: bool = False,
+) -> WorkflowResult:
+    """Fetch EM hot stocks, optionally scan-filter, and add to a watchlist group.
+
+    Without --scan: add all hot stocks directly.
+    With --scan: filter by scan "推荐" signal before adding.
+
+    Args:
+        name: Destination watchlist group name.
+        source: "rank" (热门排名) or "up" (热度上升).
+        do_scan: If True, scan and only add "推荐" signals.
+        replace: Replace destination instead of appending.
+    """
+    from stk.errors import SourceError
+    from stk.services.market import get_hot_rank, get_hot_up
+    from stk.services.scan import batch_summary
+
+    try:
+        hot_result = get_hot_rank() if source == "rank" else get_hot_up()
+    except SourceError:
+        raise
+    except Exception as e:
+        raise SourceError(f"热门股获取失败 ({source}): {e}") from e
+
+    if not hot_result.items:
+        return WorkflowResult(action="hot", candidates_found=0)
+
+    symbols = [item.symbol for item in hot_result.items]
+
+    if not do_scan:
+        mode = SecuritiesUpdateMode.Replace if replace else SecuritiesUpdateMode.Add
+        add_symbols(name, symbols, mode=mode)
+        return WorkflowResult(
+            action="hot",
+            candidates_found=len(symbols),
+            destinations=[get_watchlist(name)],
+        )
+
+    # --scan: 扫描过滤，只保留"推荐"信号
+    scan_result = batch_summary(symbols, include_daily10=False, include_full_context=False)
+    recommended = [
+        item.symbol
+        for item in scan_result.focus
+        if item.decision.strength == "推荐"
+    ]
+    if not recommended:
+        return WorkflowResult(
+            action="hot",
+            candidates_found=0,
+            source_summary=scan_result.summary,
+        )
+
+    mode = SecuritiesUpdateMode.Replace if replace else SecuritiesUpdateMode.Add
+    add_symbols(name, recommended, mode=mode)
+
+    return WorkflowResult(
+        action="hot",
         candidates_found=len(recommended),
         source_summary=scan_result.summary,
         destinations=[get_watchlist(name)],

@@ -137,6 +137,11 @@ def kline(
 @app.command()
 def scoop(
     name: str = typer.Argument(help="Destination watchlist group name"),
+    scan: bool = typer.Option(
+        False,
+        "--scan",
+        help="Scan-filter: only add stocks with 推荐 signal",
+    ),
     replace: bool = typer.Option(
         False,
         "--replace",
@@ -147,7 +152,35 @@ def scoop(
     """Scoop today's market candidates into a watchlist group."""
     from stk.services.watchlist import scoop_candidates
 
-    result = scoop_candidates(name, replace=replace)
+    result = scoop_candidates(name, do_scan=scan, replace=replace)
+    output.render(result)
+
+
+@app.command()
+def hot(
+    name: str = typer.Argument(help="Destination watchlist group name"),
+    source: str = typer.Option(
+        "rank",
+        "--source",
+        "-s",
+        help="Data source: rank (热门排名) / up (热度上升)",
+    ),
+    scan: bool = typer.Option(
+        False,
+        "--scan",
+        help="Scan-filter: only add stocks with 推荐 signal",
+    ),
+    replace: bool = typer.Option(
+        False,
+        "--replace",
+        "-r",
+        help="Replace destination instead of appending",
+    ),
+) -> None:
+    """Fetch hot stocks from EastMoney, scan, and add recommended ones to a group."""
+    from stk.services.watchlist import hot_candidates
+
+    result = hot_candidates(name, source=source, do_scan=scan, replace=replace)
     output.render(result)
 
 

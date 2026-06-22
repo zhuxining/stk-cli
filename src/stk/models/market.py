@@ -87,3 +87,23 @@ class TechCandidates(BaseModel):
 
     candidates: list[TechCandidate]
     total: int
+
+
+class HotStockItem(BaseModel):
+    """东方财富热门个股。"""
+
+    rank: int  # 当前排名
+    symbol: str  # longport format
+    name: str
+    last: Decimal
+    change: Decimal
+    change_pct: Decimal
+    rank_change: int | None = None  # 排名较昨日变动（仅热度上升榜）
+
+
+class HotStockResult(BaseModel):
+    """热门个股排行结果。"""
+
+    source: str  # "rank" / "up"
+    items: list[HotStockItem]
+    total: int

@@ -63,3 +63,24 @@ def candidates(
     from stk.services.rank import get_tech_candidates
 
     output.render(get_tech_candidates(ma=ma))
+
+
+@app.command()
+def hotstock(
+    source: str = typer.Option(
+        "rank",
+        "--source",
+        "-s",
+        help="Data source: rank (热门排名) / up (热度上升)",
+    ),
+) -> None:
+    """Hot stock rankings from 东方财富 (EastMoney).
+
+    - rank: 热门个股排名 (stock_hot_rank_em)
+    - up: 热度上升榜 (stock_hot_up_em)
+    """
+    from stk.services.market import get_hot_rank, get_hot_up
+
+    source_lower = source.lower()
+    result = get_hot_up() if source_lower == "up" else get_hot_rank()
+    output.render(result)

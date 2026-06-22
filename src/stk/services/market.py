@@ -1,14 +1,25 @@
-"""Market service — indices, temperature, market overview."""
+"""Market service — indices, temperature, market overview, hot stocks."""
 
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import contextlib
 from decimal import Decimal
 
+import akshare as ak
+from loguru import logger
+
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
-from stk.models.market import IndexQuote, MarketOverview, MarketTemperature
+from stk.models.market import (
+    HotStockItem,
+    HotStockResult,
+    IndexQuote,
+    MarketOverview,
+    MarketTemperature,
+)
+from stk.store.cache import cached
 from stk.utils.price import calc_change, r2
+from stk.utils.symbol import from_em_symbol
 
 MAJOR_INDICES = [
     ("000001.SH", "上证指数", "CN"),
@@ -127,3 +138,67 @@ def get_market_overview() -> MarketOverview:
 
     regime = {r: _detect_regime(indices) for r, indices in grouped.items()}
     return MarketOverview(indices=dict(grouped), temperature=temps, regime=regime)
+
+
+_HOT_STOCK_SKIP_COLS = {"最新价", "涨跌额", "涨跌幅"}
+
+
+@cached(ttl=300, disk=True)
+def get_hot_rank() -> HotStockResult:
+    """东方财富热门个股排名（stock_hot_rank_em）。"""
+    try:
+        df = ak.stock_hot_rank_em()
+    except Exception as e:
+        raise SourceError(f"东方财富热门排名 API 失败: {e}") from e
+
+    items = _parse_hot_stocks(df, source="rank")
+    return HotStockResult(source="rank", items=items, total=len(items))
+
+
+@cached(ttl=300, disk=True)
+def get_hot_up() -> HotStockResult:
+    """东方财富热度上升榜（stock_hot_up_em）。"""
+    try:
+        df = ak.stock_hot_up_em()
+    except Exception as e:
+        raise SourceError(f"东方财富热度上升榜 API 失败: {e}") from e
+
+    items = _parse_hot_stocks(df, source="up")
+    return HotStockResult(source="up", items=items, total=len(items))
+
+
+def _parse_hot_stocks(df, *, source: str) -> list[HotStockItem]:
+    """Parse akshare hot stock DataFrame into model items.
+
+    Args:
+        df: DataFrame with columns from stock_hot_rank_em or stock_hot_up_em.
+        source: "rank" or "up".
+    """
+    items: list[HotStockItem] = []
+    for _, row in df.iterrows():
+        em_code = str(row["代码"])
+        try:
+            symbol = from_em_symbol(em_code)
+        except Exception:
+            logger.debug("Failed to convert EM symbol: {}", em_code)
+            continue
+
+        rank_change = None
+        if source == "up":
+            try:
+                rank_change = int(row["排名较昨日变动"])
+            except (ValueError, TypeError):
+                rank_change = None
+
+        items.append(
+            HotStockItem(
+                rank=int(row["当前排名"]),
+                symbol=symbol,
+                name=str(row["股票名称"]),
+                last=Decimal(str(row["最新价"])),
+                change=Decimal(str(row["涨跌额"])),
+                change_pct=Decimal(str(row["涨跌幅"])),
+                rank_change=rank_change,
+            )
+        )
+    return items

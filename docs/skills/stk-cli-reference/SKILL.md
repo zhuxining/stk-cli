@@ -23,6 +23,7 @@ compatibility:
 | 技术排名 | `stk market rank` |
 | 行业热点 | `stk market hotspot` |
 | 选股候选 | `stk market candidates` |
+| 热门个股 | `stk market hotstock` |
 | 个股扫描 | `stk stock scan <symbols...>` |
 | 实盘提醒 | `stk stock scan-live <symbols...>` |
 | K线/指标 | `stk stock kline <symbols...>` |
@@ -32,11 +33,13 @@ compatibility:
 | 自选实盘 | `stk watchlist scan-live <group>` |
 | 自选K线 | `stk watchlist kline <group>` |
 | 候选入库 | `stk watchlist scoop <name>` |
+| 热门入库 | `stk watchlist hot <name>` |
 | 信号分流 | `stk watchlist route <src> <entry> <exit> [--replace]` |
 | Zigzag 信号 | `stk watchlist zigzag <src> <dst>` |
 | 同花顺同步 | `stk sync ths push/diff/list/pull` |
 | 健康检查 | `stk doctor check` |
 | 清缓存 | `stk cache clear` |
+| 查看缓存 | `stk cache stats` |
 
 ---
 
@@ -80,6 +83,24 @@ compatibility:
 返回 `TechCandidates`：`candidates[]`（`code`、`name`、`bull_screens`）、`total`。
 
 > `candidates` 是技术初筛，不代表趋势确认；需要继续 `stk stock scan <symbols...>`。
+
+### `stk market hotstock`
+
+东方财富热门个股排行。
+
+```bash
+stk market hotstock
+stk market hotstock --source up
+```
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--source` `-s` | `rank` | `rank`（热门排名）/ `up`（热度上升） |
+
+- `rank`：来自 `stock_hot_rank_em`，当前热门个股 Top 100
+- `up`：来自 `stock_hot_up_em`，热度上升最快 Top 100（含 `rank_change` 排名变动）
+
+返回 `HotStockResult`：`source`、`total`、`items[]`（`rank`、`symbol`、`name`、`last`、`change`、`change_pct`、`rank_change`）。
 
 ---
 
@@ -157,15 +178,45 @@ K 线 + 全部技术指标。
 
 ### `stk watchlist scoop <name>`
 
-捕获今日市场候选股到指定分组。
+捕获今日 THS 技术候选股到指定分组。
 
 ```bash
-stk watchlist scoop 热点股
+stk watchlist scoop 热点股              # 全量入库
+stk watchlist scoop 热点股 --scan       # 扫描过滤：只入推荐信号
+stk watchlist scoop 热点股 --replace    # 替换模式
 ```
 
-获取 candidates → 扫描获取信号参考 → 全部候选股加入目标分组。
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--scan` | `false` | 启用扫描过滤：只有 `strength == "推荐"` 的标的才入库 |
+| `--replace` `-r` | `false` | 替换模式（清空目标再写入） |
 
-返回 `WorkflowResult`：`action`、`candidates_found`、`source_summary`、`destinations[]`。
+- 默认：获取 THS 技术候选（≥3 多方 screen + 无空方冲突 + 非 ST）→ 全量加入目标分组
+- `--scan`：获取候选 → batch scan 打分 → 过滤 `strength == "推荐"` → 加入
+
+返回 `WorkflowResult`：`action`、`candidates_found`、`source_summary`（仅 `--scan` 时）、`destinations[]`。
+
+### `stk watchlist hot <name>`
+
+从东方财富热门股中选取标的入库。
+
+```bash
+stk watchlist hot 热门股                 # 全量入库
+stk watchlist hot 热门股 --source up     # 热度上升榜
+stk watchlist hot 热门股 --scan          # 扫描过滤：只入推荐信号
+stk watchlist hot 热门股 --replace       # 替换模式
+```
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--source` `-s` | `rank` | `rank`（热门排名）/ `up`（热度上升） |
+| `--scan` | `false` | 启用扫描过滤：只有 `strength == "推荐"` 的标的才入库 |
+| `--replace` `-r` | `false` | 替换模式（清空目标再写入） |
+
+- 默认：获取 EM 热门股 Top 100 → 全量加入目标分组
+- `--scan`：获取热门股 → batch scan 打分 → 过滤 `strength == "推荐"` → 加入
+
+返回 `WorkflowResult`：`action`（`hot`）、`candidates_found`、`source_summary`、`destinations[]`。
 
 ### `stk watchlist route <src> <entry-dst> <exit-dst>`
 
@@ -300,3 +351,14 @@ THS_PASSWORD=密码
 |------|------|
 | `stk doctor check [--quick]` | 数据源健康检查 |
 | `stk cache clear [--prefix PREFIX]` | 清除缓存 |
+| `stk cache stats` | 查看缓存统计（内存条目数、磁盘文件数/大小、上限） |
+
+### 全局参数
+
+| 参数 | 说明 |
+|------|------|
+| `--no-cache` | 跳过所有缓存，强制从 API 获取最新数据。所有子命令通用。 |
+
+```bash
+stk --no-cache watchlist scoop 热点股
+```
