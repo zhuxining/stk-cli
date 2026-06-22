@@ -142,6 +142,11 @@ def scoop(
         "--scan",
         help="Scan-filter: only add stocks with 推荐 signal",
     ),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="Tighter filters (requires --scan): age<=2 + supportive bias + RR>=1.5",
+    ),
     replace: bool = typer.Option(
         False,
         "--replace",
@@ -152,7 +157,7 @@ def scoop(
     """Scoop today's market candidates into a watchlist group."""
     from stk.services.watchlist import scoop_candidates
 
-    result = scoop_candidates(name, do_scan=scan, replace=replace)
+    result = scoop_candidates(name, do_scan=scan, strict=strict, replace=replace)
     output.render(result)
 
 
@@ -170,6 +175,11 @@ def hot(
         "--scan",
         help="Scan-filter: only add stocks with 推荐 signal",
     ),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="Tighter filters (requires --scan): age<=2 + supportive bias + RR>=1.5",
+    ),
     replace: bool = typer.Option(
         False,
         "--replace",
@@ -180,7 +190,7 @@ def hot(
     """Fetch hot stocks from EastMoney, scan, and add recommended ones to a group."""
     from stk.services.watchlist import hot_candidates
 
-    result = hot_candidates(name, source=source, do_scan=scan, replace=replace)
+    result = hot_candidates(name, source=source, do_scan=scan, strict=strict, replace=replace)
     output.render(result)
 
 

@@ -189,10 +189,12 @@ stk watchlist scoop 热点股 --replace    # 替换模式
 | 参数 | 默认 | 说明 |
 |------|------|------|
 | `--scan` | `false` | 启用扫描过滤：只有 `strength == "推荐"` 的标的才入库 |
+| `--strict` | `false` | 严格过滤（需 `--scan`）：`bars_since_signal<=2` + `overall_bias=="supportive"` + `risk_reward_ratio>=1.5` |
 | `--replace` `-r` | `false` | 替换模式（清空目标再写入） |
 
 - 默认：获取 THS 技术候选（≥3 多方 screen + 无空方冲突 + 非 ST）→ 全量加入目标分组
 - `--scan`：获取候选 → batch scan 打分 → 过滤 `strength == "推荐"` → 加入
+- `--scan --strict`：在推荐基础上再加三道门槛（最新信号、辅助因子全员确认、风报比≥1.5）
 
 返回 `WorkflowResult`：`action`、`candidates_found`、`source_summary`（仅 `--scan` 时）、`destinations[]`。
 
@@ -211,10 +213,12 @@ stk watchlist hot 热门股 --replace       # 替换模式
 |------|------|------|
 | `--source` `-s` | `rank` | `rank`（热门排名）/ `up`（热度上升） |
 | `--scan` | `false` | 启用扫描过滤：只有 `strength == "推荐"` 的标的才入库 |
+| `--strict` | `false` | 严格过滤（需 `--scan`）：`bars_since_signal<=2` + `overall_bias=="supportive"` + `risk_reward_ratio>=1.5` |
 | `--replace` `-r` | `false` | 替换模式（清空目标再写入） |
 
 - 默认：获取 EM 热门股 Top 100 → 全量加入目标分组
 - `--scan`：获取热门股 → batch scan 打分 → 过滤 `strength == "推荐"` → 加入
+- `--scan --strict`：在推荐基础上再加三道门槛
 
 返回 `WorkflowResult`：`action`（`hot`）、`candidates_found`、`source_summary`、`destinations[]`。
 

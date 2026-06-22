@@ -157,15 +157,46 @@ _ENTRY_SIGNALS = {"趋势买入", "超卖修复"}
 _EXIT_SIGNALS = {"趋势退出"}
 
 
-def scoop_candidates(name: str, *, do_scan: bool = False, replace: bool = False) -> WorkflowResult:
+def _filter_focus(focus: list, *, strict: bool) -> list[str]:
+    """Filter scan focus items, returning symbols that pass the criteria.
+
+    --scan: strength == "推荐"
+    --scan --strict: 推荐 + bars_since_signal <= 2 + overall_bias == "supportive"
+                     + risk_reward_ratio >= 1.5
+    """
+    MIN_STRICT_RR = 1.5
+    MAX_STRICT_AGE = 2
+
+    result: list[str] = []
+    for item in focus:
+        if item.decision.strength != "推荐":
+            continue
+        if strict:
+            age = item.decision.bars_since_signal
+            if age is None or age > MAX_STRICT_AGE:
+                continue
+            if item.context.overall_bias != "supportive":
+                continue
+            rr = item.risk.risk_reward_ratio
+            if rr is None or rr < MIN_STRICT_RR:
+                continue
+        result.append(item.symbol)
+    return result
+
+
+def scoop_candidates(
+    name: str, *, do_scan: bool = False, strict: bool = False, replace: bool = False
+) -> WorkflowResult:
     """Scoop today's market candidates into a watchlist group.
 
     Without --scan: add all THS candidates directly.
     With --scan: filter by scan "推荐" signal before adding.
+    With --scan --strict: tighter filters (new signal + supportive bias + RR≥1.5).
 
     Args:
         name: Destination watchlist group name.
-        do_scan: If True, scan and only add "推荐" signals.
+        do_scan: If True, scan and filter signals.
+        strict: If True, apply stricter filters (requires --scan).
         replace: Replace destination instead of appending.
     """
     from stk.services.rank import get_tech_candidates
@@ -187,13 +218,8 @@ def scoop_candidates(name: str, *, do_scan: bool = False, replace: bool = False)
             destinations=[get_watchlist(name)],
         )
 
-    # --scan: 扫描过滤，只保留"推荐"信号
     scan_result = batch_summary(symbols, include_daily10=False, include_full_context=False)
-    recommended = [
-        item.symbol
-        for item in scan_result.focus
-        if item.decision.strength == "推荐"
-    ]
+    recommended = _filter_focus(scan_result.focus, strict=strict)
     if not recommended:
         return WorkflowResult(
             action="scoop",
@@ -217,17 +243,20 @@ def hot_candidates(
     *,
     source: str = "rank",
     do_scan: bool = False,
+    strict: bool = False,
     replace: bool = False,
 ) -> WorkflowResult:
     """Fetch EM hot stocks, optionally scan-filter, and add to a watchlist group.
 
     Without --scan: add all hot stocks directly.
     With --scan: filter by scan "推荐" signal before adding.
+    With --scan --strict: tighter filters (new signal + supportive bias + RR≥1.5).
 
     Args:
         name: Destination watchlist group name.
         source: "rank" (热门排名) or "up" (热度上升).
-        do_scan: If True, scan and only add "推荐" signals.
+        do_scan: If True, scan and filter signals.
+        strict: If True, apply stricter filters (requires --scan).
         replace: Replace destination instead of appending.
     """
     from stk.errors import SourceError
@@ -255,13 +284,8 @@ def hot_candidates(
             destinations=[get_watchlist(name)],
         )
 
-    # --scan: 扫描过滤，只保留"推荐"信号
     scan_result = batch_summary(symbols, include_daily10=False, include_full_context=False)
-    recommended = [
-        item.symbol
-        for item in scan_result.focus
-        if item.decision.strength == "推荐"
-    ]
+    recommended = _filter_focus(scan_result.focus, strict=strict)
     if not recommended:
         return WorkflowResult(
             action="hot",
