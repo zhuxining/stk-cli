@@ -160,8 +160,8 @@ _EXIT_SIGNALS = {"趋势退出"}
 def scoop_candidates(name: str, *, replace: bool = False) -> WorkflowResult:
     """Scoop today's market candidates into a watchlist group.
 
-    Gets tech candidates from THS, scans them for signal reference,
-    and adds ALL candidates to the destination group.
+    Gets tech candidates from THS, scans them,
+    and only adds stocks with "推荐" signal to the destination group.
     """
     from stk.services.rank import get_tech_candidates
     from stk.services.scan import batch_summary
@@ -175,12 +175,25 @@ def scoop_candidates(name: str, *, replace: bool = False) -> WorkflowResult:
 
     scan_result = batch_summary(symbols, include_daily10=False, include_full_context=False)
 
+    # 过滤：只有扫描出"推荐"信号的才加入 watchlist
+    recommended = [
+        item.symbol
+        for item in scan_result.focus
+        if item.decision.strength == "推荐"
+    ]
+    if not recommended:
+        return WorkflowResult(
+            action="scoop",
+            candidates_found=0,
+            source_summary=scan_result.summary,
+        )
+
     mode = SecuritiesUpdateMode.Replace if replace else SecuritiesUpdateMode.Add
-    add_symbols(name, symbols, mode=mode)
+    add_symbols(name, recommended, mode=mode)
 
     return WorkflowResult(
         action="scoop",
-        candidates_found=len(candidates.candidates),
+        candidates_found=len(recommended),
         source_summary=scan_result.summary,
         destinations=[get_watchlist(name)],
     )
