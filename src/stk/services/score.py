@@ -35,11 +35,30 @@ from stk.utils.trading_session import is_unclosed_daily_bar
 
 _EMA_FAST = 9
 _EMA_SLOW = 26
-_RESONANCE_WINDOW = 2
+_EMA_60 = 60
+_EMA5 = 5
+_EMA10 = 10
+_EMA20 = 20
+_RESONANCE_WINDOW = 3
+_BEAR_RESONANCE_WINDOW = 5  # 空方更宽，便于尽早发现退出信号
 _MIN_HISTORY = 30
 _MIN_ENTRY_RISK_REWARD = 1.2
 _STRONG_RISK_REWARD = 1.8
 _STRENGTH_RANK: dict[SignalStrength | None, int] = {"推荐": 0, "预警": 1, None: 2}
+
+# ta-lib indicator periods
+_ADX_PERIOD = 14
+_RSI_PERIOD = 14
+_MFI_PERIOD = 14
+_MACD_FAST = 12
+_MACD_SLOW = 26
+_MACD_SIGNAL = 9
+_BOLL_PERIOD = 20
+_BOLL_NBDEV = 2
+_STOCH_FASTK = 9
+_STOCH_SLOWK = 3
+_STOCH_SLOWD = 3
+_DIVERGENCE_LOOKBACK = 20
 
 
 def _closed_daily_df(
@@ -210,6 +229,17 @@ def _build_trend_signal(
     st_direction_arr: np.ndarray,
     ema60_arr: np.ndarray | None = None,
 ) -> TrendSignal:
+    """Build trend signal from EMA 9/26 and Supertrend.
+
+    Asymmetric strategy — enter strict, exit sensitive:
+    - Bull: EMA9 > EMA26 + Supertrend bullish
+            + golden cross AND supertrend bull flip both within _RESONANCE_WINDOW (3)
+            + price above EMA9 → 推荐
+    - Bear: EMA9 < EMA26 + Supertrend bearish
+            + death cross OR supertrend bear flip within _BEAR_RESONANCE_WINDOW (5)
+            + price below EMA9 → 预警
+    - Additional checks: low-volume golden cross warning, EMA60 long-term bias.
+    """
     ema9 = _safe_last(ema9_arr)
     ema26 = _safe_last(ema26_arr)
     supertrend = _safe_last(supertrend_arr)
@@ -239,8 +269,8 @@ def _build_trend_signal(
     death_age = _last_ema_cross_age(ema9_arr, ema26_arr, golden=False)
     bull_flip_age = _last_supertrend_flip_age(st_direction_arr, target=1)
     bear_flip_age = _last_supertrend_flip_age(st_direction_arr, target=-1)
-    bull_event_age = _min_age([golden_age, bull_flip_age])
-    bear_event_age = _min_age([death_age, bear_flip_age])
+    bull_event_age = max(golden_age, bull_flip_age) if golden_age is not None and bull_flip_age is not None else None
+    bear_event_age = _min_age([death_age, bear_flip_age])  # 空方：任一事件即可，更灵敏
 
     ema_bullish = ema9 > ema26
     ema_bearish = ema9 < ema26
@@ -276,11 +306,11 @@ def _build_trend_signal(
             strength = "推荐"
         else:
             signal_age = None
-            reasons.append("多头排列存在，但最近3根K线内没有新触发")
+            reasons.append("多头排列存在，但金叉+翻多未在3根K线内共振")
 
-        if golden_age is not None and golden_age == signal_age:
+        if golden_age is not None and golden_age <= _RESONANCE_WINDOW:
             ema_cross = "golden"
-        if bull_flip_age is not None and bull_flip_age == signal_age:
+        if bull_flip_age is not None and bull_flip_age <= _RESONANCE_WINDOW:
             st_flip = "bullish"
 
     elif ema_bearish and st_bearish and bear_event_age is not None:
@@ -289,27 +319,27 @@ def _build_trend_signal(
         if not price_below_ema9:
             signal_age = None
             reasons.append("收盘价未跌回 EMA9 下方，空头趋势等待确认")
-        elif signal_age <= _RESONANCE_WINDOW:
+        elif signal_age <= _BEAR_RESONANCE_WINDOW:
             strength = "预警"
         else:
             signal_age = None
-            reasons.append("空头排列存在，但最近3根K线内没有新触发")
+            reasons.append("空头排列存在，但死叉/翻空未在5根K线内出现")
 
-        if death_age is not None and death_age == signal_age:
+        if death_age is not None and death_age <= _BEAR_RESONANCE_WINDOW:
             ema_cross = "death"
-        if bear_flip_age is not None and bear_flip_age == signal_age:
+        if bear_flip_age is not None and bear_flip_age <= _BEAR_RESONANCE_WINDOW:
             st_flip = "bearish"
 
     elif ema_bullish and st_bullish:
         direction = "bullish"
         if price_above_ema9:
-            reasons.append("多头排列存在，但最近3根K线内没有新触发")
+            reasons.append("多头排列存在，但金叉+翻多未在3根K线内共振")
         else:
             reasons.append("多头排列存在，但收盘价未站上 EMA9")
     elif ema_bearish and st_bearish:
         direction = "bearish"
         if price_below_ema9:
-            reasons.append("空头排列存在，但最近3根K线内没有新触发")
+            reasons.append("空头排列存在，但死叉/翻空未在5根K线内出现")
         else:
             reasons.append("空头排列存在，但收盘价未跌回 EMA9 下方")
     else:
@@ -343,7 +373,7 @@ def _signal_status(age: int | None) -> SignalStatus:
         return "stale"
     if age <= 1:
         return "new"
-    if age <= _RESONANCE_WINDOW:
+    if age <= _BEAR_RESONANCE_WINDOW:
         return "active"
     return "stale"
 
@@ -432,6 +462,14 @@ def _build_oversold_repair_signal(
     close_arr: np.ndarray,
     ema9_arr: np.ndarray,
 ) -> TrendSignal | None:
+    """Build oversold repair signal (超卖修复).
+
+    Triggers 推荐 when all three conditions hold:
+    - RSI14 ≤ 30 (deep oversold)
+    - MACD histogram turns positive (momentum reversal)
+    - Price reclaims EMA5 (short-term stabilization)
+    Requires bullish context not in conflicting/mixed state.
+    """
     if context.overall_bias in ("conflicting", "mixed"):
         return None
 
@@ -490,13 +528,14 @@ def _quality_adjusted_signal(
         return signal
 
     age = signal.bars_since_signal
-    if age is None or age > _RESONANCE_WINDOW:
+    max_age = _BEAR_RESONANCE_WINDOW if signal.direction == "bearish" else _RESONANCE_WINDOW
+    if age is None or age > max_age:
         return _with_strength(signal, None, reason="触发已过有效窗口")
 
     if context.overall_bias == "conflicting":
         return _with_strength(signal, None, reason="辅助因子明显冲突，降为观察")
 
-    if context.overall_bias == "mixed" and age is not None and age >= _RESONANCE_WINDOW:
+    if context.overall_bias == "mixed" and age is not None and age > max_age:
         return _with_strength(signal, None, reason="信号陈旧且辅助因子态度不明确，降为观察")
 
     if signal.direction == "bullish" and (
@@ -543,16 +582,16 @@ def _calc_momentum_factor(
     *,
     direction: TrendDirection,
 ) -> ContextFactor:
-    rsi = talib.RSI(close.to_numpy(), timeperiod=14)
+    rsi = talib.RSI(close.to_numpy(), timeperiod=_RSI_PERIOD)
     rsi_now = _safe_last(rsi)
 
     k, d = talib.STOCH(
         high.to_numpy(),
         low.to_numpy(),
         close.to_numpy(),
-        fastk_period=9,
-        slowk_period=3,
-        slowd_period=3,
+        fastk_period=_STOCH_FASTK,
+        slowk_period=_STOCH_SLOWK,
+        slowd_period=_STOCH_SLOWD,
     )
     j = 3 * k - 2 * d
     k_now, d_now, j_now = _safe_last(k), _safe_last(d), _safe_last(j)
@@ -597,9 +636,9 @@ def _calc_macd_factor(
 ) -> tuple[ContextFactor, np.ndarray]:
     macd, macd_signal, macd_hist = talib.MACD(
         close_arr,
-        fastperiod=12,
-        slowperiod=26,
-        signalperiod=9,
+        fastperiod=_MACD_FAST,
+        slowperiod=_MACD_SLOW,
+        signalperiod=_MACD_SIGNAL,
     )
     macd_now = _safe_last(macd)
     signal_now = _safe_last(macd_signal)
@@ -635,7 +674,9 @@ def _calc_boll_factor(
     *,
     direction: TrendDirection,
 ) -> tuple[ContextFactor, list[str]]:
-    upper, middle, lower = talib.BBANDS(close_arr, timeperiod=20, nbdevup=2, nbdevdn=2)
+    upper, middle, lower = talib.BBANDS(
+        close_arr, timeperiod=_BOLL_PERIOD, nbdevup=_BOLL_NBDEV, nbdevdn=_BOLL_NBDEV
+    )
     upper_now = _safe_last(upper)
     middle_now = _safe_last(middle)
     lower_now = _safe_last(lower)
@@ -725,9 +766,9 @@ def _calc_legacy_ema_factor(
     *,
     direction: TrendDirection,
 ) -> ContextFactor:
-    ema5 = talib.EMA(close_arr, timeperiod=5)
-    ema10 = talib.EMA(close_arr, timeperiod=10)
-    ema20 = talib.EMA(close_arr, timeperiod=20)
+    ema5 = talib.EMA(close_arr, timeperiod=_EMA5)
+    ema10 = talib.EMA(close_arr, timeperiod=_EMA10)
+    ema20 = talib.EMA(close_arr, timeperiod=_EMA20)
     e5, e10, e20 = _safe_last(ema5), _safe_last(ema10), _safe_last(ema20)
     if e5 is None or e10 is None or e20 is None:
         return ContextFactor(name="ema_trend", state="none")
@@ -768,7 +809,7 @@ def _calc_money_flow_factor(
         low.to_numpy().astype(float),
         close.to_numpy().astype(float),
         volume.to_numpy().astype(float),
-        timeperiod=14,
+        timeperiod=_MFI_PERIOD,
     )
     mfi_now = _safe_last(mfi)
     if mfi_now is None:
@@ -800,7 +841,7 @@ def _calc_divergence_factor(
     close: pd.Series,
     macd_hist: np.ndarray,
     *,
-    lookback: int = 20,
+    lookback: int = _DIVERGENCE_LOOKBACK,
 ) -> ContextFactor:
     if len(close) < lookback + 1 or len(macd_hist) < lookback + 1:
         return ContextFactor(name="divergence", state="none")
@@ -890,6 +931,13 @@ def _build_context(
     close_arr: np.ndarray,
     current_price: float,
 ) -> SignalContext:
+    """Build auxiliary context from 7 non-primary indicators.
+
+    Factors: momentum (RSI+KDJ), MACD, Bollinger Bands, volume-price,
+    legacy EMA5/10/20 trend, money flow (MFI), MACD divergence.
+
+    Aggregated via _overall_bias into: supportive / mixed / conflicting / risky.
+    """
     close = df["close"]
     high = df["high"]
     low = df["low"]
@@ -1026,7 +1074,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
 
     ema9_arr = talib.EMA(close, timeperiod=_EMA_FAST)
     ema26_arr = talib.EMA(close, timeperiod=_EMA_SLOW)
-    ema60_arr = talib.EMA(close, timeperiod=60)
+    ema60_arr = talib.EMA(close, timeperiod=_EMA_60)
     supertrend_arr, st_direction_arr, atr_arr = _calc_supertrend_arrays(high, low, close)
 
     trend_signal = _build_trend_signal(
@@ -1038,7 +1086,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
         ema60_arr=ema60_arr,
     )
 
-    adx_series = talib.ADX(high, low, close, timeperiod=14)
+    adx_series = talib.ADX(high, low, close, timeperiod=_ADX_PERIOD)
     adx_last = _safe_last(adx_series)
     adx_val = round(adx_last, 1) if adx_last is not None else None
 

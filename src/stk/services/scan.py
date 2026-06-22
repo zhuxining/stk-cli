@@ -26,7 +26,7 @@ from stk.models.score import (
 )
 from stk.services.indicator import get_daily
 from stk.services.quote import get_realtime_quotes
-from stk.services.score import calc_score
+from stk.services.score import _STRENGTH_RANK, calc_score
 from stk.services.watchlist import get_watchlist
 from stk.utils.symbol import to_longport_symbol
 from stk.utils.trading_session import is_unclosed_daily_bar
@@ -36,7 +36,6 @@ _EXIT_SIGNALS: set[DecisionSignal] = {"趋势退出"}
 _FOCUS_SIGNALS = _ENTRY_SIGNALS | _EXIT_SIGNALS
 _FOCUS_STRENGTHS: set[SignalStrength] = {"推荐", "预警"}
 _ACTIVE_SIGNAL_STATUSES = {"new", "active"}
-_STRENGTH_RANK: dict[SignalStrength | None, int] = {"推荐": 0, "预警": 1, None: 2}
 _BIAS_RANK: dict[ContextBias, int] = {
     "supportive": 0,
     "mixed": 1,

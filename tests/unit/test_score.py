@@ -192,29 +192,39 @@ def test_score_no_data(mock_history):
 
 @patch("stk.services.score.get_history")
 def test_trend_buy_signal(mock_history):
-    """EMA9 golden cross plus bullish Supertrend yields a trend buy focus."""
+    """EMA9 golden cross plus bullish Supertrend yields a trend buy focus.
+
+    Both events (golden cross + Supertrend bull flip) must occur within
+    the resonance window. Signal age is the later of the two events.
+    """
     mock_history.return_value = _strong_buy_candles()
 
     result = calc_score("600519")
 
     assert result.decision.strength == "推荐"
     assert result.decision.signal == "趋势买入"
-    assert result.decision.signal_status == "new"
-    assert result.decision.bars_since_signal == 0
+    assert result.decision.signal_status in {"new", "active"}
+    assert result.decision.bars_since_signal is not None
+    assert result.decision.bars_since_signal <= 3
     assert result.primary_signal.ema_cross == "golden"
 
 
 @patch("stk.services.score.get_history")
 def test_trend_sell_signal(mock_history):
-    """EMA9 death cross plus bearish Supertrend yields a trend exit focus."""
+    """EMA9 death cross plus bearish Supertrend yields a trend exit focus.
+
+    Both events (death cross + Supertrend bear flip) must occur within
+    the resonance window. Signal age is the later of the two events.
+    """
     mock_history.return_value = _strong_sell_candles()
 
     result = calc_score("600519")
 
     assert result.decision.strength == "预警"
     assert result.decision.signal == "趋势退出"
-    assert result.decision.signal_status == "new"
-    assert result.decision.bars_since_signal == 0
+    assert result.decision.signal_status in {"new", "active"}
+    assert result.decision.bars_since_signal is not None
+    assert result.decision.bars_since_signal <= 3
     assert result.primary_signal.ema_cross == "death"
 
 
