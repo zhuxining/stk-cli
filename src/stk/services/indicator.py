@@ -303,19 +303,21 @@ def zigzag_pivots(
     result = [all_pivots[0]]
     for pivot in all_pivots[1:]:
         last = result[-1]
+        p_price = float(pivot["price"])
+        l_price = float(last["price"])
 
         if pivot["type"] == last["type"]:
             # Same direction: keep more extreme (higher high / lower low)
-            if (pivot["type"] == "high" and pivot["price"] > last["price"]) or (
-                pivot["type"] == "low" and pivot["price"] < last["price"]
+            if (pivot["type"] == "high" and p_price > l_price) or (
+                pivot["type"] == "low" and p_price < l_price
             ):
                 result[-1] = pivot
         else:
             # Opposite direction: check reversal percentage
             chg = (
-                (last["price"] - pivot["price"]) / last["price"] * 100
+                (l_price - p_price) / l_price * 100
                 if last["type"] == "high"
-                else (pivot["price"] - last["price"]) / last["price"] * 100
+                else (p_price - l_price) / l_price * 100
             )
             if chg >= pct:
                 result.append(pivot)

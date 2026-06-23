@@ -3,11 +3,14 @@
 import pytest
 
 from stk.utils.symbol import (
+    from_ths_symbol,
     is_hk,
+    is_longport_symbol,
     to_ak_market,
     to_em_symbol,
     to_hk_code,
     to_longport_symbol,
+    to_ths_symbol,
 )
 
 
@@ -114,3 +117,63 @@ def test_is_hk(input_symbol, expected):
 def test_to_hk_code(input_symbol, expected):
     """Test HK code extraction with zero padding."""
     assert to_hk_code(input_symbol) == expected
+
+
+@pytest.mark.parametrize(
+    ("input_symbol", "expected"),
+    [
+        ("600519.SH", "600519.SH"),
+        ("000001.SZ", "000001.SZ"),
+        ("688001.SH", "688001.KC"),  # 科创板 → KC
+        ("300001.SZ", "300001.CYB"),  # 创业板 → CYB (NOT CY)
+        ("301001.SZ", "301001.CYB"),
+        ("700.HK", "700.HK"),
+        ("AAPL.US", "AAPL.US"),
+        ("830001.BJ", "830001.BJ"),
+    ],
+)
+def test_to_ths_symbol(input_symbol, expected):
+    """Test conversion to THS format. 创业板 must be CYB per ths-favorite constant.py."""
+    assert to_ths_symbol(input_symbol) == expected
+
+
+@pytest.mark.parametrize(
+    ("input_symbol", "expected"),
+    [
+        ("600519.SH", "600519.SH"),
+        ("000001.SZ", "000001.SZ"),
+        ("688001.KC", "688001.SH"),  # 科创板 ← KC
+        ("300001.CYB", "300001.SZ"),  # 创业板 ← CYB (the abbr THS actually returns)
+        ("300001.CY", "300001.SZ"),  # legacy CY still tolerated
+        ("510300.SHETF", "510300.SH"),  # 上交所 ETF
+        ("159915.SZETF", "159915.SZ"),  # 深交所 ETF
+        ("600519.ST", "600519.SH"),  # ST 股按 code 推断交易所
+        ("700.HK", "700.HK"),
+        ("AAPL.US", "AAPL.US"),
+    ],
+)
+def test_from_ths_symbol(input_symbol, expected):
+    """Test conversion from THS format back to longport.
+
+    CYB/SHETF/SZETF/ST are the abbrs ths-favorite actually returns (constant.py);
+    they must map back to valid longport symbols or pull/push silently drop them.
+    """
+    assert from_ths_symbol(input_symbol) == expected
+
+
+@pytest.mark.parametrize(
+    ("input_symbol", "expected"),
+    [
+        ("600519.SH", True),
+        ("000001.SZ", True),
+        ("800001.BJ", True),
+        ("00700.HK", True),
+        ("AAPL.US", True),
+        ("000001.ZS", False),  # THS 指数 → longport 不支持
+        ("000001.JJ", False),  # THS 基金 → longport 不支持
+        ("TSLA", False),  # 没有交易所后缀 → longport 不支持
+    ],
+)
+def test_is_longport_symbol(input_symbol, expected):
+    """Test longport-supported symbol detection."""
+    assert is_longport_symbol(input_symbol) == expected

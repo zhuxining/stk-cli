@@ -156,6 +156,10 @@ def delete_group(name: str) -> None:
 _ENTRY_SIGNALS = {"趋势买入", "超卖修复"}
 _EXIT_SIGNALS = {"趋势退出"}
 
+# --strict filter thresholds for _filter_focus
+_MIN_STRICT_RR = 1.5
+_MAX_STRICT_AGE = 2
+
 
 def _filter_focus(focus: list, *, strict: bool) -> list[str]:
     """Filter scan focus items, returning symbols that pass the criteria.
@@ -164,21 +168,18 @@ def _filter_focus(focus: list, *, strict: bool) -> list[str]:
     --scan --strict: 推荐 + bars_since_signal <= 2 + overall_bias == "supportive"
                      + risk_reward_ratio >= 1.5
     """
-    MIN_STRICT_RR = 1.5
-    MAX_STRICT_AGE = 2
-
     result: list[str] = []
     for item in focus:
         if item.decision.strength != "推荐":
             continue
         if strict:
             age = item.decision.bars_since_signal
-            if age is None or age > MAX_STRICT_AGE:
+            if age is None or age > _MAX_STRICT_AGE:
                 continue
             if item.context.overall_bias != "supportive":
                 continue
             rr = item.risk.risk_reward_ratio
-            if rr is None or rr < MIN_STRICT_RR:
+            if rr is None or rr < _MIN_STRICT_RR:
                 continue
         result.append(item.symbol)
     return result

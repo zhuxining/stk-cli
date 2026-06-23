@@ -109,17 +109,24 @@ def extract_code(symbol: str) -> str:
 
 # A-share codes that need different market suffix in THS
 # 科创板: 688xxx → .KC (THS market code 18)
-# 创业板: 300xxx/301xxx → .CY (THS market code 38)
+# 创业板: 300xxx/301xxx → .CYB (THS market code 38)
 _KC_PREFIXES = ("688",)
 _CY_PREFIXES = ("300", "301")
+
+# Longport-supported market suffixes; anything else (indices, funds, bonds, futures...)
+# is dropped during THS→longport sync to avoid polluting batch API calls.
+_LONGPORT_MARKETS = frozenset({"SH", "SZ", "BJ", "HK", "US"})
 
 
 def to_ths_symbol(longport_symbol: str) -> str:
     """Convert longport symbol to THS format (CODE.MARKET).
 
+    THS market abbrs (from ths-favorite constant.py): SH/SZ/KC/CYB/BJ/HK/US.
+    Note: 创业板 is 'CYB', NOT 'CY'.
+
     600519.SH → 600519.SH
     688001.SH → 688001.KC  (科创板)
-    300001.SZ → 300001.CY  (创业板)
+    300001.SZ → 300001.CYB (创业板)
     00700.HK  → 00700.HK
     AAPL.US   → AAPL.US
     """
@@ -130,25 +137,43 @@ def to_ths_symbol(longport_symbol: str) -> str:
     if market == "SH" and code.startswith(_KC_PREFIXES):
         return f"{code}.KC"
     if market == "SZ" and code.startswith(_CY_PREFIXES):
-        return f"{code}.CY"
+        return f"{code}.CYB"
     return lp
 
 
 def from_ths_symbol(ths_symbol: str) -> str:
     """Convert THS symbol back to longport format.
 
-    600519.SH → 600519.SH
-    688001.KC → 688001.SH
-    300001.CY → 300001.SZ
+    THS market abbrs (from ths-favorite constant.py): SH/SZ/KC/CYB/SHETF/SZETF/BJ/HK/US.
+    ETF abbrs (SHETF/SZETF) map back to the exchange suffix (.SH/.SZ).
+
+    600519.SH   → 600519.SH
+    688001.KC   → 688001.SH
+    300001.CYB  → 300001.SZ
+    510300.SHETF → 510300.SH
+    159915.SZETF → 159915.SZ
     """
     if "." not in ths_symbol:
         return ths_symbol
     code, market = ths_symbol.split(".", 1)
     if market == "KC":
         return f"{code}.SH"
-    if market == "CY":
+    if market in ("CY", "CYB"):
         return f"{code}.SZ"
+    if market in ("SHETF", "SZETF", "ST"):
+        # ETF/ST carry no market info in the suffix; infer from A-share code rules.
+        return to_longport_symbol(code)
     return ths_symbol
+
+
+def is_longport_symbol(symbol: str) -> bool:
+    """Check whether a symbol has a longport-supported market suffix.
+
+    Longport supports .SH/.SZ/.BJ/.HK/.US.  Used to filter THS-only assets
+    (indices, funds, bonds, futures) out of sync batches.
+    """
+    lp = to_longport_symbol(symbol)
+    return "." in lp and lp.split(".", 1)[1] in _LONGPORT_MARKETS
 
 
 def is_etf(symbol: str) -> bool:

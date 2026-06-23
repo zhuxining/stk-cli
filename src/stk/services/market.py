@@ -187,7 +187,7 @@ def _parse_hot_stocks(df, *, source: str) -> list[HotStockItem]:
         if source == "up":
             try:
                 rank_change = int(row["排名较昨日变动"])
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 rank_change = None
 
         items.append(

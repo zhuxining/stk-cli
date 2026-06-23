@@ -269,7 +269,10 @@ def _build_trend_signal(
     death_age = _last_ema_cross_age(ema9_arr, ema26_arr, golden=False)
     bull_flip_age = _last_supertrend_flip_age(st_direction_arr, target=1)
     bear_flip_age = _last_supertrend_flip_age(st_direction_arr, target=-1)
-    bull_event_age = max(golden_age, bull_flip_age) if golden_age is not None and bull_flip_age is not None else None
+    if golden_age is not None and bull_flip_age is not None:
+        bull_event_age = max(golden_age, bull_flip_age)
+    else:
+        bull_event_age = None
     bear_event_age = _min_age([death_age, bear_flip_age])  # 空方：任一事件即可，更灵敏
 
     ema_bullish = ema9 > ema26

@@ -6,7 +6,7 @@ from typing import Any
 from loguru import logger
 
 from stk.models.sync import SyncDiff, SyncItem, SyncResult
-from stk.utils.symbol import from_ths_symbol, to_ths_symbol
+from stk.utils.symbol import from_ths_symbol, is_longport_symbol, to_ths_symbol
 
 
 def _build_ths_set(group_data: dict[str, Any]) -> set[str]:
@@ -144,19 +144,21 @@ def push_to_ths(from_group: str, to_group: str, *, replace: bool = False) -> Syn
     added = 0
     removed = 0
 
-    if diff.to_remove:
-        try:
-            symbols = [item.ths_symbol for item in diff.to_remove]
-            removed = remove_ths_stocks(to_group, symbols)
-        except Exception as e:
-            errors.append(f"删除失败: {e}")
-
+    # Add before remove: if add fails (e.g. invalid symbol), we don't lose data
+    # that was already correctly in the target group.
     if diff.to_add:
         try:
             symbols = [item.ths_symbol for item in diff.to_add]
             added = add_ths_stocks(to_group, symbols)
         except Exception as e:
             errors.append(f"添加失败: {e}")
+
+    if diff.to_remove:
+        try:
+            symbols = [item.ths_symbol for item in diff.to_remove]
+            removed = remove_ths_stocks(to_group, symbols)
+        except Exception as e:
+            errors.append(f"删除失败: {e}")
 
     return SyncResult(
         action="push",
@@ -168,15 +170,23 @@ def push_to_ths(from_group: str, to_group: str, *, replace: bool = False) -> Syn
 
 
 def _ths_group_to_lp_symbols(group_data: dict[str, Any]) -> list[str]:
-    """Convert THS group items to Longport symbols."""
+    """Convert THS group items to Longport symbols.
+
+    Drops assets that longport cannot hold (indices, funds, bonds, futures),
+    because update_watchlist_group is batch-based and one invalid symbol can
+    fail the whole batch.
+    """
     result: list[str] = []
     for item in group_data["items"]:
         market = (item.market or "").upper()
-        if item.code and market:
-            ths_sym = f"{item.code}.{market}"
-            lp = from_ths_symbol(ths_sym)
-            if "." in lp and lp.split(".")[0].isdigit():
-                result.append(lp)
+        if not item.code or not market:
+            continue
+        ths_sym = f"{item.code}.{market}"
+        lp = from_ths_symbol(ths_sym)
+        if not is_longport_symbol(lp):
+            logger.debug(f"跳过 longport 不支持的 THS 标的: {ths_sym} -> {lp}")
+            continue
+        result.append(lp)
     return result
 
 
@@ -238,14 +248,8 @@ def pull_from_ths(from_group: str, to_group: str, *, replace: bool = False) -> S
     added = 0
     removed = 0
 
-    if diff.to_remove:
-        try:
-            symbols = [item.symbol for item in diff.to_remove]
-            remove_symbols(to_group, symbols)
-            removed = len(symbols)
-        except Exception as e:
-            errors.append(f"删除失败: {e}")
-
+    # Add before remove: if add fails (e.g. invalid symbol), we don't lose data
+    # that was already correctly in the target group.
     if diff.to_add:
         try:
             symbols = [item.symbol for item in diff.to_add]
@@ -253,6 +257,14 @@ def pull_from_ths(from_group: str, to_group: str, *, replace: bool = False) -> S
             added = len(symbols)
         except Exception as e:
             errors.append(f"添加失败: {e}")
+
+    if diff.to_remove:
+        try:
+            symbols = [item.symbol for item in diff.to_remove]
+            remove_symbols(to_group, symbols)
+            removed = len(symbols)
+        except Exception as e:
+            errors.append(f"删除失败: {e}")
 
     return SyncResult(
         action="pull",

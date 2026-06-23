@@ -50,7 +50,7 @@ def _is_market_hours() -> bool:
         return False
     from datetime import time as dt_time
 
-    return dt_time(9, 15) <= t <= dt_time(15, 0)
+    return dt_time(9, 15) <= now.time() <= dt_time(15, 0)
 
 
 def _make_key(func: Any, args: tuple, kwargs: dict) -> str:
@@ -174,7 +174,12 @@ def _disk_stats() -> dict:
     """Return disk cache statistics."""
     cache_dir = settings.cache_dir
     if not cache_dir.exists():
-        return {"files": 0, "size_bytes": 0, "max_files": _MAX_DISK_FILES, "max_size_mb": _MAX_DISK_SIZE_MB}
+        return {
+            "files": 0,
+            "size_bytes": 0,
+            "max_files": _MAX_DISK_FILES,
+            "max_size_mb": _MAX_DISK_SIZE_MB,
+        }
 
     files = list(cache_dir.glob("*.pkl"))
     total_size = sum(f.stat().st_size for f in files)
@@ -258,7 +263,7 @@ def cached(
                 except Exception as e:
                     last_err = e
                     if attempt < retries - 1:
-                        delay = (2 ** attempt) + random.uniform(-0.5, 0.5)
+                        delay = (2**attempt) + random.uniform(-0.5, 0.5)
                         delay = max(0.1, delay)
                         logger.debug(
                             "Retry {}/{} for {} after {:.1f}s: {}",
