@@ -198,6 +198,8 @@ def pull_from_ths(from_group: str, to_group: str, *, replace: bool = False) -> S
         to_group: Longport group name (target). Created if not exists.
         replace: If True, clear target group first then add all.
     """
+    from longport.openapi import SecuritiesUpdateMode
+
     from stk.errors import SourceError
     from stk.services.ths_wrapper import get_ths_group
     from stk.services.watchlist import add_symbols, create_group, get_watchlist, remove_symbols
@@ -221,6 +223,28 @@ def pull_from_ths(from_group: str, to_group: str, *, replace: bool = False) -> S
         except Exception as e:
             raise SourceError(f"创建长桥分组 '{to_group}' 失败: {e}") from e
 
+    # --replace: use a single Replace-mode API call (clear + set in one shot).
+    # This avoids the intersection bug where stocks present in both groups
+    # get added then immediately removed by the two-step diff approach.
+    if replace:
+        try:
+            add_symbols(to_group, sorted(ths_set), mode=SecuritiesUpdateMode.Replace)
+        except Exception as e:
+            errors.append(f"替代失败: {e}")
+        return SyncResult(
+            action="pull",
+            diff=SyncDiff(
+                from_group=from_group,
+                to_group=to_group,
+                to_add=[SyncItem(symbol=s, action="add") for s in sorted(ths_set)],
+                to_remove=[],
+                unchanged=0,
+            ),
+            added=len(ths_set),
+            removed=0,
+            errors=errors,
+        )
+
     # Get Longport group securities
     try:
         watchlist = get_watchlist(to_group)
@@ -239,11 +263,6 @@ def pull_from_ths(from_group: str, to_group: str, *, replace: bool = False) -> S
         to_remove=[SyncItem(symbol=s, action="remove") for s in sorted(to_remove)],
         unchanged=unchanged,
     )
-
-    if replace:
-        diff.to_remove = [SyncItem(symbol=s, action="remove") for s in sorted(lp_set)]
-        diff.to_add = [SyncItem(symbol=s, action="add") for s in sorted(ths_set)]
-        diff.unchanged = 0
 
     added = 0
     removed = 0
