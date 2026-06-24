@@ -1,5 +1,11 @@
 # 输出结构详解
 
+**何时读取**：当你需要理解 `stk stock scan`、`stk watchlist scan`、`stk stock scan-live`、`stk watchlist scan-live` 返回结果中各字段的含义、类型和结构时读取此文件。
+
+**关联文件**：字段的**取值含义**（如 `overall_bias` 的 `supportive`/`mixed`/`risky`/`conflicting` 分别代表什么、各信号如何解读）见 `references/signal-strategy.md`。本文仅描述字段结构和数据位置。
+
+---
+
 ## MonitorResult（`stk stock scan` / `stk watchlist scan`）
 
 顶层结构：
