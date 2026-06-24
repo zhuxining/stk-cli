@@ -62,6 +62,11 @@ def list_ths_groups() -> list[ThsGroup]:
 
     with get_ths_portfolio() as pm:
         groups = pm.get_all_groups(include_self_stocks=True)
+        # Self-stock from get_all_groups may be stale (uses refresh=False);
+        # force-refresh so count is accurate.
+        if _ths_config.SELF_STOCK_DEFAULT_NAME in groups:
+            fresh = pm.get_self_stocks(refresh=True)
+            groups[fresh.name] = fresh
         result = []
         for name, g in groups.items():
             result.append(
@@ -81,13 +86,21 @@ def get_ths_group(name: str) -> dict[str, object]:
 
     Returns dict with keys: 'name', 'group_id', 'items', 'readonly'.
     Each item is a StockItem (code, market) from ths-favorite.
+
+    Note: when name is the self-stock group ("我的自选"), get_all_groups
+    internally calls get_self_stocks(refresh=False) which uses a stale
+    in-memory cache. We force-refresh it here to get the real list.
     """
 
     with get_ths_portfolio() as pm:
-        groups = pm.get_all_groups(include_self_stocks=True)
-        if name not in groups:
-            raise SourceError(f"同花顺分组 '{name}' 不存在")
-        g = groups[name]
+        # Self-stock ("我的自选") needs explicit refresh=True — see above.
+        if name == _ths_config.SELF_STOCK_DEFAULT_NAME:
+            g = pm.get_self_stocks(refresh=True)
+        else:
+            groups = pm.get_all_groups(include_self_stocks=True)
+            if name not in groups:
+                raise SourceError(f"同花顺分组 '{name}' 不存在")
+            g = groups[name]
         return {
             "name": g.name,
             "group_id": g.group_id,
