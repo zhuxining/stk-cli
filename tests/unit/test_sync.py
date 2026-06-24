@@ -1,15 +1,8 @@
-"""Regression tests for cross-platform watchlist sync.
-
-Guards against the bug where pull/push cleared the target group but failed to
-sync THS content: THS returns CYB/SHETF/SZETF market abbrs, but the converter
-only handled CY/KC, so 创业板/ETF symbols round-tripped to invalid longport
-symbols. Combined with remove-before-add, this silently wiped groups.
-"""
+"""Regression tests for cross-platform watchlist sync."""
 
 import sys
 from types import SimpleNamespace
 
-from stk.models.watchlist import Watchlist, WatchlistSecurity
 from stk.services import sync as sync_mod
 
 
@@ -17,20 +10,10 @@ def _ths_item(code: str, market: str) -> SimpleNamespace:
     return SimpleNamespace(code=code, market=market)
 
 
-def _watchlist(name: str, symbols: list[str]) -> Watchlist:
-    return Watchlist(
-        id=1,
-        name=name,
-        securities=[WatchlistSecurity(symbol=s) for s in symbols],
-    )
-
-
 def _install_mocks(
     monkeypatch,
     *,
     ths_items: list[SimpleNamespace],
-    lp_symbols: list[str],
-    lp_exists: bool = True,
     add_raises: Exception | None = None,
 ) -> dict:
     """Install fakes for ths_wrapper + watchlist used by pull_from_ths.
@@ -48,18 +31,10 @@ def _install_mocks(
             "readonly": False,
         }
 
-    def fake_get_watchlist(name):
-        if not lp_exists:
-            raise RuntimeError("not found")
-        return _watchlist(name, lp_symbols)
-
     def fake_add_symbols(name, symbols, mode=None):
         if add_raises:
             raise add_raises
         calls["added"].extend(symbols)
-
-    def fake_remove_symbols(name, symbols):
-        calls["removed"].extend(symbols)
 
     monkeypatch.setitem(
         sys.modules,
@@ -69,36 +44,28 @@ def _install_mocks(
     monkeypatch.setitem(
         sys.modules,
         "stk.services.watchlist",
-        SimpleNamespace(
-            get_watchlist=fake_get_watchlist,
-            create_group=lambda name: _watchlist(name, []),
-            add_symbols=fake_add_symbols,
-            remove_symbols=fake_remove_symbols,
-        ),
+        SimpleNamespace(add_symbols=fake_add_symbols),
     )
     return calls
 
 
-def test_pull_cyb_round_trips_no_spurious_remove(monkeypatch):
-    """创业板 stock already present on both sides must be unchanged.
+def test_pull_merge_adds_all_no_remove(monkeypatch):
+    """Merge mode adds all THS stocks, never removes — even if LP already has them.
 
-    Before fix: THS returns 300001.CYB, longport has 300001.SZ; converter failed
-    to map CYB→SZ, so the same stock was both removed (as 300001.SZ) and added
-    (as the invalid 300001.CYB). The remove succeeded, the add failed → group
-    wiped. Now CYB maps back to .SZ and the diff is empty.
+    THS returns 300001.CYB + 600519.SH; LP already has 300001.SZ + 600519.SH.
+    Merge mode skips diff computation and adds all THS symbols directly
+    (underlying API handles duplicates gracefully). No removes ever issued.
     """
     calls = _install_mocks(
         monkeypatch,
         ths_items=[_ths_item("300001", "CYB"), _ths_item("600519", "SH")],
-        lp_symbols=["300001.SZ", "600519.SH"],
     )
 
     result = sync_mod.pull_from_ths("ths_group", "lp_group")
 
-    assert result.added == 0
+    assert result.added == 2
     assert result.removed == 0
-    assert result.diff.unchanged == 2
-    assert calls["added"] == []
+    assert calls["added"] == ["300001.SZ", "600519.SH"]
     assert calls["removed"] == []
 
 
@@ -107,7 +74,6 @@ def test_pull_adds_cyb_stock_with_correct_symbol(monkeypatch):
     calls = _install_mocks(
         monkeypatch,
         ths_items=[_ths_item("300001", "CYB"), _ths_item("510300", "SHETF")],
-        lp_symbols=[],
     )
 
     result = sync_mod.pull_from_ths("ths_group", "lp_group")
@@ -126,7 +92,6 @@ def test_pull_drops_unsupported_ths_assets(monkeypatch):
             _ths_item("000001", "ZS"),  # 上证指数
             _ths_item("000012", "ZQ"),  # 债券
         ],
-        lp_symbols=[],
     )
 
     result = sync_mod.pull_from_ths("ths_group", "lp_group")
@@ -144,16 +109,14 @@ def test_pull_replace_mode_uses_atomic_replace(monkeypatch):
     calls = _install_mocks(
         monkeypatch,
         ths_items=[_ths_item("300001", "CYB"), _ths_item("600519", "SH")],
-        lp_symbols=["300001.SZ", "000001.SZ"],  # 300001 in both groups
     )
 
     def capturing_add(name, symbols, mode=None):
         calls["mode"] = mode
         calls["added"].extend(symbols)
 
-    import stk.services.watchlist as wl_mod
-
-    monkeypatch.setattr(wl_mod, "add_symbols", capturing_add)
+    # pull_from_ths lazily imports from sys.modules (mocked by _install_mocks)
+    monkeypatch.setattr(sys.modules["stk.services.watchlist"], "add_symbols", capturing_add)
     result = sync_mod.pull_from_ths("ths_group", "lp_group", replace=True)
 
     assert result.added == 2
@@ -170,7 +133,6 @@ def test_pull_surfaces_add_failure(monkeypatch):
     _install_mocks(
         monkeypatch,
         ths_items=[_ths_item("300001", "CYB")],
-        lp_symbols=["600519.SH"],
         add_raises=RuntimeError("boom"),
     )
 

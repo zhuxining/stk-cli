@@ -99,10 +99,13 @@ def compute_diff(from_group: str, to_group: str) -> SyncDiff:
 def push_to_ths(from_group: str, to_group: str, *, replace: bool = False) -> SyncResult:
     """Push a longport watchlist group to a THS group.
 
+    Default (merge): adds all LP stocks to THS, never removes.
+    --replace: removes stale THS items then adds all LP stocks.
+
     Args:
         from_group: Longport group name.
         to_group: THS group name. Created if not exists.
-        replace: If True, clear target group first then add all.
+        replace: If True, remove stale THS items before adding all LP stocks.
     """
     from stk.errors import SourceError
     from stk.services.ths_wrapper import (
@@ -111,63 +114,69 @@ def push_to_ths(from_group: str, to_group: str, *, replace: bool = False) -> Syn
         get_ths_group,
         remove_ths_stocks,
     )
+    from stk.services.watchlist import get_watchlist
 
     errors: list[str] = []
 
-    # Ensure target group exists
+    # 1. Fetch LP source and convert to THS format
+    watchlist = get_watchlist(from_group)
+    lp_symbols = [s.symbol for s in watchlist.securities]
+    ths_symbols = sorted(_normalize_longport_symbols(lp_symbols))
+
+    if not ths_symbols:
+        return SyncResult(
+            action="push",
+            diff=SyncDiff(from_group=from_group, to_group=to_group),
+        )
+
+    # 2. Ensure THS target exists and fetch for diff / stale computation
     try:
-        get_ths_group(to_group)
+        ths_group_data = get_ths_group(to_group)
+        if ths_group_data.get("readonly"):
+            logger.warning(f"同花顺分组 '{to_group}' 是动态板块（只读），不能写入")
+        ths_set = _build_ths_set(ths_group_data)
     except SourceError:
         logger.info(f"同花顺分组 '{to_group}' 不存在，自动创建")
-        try:
-            create_ths_group(to_group)
-        except Exception as e:
-            raise SourceError(f"创建同花顺分组 '{to_group}' 失败: {e}") from e
+        create_ths_group(to_group)
+        ths_set: set[str] = set()
 
-    diff = compute_diff(from_group, to_group)
+    all_lp_set = set(ths_symbols)
+
+    # 3. Compute diff: add all LP stocks, remove stale only in replace mode
+    to_add = [SyncItem(symbol=s, action="add", ths_symbol=s) for s in ths_symbols]
+    to_remove: list[SyncItem] = []
+    unchanged = len(ths_set & all_lp_set)
 
     if replace:
-        # Replace mode for THS: we remove stale items (in THS, not in LP) and
-        # add all LP items.  This avoids the intersection bug that occurs when
-        # removing ALL_ths (items present in both groups get wiped).
-        # THS API lacks atomic Replace, so two-step is necessary.
-        all_ths = _build_ths_set(get_ths_group(to_group))
-        from stk.services.watchlist import get_watchlist
-
-        watchlist = get_watchlist(from_group)
-        all_lp = _normalize_longport_symbols([s.symbol for s in watchlist.securities])
-
-        diff.to_remove = [
-            SyncItem(symbol=t, action="remove", ths_symbol=t)
-            for t in sorted(all_ths - all_lp)  # only truly stale THS items
+        to_remove = [
+            SyncItem(symbol=t, action="remove", ths_symbol=t) for t in sorted(ths_set - all_lp_set)
         ]
-        diff.to_add = [SyncItem(symbol=t, action="add", ths_symbol=t) for t in sorted(all_lp)]
-        diff.unchanged = len(all_ths & all_lp)
 
+    # 4. Execute add (always) then remove (replace only)
     added = 0
     removed = 0
 
-    # Add before remove: if add fails (e.g. invalid symbol), we don't lose data
-    # that was already correctly in the target group.
-    # For --replace on THS this is safe: to_remove excludes items also in all_lp,
-    # so the intersection survives.
-    if diff.to_add:
-        try:
-            symbols = [item.ths_symbol for item in diff.to_add]
-            added = add_ths_stocks(to_group, symbols)
-        except Exception as e:
-            errors.append(f"添加失败: {e}")
+    try:
+        added = add_ths_stocks(to_group, ths_symbols)
+    except Exception as e:
+        errors.append(f"添加失败: {e}")
 
-    if diff.to_remove:
+    if to_remove:
         try:
-            symbols = [item.ths_symbol for item in diff.to_remove]
+            symbols = [item.ths_symbol for item in to_remove]
             removed = remove_ths_stocks(to_group, symbols)
         except Exception as e:
             errors.append(f"删除失败: {e}")
 
     return SyncResult(
         action="push",
-        diff=diff,
+        diff=SyncDiff(
+            from_group=from_group,
+            to_group=to_group,
+            to_add=to_add,
+            to_remove=to_remove,
+            unchanged=unchanged,
+        ),
         added=added,
         removed=removed,
         errors=errors,
@@ -198,6 +207,9 @@ def _ths_group_to_lp_symbols(group_data: dict[str, Any]) -> list[str]:
 def pull_from_ths(from_group: str, to_group: str, *, replace: bool = False) -> SyncResult:
     """Pull a THS watchlist group into a Longport group.
 
+    Default (merge): adds all THS stocks to LP group, never removes.
+    --replace: uses atomic Replace API to fully replace the LP group.
+
     Args:
         from_group: THS group name (source).
         to_group: Longport group name (target). Created if not exists.
@@ -205,45 +217,38 @@ def pull_from_ths(from_group: str, to_group: str, *, replace: bool = False) -> S
     """
     from longport.openapi import SecuritiesUpdateMode
 
-    from stk.errors import SourceError
     from stk.services.ths_wrapper import get_ths_group
-    from stk.services.watchlist import add_symbols, create_group, get_watchlist, remove_symbols
+    from stk.services.watchlist import add_symbols
 
     errors: list[str] = []
 
-    # Get THS group stocks
+    # 1. Get THS source stocks, convert to LP format
     ths_group = get_ths_group(from_group)
     if ths_group["readonly"]:
         logger.warning(f"同花顺分组 '{from_group}' 是动态板块，不支持拉取")
     ths_lp_symbols = _ths_group_to_lp_symbols(ths_group)
-    ths_set = set(ths_lp_symbols)
+    ths_set = sorted(ths_lp_symbols)
 
-    # Ensure target Longport group exists
-    try:
-        get_watchlist(to_group)
-    except Exception:
-        logger.info(f"长桥分组 '{to_group}' 不存在，自动创建")
-        try:
-            create_group(to_group)
-        except Exception as e:
-            raise SourceError(f"创建长桥分组 '{to_group}' 失败: {e}") from e
+    if not ths_set:
+        return SyncResult(
+            action="pull",
+            diff=SyncDiff(from_group=from_group, to_group=to_group),
+        )
 
-    # --replace: use a single Replace-mode API call (clear + set in one shot).
-    # This avoids the intersection bug where stocks present in both groups
-    # get added then immediately removed by the two-step diff approach.
+    # 2. --replace: atomic Replace API (single call, no remove needed)
     if replace:
         added = 0
         try:
-            add_symbols(to_group, sorted(ths_set), mode=SecuritiesUpdateMode.Replace)
+            add_symbols(to_group, ths_set, mode=SecuritiesUpdateMode.Replace)
             added = len(ths_set)
         except Exception as e:
-            errors.append(f"替代失败: {e}")
+            errors.append(f"替换失败: {e}")
         return SyncResult(
             action="pull",
             diff=SyncDiff(
                 from_group=from_group,
                 to_group=to_group,
-                to_add=[SyncItem(symbol=s, action="add") for s in sorted(ths_set)],
+                to_add=[SyncItem(symbol=s, action="add") for s in ths_set],
                 to_remove=[],
                 unchanged=0,
             ),
@@ -252,50 +257,25 @@ def pull_from_ths(from_group: str, to_group: str, *, replace: bool = False) -> S
             errors=errors,
         )
 
-    # Get Longport group securities
-    try:
-        watchlist = get_watchlist(to_group)
-    except Exception as e:
-        raise SourceError(f"获取长桥分组 '{to_group}' 失败: {e}") from e
-    lp_set = {s.symbol for s in watchlist.securities}
-
-    to_add = ths_set - lp_set
-    to_remove = lp_set - ths_set
-    unchanged = len(ths_set & lp_set)
-
-    diff = SyncDiff(
-        from_group=from_group,
-        to_group=to_group,
-        to_add=[SyncItem(symbol=s, action="add") for s in sorted(to_add)],
-        to_remove=[SyncItem(symbol=s, action="remove") for s in sorted(to_remove)],
-        unchanged=unchanged,
-    )
-
+    # 3. Merge mode (default): add all THS stocks, never remove.
+    # add_symbols handles group creation internally; LP Add mode is idempotent.
     added = 0
-    removed = 0
-
-    # Add before remove: if add fails (e.g. invalid symbol), we don't lose data
-    # that was already correctly in the target group.
-    if diff.to_add:
-        try:
-            symbols = [item.symbol for item in diff.to_add]
-            add_symbols(to_group, symbols)
-            added = len(symbols)
-        except Exception as e:
-            errors.append(f"添加失败: {e}")
-
-    if diff.to_remove:
-        try:
-            symbols = [item.symbol for item in diff.to_remove]
-            remove_symbols(to_group, symbols)
-            removed = len(symbols)
-        except Exception as e:
-            errors.append(f"删除失败: {e}")
+    try:
+        add_symbols(to_group, ths_set, mode=SecuritiesUpdateMode.Add)
+        added = len(ths_set)
+    except Exception as e:
+        errors.append(f"添加失败: {e}")
 
     return SyncResult(
         action="pull",
-        diff=diff,
+        diff=SyncDiff(
+            from_group=from_group,
+            to_group=to_group,
+            to_add=[SyncItem(symbol=s, action="add") for s in ths_set],
+            to_remove=[],
+            unchanged=0,
+        ),
         added=added,
-        removed=removed,
+        removed=0,
         errors=errors,
     )

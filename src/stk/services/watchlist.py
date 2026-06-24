@@ -115,6 +115,13 @@ def add_symbols(name: str, symbols: list[str], mode: object = SecuritiesUpdateMo
     """
     gid = _get_group_id(name)
     if gid is None:
+        # Cache miss: force server refresh to handle external group creation.
+        # _fetch_groups has a 60s in-memory TTL that must be bypassed here.
+        global _groups_cache
+        _groups_cache = None
+        _fetch_groups()
+        gid = _get_group_id(name)
+    if gid is None:
         create_group(name, symbols=symbols)
         return
     ctx = get_longport_ctx()

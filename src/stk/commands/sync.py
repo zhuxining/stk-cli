@@ -48,7 +48,7 @@ def ths_push(
     to_group: str = typer.Option(None, "--to", "-t", help="同花顺分组名（目标，默认与长桥同名）"),
     replace: bool = typer.Option(False, "--replace", "-r", help="全量覆盖（清空目标再写入）"),
 ) -> None:
-    """将长桥自选分组推送到同花顺（差异增删）。"""
+    """将长桥自选分组推送到同花顺（仅追加，不删除；--replace 全量覆盖）。"""
     from stk.services.sync import push_to_ths
 
     target = to_group or from_group
@@ -62,7 +62,7 @@ def ths_pull(
     to_group: str = typer.Option(None, "--to", "-t", help="长桥分组名（目标，默认与同花顺同名）"),
     replace: bool = typer.Option(False, "--replace", "-r", help="全量覆盖（清空目标再写入）"),
 ) -> None:
-    """将同花顺自选分组拉取到长桥（差异增删）。"""
+    """将同花顺自选分组拉取到长桥（仅追加，不删除；--replace 全量覆盖）。"""
     from stk.services.sync import pull_from_ths
 
     target = to_group or from_group

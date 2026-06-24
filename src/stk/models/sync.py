@@ -18,9 +18,9 @@ class SyncDiff(BaseModel):
     """Difference between source and target groups."""
 
     from_group: str
-    """Source group name (longport)."""
+    """Source group name (Longport for push/diff; THS for pull)."""
     to_group: str
-    """Target group name (THS)."""
+    """Target group name (THS for push/diff; Longport for pull)."""
     to_add: list[SyncItem] = []
     """Symbols to add to target."""
     to_remove: list[SyncItem] = []
@@ -33,7 +33,7 @@ class SyncResult(BaseModel):
     """Result of a sync operation."""
 
     action: str
-    """'push' or 'diff'."""
+    """'push', 'pull', or 'diff'."""
     diff: SyncDiff
     added: int = 0
     """Number of symbols successfully added."""
