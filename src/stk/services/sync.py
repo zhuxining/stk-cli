@@ -127,8 +127,10 @@ def push_to_ths(from_group: str, to_group: str, *, replace: bool = False) -> Syn
     diff = compute_diff(from_group, to_group)
 
     if replace:
-        # In replace mode: remove all existing, add all from source
-        # Override the diff
+        # Replace mode for THS: we remove stale items (in THS, not in LP) and
+        # add all LP items.  This avoids the intersection bug that occurs when
+        # removing ALL_ths (items present in both groups get wiped).
+        # THS API lacks atomic Replace, so two-step is necessary.
         all_ths = _build_ths_set(get_ths_group(to_group))
         from stk.services.watchlist import get_watchlist
 
@@ -136,16 +138,19 @@ def push_to_ths(from_group: str, to_group: str, *, replace: bool = False) -> Syn
         all_lp = _normalize_longport_symbols([s.symbol for s in watchlist.securities])
 
         diff.to_remove = [
-            SyncItem(symbol=t, action="remove", ths_symbol=t) for t in sorted(all_ths)
+            SyncItem(symbol=t, action="remove", ths_symbol=t)
+            for t in sorted(all_ths - all_lp)  # only truly stale THS items
         ]
         diff.to_add = [SyncItem(symbol=t, action="add", ths_symbol=t) for t in sorted(all_lp)]
-        diff.unchanged = 0
+        diff.unchanged = len(all_ths & all_lp)
 
     added = 0
     removed = 0
 
     # Add before remove: if add fails (e.g. invalid symbol), we don't lose data
     # that was already correctly in the target group.
+    # For --replace on THS this is safe: to_remove excludes items also in all_lp,
+    # so the intersection survives.
     if diff.to_add:
         try:
             symbols = [item.ths_symbol for item in diff.to_add]
@@ -227,8 +232,10 @@ def pull_from_ths(from_group: str, to_group: str, *, replace: bool = False) -> S
     # This avoids the intersection bug where stocks present in both groups
     # get added then immediately removed by the two-step diff approach.
     if replace:
+        added = 0
         try:
             add_symbols(to_group, sorted(ths_set), mode=SecuritiesUpdateMode.Replace)
+            added = len(ths_set)
         except Exception as e:
             errors.append(f"替代失败: {e}")
         return SyncResult(
@@ -240,7 +247,7 @@ def pull_from_ths(from_group: str, to_group: str, *, replace: bool = False) -> S
                 to_remove=[],
                 unchanged=0,
             ),
-            added=len(ths_set),
+            added=added,
             removed=0,
             errors=errors,
         )

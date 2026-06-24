@@ -124,6 +124,7 @@ def add_symbols(name: str, symbols: list[str], mode: object = SecuritiesUpdateMo
         securities=lp_symbols,
         mode=mode,
     )
+    _invalidate_groups()
 
 
 def remove_symbols(name: str, symbols: list[str]) -> None:
@@ -138,6 +139,7 @@ def remove_symbols(name: str, symbols: list[str]) -> None:
         securities=lp_symbols,
         mode=SecuritiesUpdateMode.Remove,
     )
+    _invalidate_groups()
 
 
 def delete_group(name: str) -> None:

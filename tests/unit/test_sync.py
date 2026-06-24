@@ -61,7 +61,6 @@ def _install_mocks(
     def fake_remove_symbols(name, symbols):
         calls["removed"].extend(symbols)
 
-    monkeypatch.setattr(sync_mod, "get_ths_group", fake_get_ths_group, raising=False)
     monkeypatch.setitem(
         sys.modules,
         "stk.services.ths_wrapper",
@@ -136,6 +135,30 @@ def test_pull_drops_unsupported_ths_assets(monkeypatch):
     assert calls["added"] == ["300001.SZ"]
     assert "000001.ZS" not in calls["added"]
     assert "000012.ZQ" not in calls["added"]
+
+
+def test_pull_replace_mode_uses_atomic_replace(monkeypatch):
+    """--replace avoids intersection wipe by using mode=Replace, not add+remove."""
+    from longport.openapi import SecuritiesUpdateMode
+
+    calls = _install_mocks(
+        monkeypatch,
+        ths_items=[_ths_item("300001", "CYB"), _ths_item("600519", "SH")],
+        lp_symbols=["300001.SZ", "000001.SZ"],  # 300001 in both groups
+    )
+
+    def capturing_add(name, symbols, mode=None):
+        calls["mode"] = mode
+        calls["added"].extend(symbols)
+
+    import stk.services.watchlist as wl_mod
+
+    monkeypatch.setattr(wl_mod, "add_symbols", capturing_add)
+    result = sync_mod.pull_from_ths("ths_group", "lp_group", replace=True)
+
+    assert result.added == 2
+    assert calls["mode"] is SecuritiesUpdateMode.Replace
+    assert calls["added"] == ["300001.SZ", "600519.SH"]
 
 
 def test_pull_surfaces_add_failure(monkeypatch):
