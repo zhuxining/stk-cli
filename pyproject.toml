@@ -5,7 +5,7 @@ description = "A Stock Query CLI built with Typer for Agents"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "typer>=0.25.1",
+    "typer>=0.26.8",
     "pydantic>=2.13.3",
     "pydantic-settings>=2.12.0",
     "loguru>=0.7.3",
@@ -22,8 +22,8 @@ dependencies = [
 ths-favorite = { git = "https://github.com/sunnysab/ths-favorite.git" }
 [dependency-groups]
 dev = [
-    "ty>=0.0.39",
-    "ruff>=0.15.14",
+    "ty>=0.0.55",
+    "ruff>=0.15.20",
     "pytest-asyncio>=1.4.0",
     "pytest>=9.0.2",
     "ipykernel>=7.2.0",
@@ -50,8 +50,6 @@ line-length = 100
 fix = true
 preview = true
 unsafe-fixes = true
-
-[tool.ruff.lint]
 select = [
     "E",    # pycodestyle errors
     "F",    # pyflakes
@@ -72,14 +70,13 @@ select = [
     "PD",   # pandas-specific
 ]
 ignore = [
-    "F401",   # module imported but unused (handled by pyflakes)
-    "B008",   # Typer calls in defaults (standard practice for Typer)
-    "RUF076", # autouse fixtures intentional (cache isolation)
+    "F401", # module imported but unused (handled by pyflakes)
+    "B008", # Typer calls in defaults (standard practice for Typer)
 ]
 allowed-confusables = ["，", "。", "：", "；", "！", "？", "（", "）", "“", "”"]
 unfixable = []
 
-[tool.ruff.lint.isort]
+[tool.ruff.isort]
 combine-as-imports = true
 force-sort-within-sections = true
 
