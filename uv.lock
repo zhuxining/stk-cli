@@ -1202,7 +1202,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.18.0" },
     { name = "ta-lib", specifier = ">=0.6.8" },
     { name = "ths-favorite", git = "https://github.com/sunnysab/ths-favorite.git" },
-    { name = "typer", specifier = ">=0.25.1" },
+    { name = "typer", specifier = ">=0.26.8" },
 ]
 
 [package.metadata.requires-dev]
@@ -1211,8 +1211,8 @@ dev = [
     { name = "ipywidgets", specifier = ">=8.1.7" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
-    { name = "ruff", specifier = ">=0.15.14" },
-    { name = "ty", specifier = ">=0.0.39" },
+    { name = "ruff", specifier = ">=0.15.20" },
+    { name = "ty", specifier = ">=0.0.55" },
 ]
 
 [[package]]
