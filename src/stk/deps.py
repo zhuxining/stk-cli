@@ -21,7 +21,7 @@ def get_longport_ctx():
 
     from longport.openapi import Config, Language, QuoteContext
 
-    config = Config(
+    config = Config.from_apikey(
         app_key=settings.longport_app_key,
         app_secret=settings.longport_app_secret,
         access_token=settings.longport_access_token,

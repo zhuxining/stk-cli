@@ -556,16 +556,16 @@ wheels = [
 
 [[package]]
 name = "longport"
-version = "3.0.23"
+version = "4.3.3"
 source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
 wheels = [
-    { url = "http://mirrors.aliyun.com/pypi/packages/1e/1d/46ce5bbd3aa3165ee8b1ae576d5826bb008aaaba9a68faec2b08218f3d95/longport-3.0.23-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:2f49539bb6a11ffee7f4aee40abe6e428c948ee7dc62c5f27ab56cd64bfab670" },
-    { url = "http://mirrors.aliyun.com/pypi/packages/aa/5d/664803d25119cef02e261ee50f7c86a3e5a64b4e58e67a68506ac5faca18/longport-3.0.23-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:c0595c50b751ac5d936dbec7b296c5d085cd02d161e5cc534debf2e95a4fe251" },
-    { url = "http://mirrors.aliyun.com/pypi/packages/d0/a8/2f7a92f5d8e2b91e0c12dcd53468307cac9804c56bdd3242cee6e240229d/longport-3.0.23-cp314-cp314-manylinux_2_39_aarch64.whl", hash = "sha256:a6deedd5e1f77eaabd262e8a1ec26396666d16cedaf97eb780ef8e3c266eec2f" },
-    { url = "http://mirrors.aliyun.com/pypi/packages/71/96/de4bedc87c603b9ed0e62822e2ccb50b72526b8aa27522cdf410ac84dc8b/longport-3.0.23-cp314-cp314-manylinux_2_39_x86_64.whl", hash = "sha256:28445eb0849f65ca517bec1af92f9208c08123b74d5bbc8f4a59f7960f81d745" },
-    { url = "http://mirrors.aliyun.com/pypi/packages/07/6e/9847a4f05b08df17c06ac6d0ffeb4079aafbdea87839a2c831da76302374/longport-3.0.23-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:a05ab58e2dc95924ba35ccf8254613a30c927bdd6735aeb17ae1ab23a4ec7e86" },
-    { url = "http://mirrors.aliyun.com/pypi/packages/25/63/cbb6571370ebd001d19b5f582ec194ae45870d4f7a342a5762d9abc63a86/longport-3.0.23-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:63b8b06854ddf6bb800b4340fa385688ce28418b86f3b44fecff6ae7bba26e3f" },
-    { url = "http://mirrors.aliyun.com/pypi/packages/95/da/ddde98d8c7d637c18a88f56a90ece2cffa8f5a7835bfa1c908d82a0cef73/longport-3.0.23-cp314-cp314-win_amd64.whl", hash = "sha256:8f2ce62d71fea45fbd76028ed5b1105bd5b796ed6ac3e12a89bccf8a74c54e3c" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/ec/50/76886bd980c4a4b6b171fff13634968541a4384887c49f688a1b2f57c290/longport-4.3.3-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:888b70c01da3b279d92093369e6f4fee8c3e50586309eb9c14868bd99032a3bd" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/01/76/29b08b8d95a5ce12994fa7ef92a494a48392c108259501b4f9e4f443842d/longport-4.3.3-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:32e7cc4891bc71479f2b7417cc6411748ac85558264287ba643d19255f5bf669" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/04/ee/2f7a267b55389b5eb0ba4ebdba120b385976f27d1cbdbac414e40ddf0788/longport-4.3.3-cp314-cp314-manylinux_2_39_aarch64.whl", hash = "sha256:4d509cf4f26e884b3fe4852c343ca2b3c019ac42a7a5047f50f14a014b21a041" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/b0/ba/274d57a819c5bcecd551c63c8d04d1f73783e48b3be23eba6b86c05b057c/longport-4.3.3-cp314-cp314-manylinux_2_39_x86_64.whl", hash = "sha256:6e7130fc6b4404a2ce83f86e8cc702bafa3eb42459af8e53c8330bba990a7eae" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/89/27/6242fe079bb7385f09e3ffdf43a5fba106d9c59854c97cfc2fd08aa23adf/longport-4.3.3-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:2be934215beb6d2458dbba420a155d5eba5bf1c02363bc4c9332f2927348fc62" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/9a/a5/b68f40c48c4b0a3b8ad0169a83ed8a91e0f84bcb46854f943dce417b2d3b/longport-4.3.3-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:524489c529192021590abcd8714cdef5a149c4a6845bece699621fd66b5eb32d" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/24/77/69ff5aaab88c50645f8177414b3f4e14a8f8e277ec91de7461e9492223e4/longport-4.3.3-cp314-cp314-win_amd64.whl", hash = "sha256:4554f6d9d6d51490f4251e144970888b0c1833b41da504500344eb715abd8046" },
 ]
 
 [[package]]
@@ -1195,7 +1195,7 @@ requires-dist = [
     { name = "akshare", specifier = ">=1.18.63" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "loguru", specifier = ">=0.7.3" },
-    { name = "longport", specifier = ">=3.0.23" },
+    { name = "longport", specifier = ">=4.3.3" },
     { name = "pandas", specifier = ">=3.0.1" },
     { name = "pydantic", specifier = ">=2.13.3" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
