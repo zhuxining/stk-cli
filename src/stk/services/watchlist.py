@@ -252,6 +252,7 @@ def hot_candidates(
     name: str,
     *,
     source: str = "rank",
+    limit: int = 0,
     do_scan: bool = False,
     strict: bool = False,
     replace: bool = False,
@@ -265,6 +266,7 @@ def hot_candidates(
     Args:
         name: Destination watchlist group name.
         source: "rank" (热门排名) or "up" (热度上升).
+        limit: Max top-N hot stocks to take (0 = no limit).
         do_scan: If True, scan and filter signals.
         strict: If True, apply stricter filters (requires --scan).
         replace: Replace destination instead of appending.
@@ -283,7 +285,11 @@ def hot_candidates(
     if not hot_result.items:
         return WorkflowResult(action="hot", candidates_found=0)
 
-    symbols = [item.symbol for item in hot_result.items]
+    items = hot_result.items
+    if limit > 0:
+        items = items[:limit]
+
+    symbols = [item.symbol for item in items]
 
     if not do_scan:
         mode = SecuritiesUpdateMode.Replace if replace else SecuritiesUpdateMode.Add

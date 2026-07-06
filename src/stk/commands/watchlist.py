@@ -170,6 +170,13 @@ def hot(
         "-s",
         help="Data source: rank (热门排名) / up (热度上升)",
     ),
+    limit: int = typer.Option(
+        0,
+        "--limit",
+        "-n",
+        min=0,
+        help="Max top-N hot stocks to take (0 = no limit)",
+    ),
     scan: bool = typer.Option(
         False,
         "--scan",
@@ -190,7 +197,9 @@ def hot(
     """Fetch hot stocks from EastMoney, scan, and add recommended ones to a group."""
     from stk.services.watchlist import hot_candidates
 
-    result = hot_candidates(name, source=source, do_scan=scan, strict=strict, replace=replace)
+    result = hot_candidates(
+        name, source=source, limit=limit, do_scan=scan, strict=strict, replace=replace
+    )
     output.render(result)
 
 
