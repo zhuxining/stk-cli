@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import cast
 from zoneinfo import ZoneInfo
 
 from loguru import logger
@@ -123,21 +124,21 @@ def _round(value: float | None, digits: int = 4) -> float | None:
 
 def _metric_series(df: pd.DataFrame) -> pd.Series:
     if "turnover" in df.columns and df["turnover"].fillna(0).sum() > 0:
-        return df["turnover"].astype(float)
-    return df["volume"].astype(float)
+        return cast(pd.Series, df["turnover"].astype(float))
+    return cast(pd.Series, df["volume"].astype(float))
 
 
 def _vwap(df: pd.DataFrame) -> float | None:
     if df.empty:
         return None
-    volume = df["volume"].astype(float)
+    volume = cast(pd.Series, df["volume"].astype(float))
     total_volume = float(volume.sum())
     if total_volume <= 0:
         return None
     turnover = df.get("turnover")
     if turnover is not None and turnover.fillna(0).sum() > 0:
-        return round(float(turnover.astype(float).sum()) / total_volume, 4)
-    close = df["close"].astype(float)
+        return round(float(cast(pd.Series, turnover.astype(float)).sum()) / total_volume, 4)
+    close = cast(pd.Series, df["close"].astype(float))
     return round(float((close * volume).sum()) / total_volume, 4)
 
 
@@ -152,7 +153,7 @@ def _volume_ratio(df: pd.DataFrame) -> float | None:
     if len(df) < 6:
         return None
     values = _metric_series(df)
-    current = float(values.iloc[-1])
+    current = float(cast(float, values.iloc[-1]))
     previous = values.iloc[max(0, len(values) - 21) : -1]
     average = float(previous.mean()) if not previous.empty else 0
     if average <= 0:
@@ -165,7 +166,9 @@ def _open_range(session_df: pd.DataFrame, timeframe: str) -> tuple[float | None,
         return None, None
     bars = max(1, 30 // _timeframe_minutes(timeframe))
     window = session_df.head(bars)
-    return round(float(window["low"].min()), 4), round(float(window["high"].max()), 4)
+    low_min = cast(float, window["low"].min())
+    high_max = cast(float, window["high"].max())
+    return round(float(low_min), 4), round(float(high_max), 4)
 
 
 def _build_metrics(df: pd.DataFrame, symbol: str, timeframe: str) -> _LiveMetrics:

@@ -2,6 +2,7 @@
 
 import contextlib
 import time
+from typing import Any
 
 from longport.openapi import SecuritiesUpdateMode, WatchlistGroup
 
@@ -105,7 +106,7 @@ def create_group(name: str, symbols: list[str] | None = None) -> Watchlist:
     return Watchlist(id=group_id, name=name, securities=[])
 
 
-def add_symbols(name: str, symbols: list[str], mode: object = SecuritiesUpdateMode.Add) -> None:
+def add_symbols(name: str, symbols: list[str], mode: Any = SecuritiesUpdateMode.Add) -> None:
     """Add/replace symbols in a watchlist group (batch).
 
     Args:

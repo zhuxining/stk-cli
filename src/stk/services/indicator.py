@@ -2,6 +2,7 @@
 
 import collections.abc
 import operator
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -17,7 +18,8 @@ _EMA_PERIODS = (5, 9, 10, 20, 26, 60)
 
 def _calc_ema(df: pd.DataFrame, params: dict) -> list[dict]:
     periods = params.get("periods", _EMA_PERIODS)
-    emas = {p: talib.EMA(df["close"], timeperiod=p) for p in periods}
+    close = cast(np.ndarray, df["close"])
+    emas = {p: talib.EMA(close, timeperiod=p) for p in periods}
     rows: list[dict] = []
     for i, d in enumerate(df["date"]):
         row: dict = {"date": d}
@@ -33,7 +35,7 @@ def _calc_macd(df: pd.DataFrame, params: dict) -> list[dict]:
     slow = params.get("slowperiod", 26)
     signal = params.get("signalperiod", 9)
     macd, macd_signal, macd_hist = talib.MACD(
-        df["close"], fastperiod=fast, slowperiod=slow, signalperiod=signal
+        cast(np.ndarray, df["close"]), fastperiod=fast, slowperiod=slow, signalperiod=signal
     )
     return [
         {
@@ -48,7 +50,7 @@ def _calc_macd(df: pd.DataFrame, params: dict) -> list[dict]:
 
 def _calc_rsi(df: pd.DataFrame, params: dict) -> list[dict]:
     period = params.get("timeperiod", 14)
-    result = talib.RSI(df["close"], timeperiod=period)
+    result = talib.RSI(cast(np.ndarray, df["close"]), timeperiod=period)
     return [
         {"date": d, "RSI": None if np.isnan(v) else round(v, 4)}
         for d, v in zip(df["date"], result, strict=False)
@@ -60,9 +62,9 @@ def _calc_kdj(df: pd.DataFrame, params: dict) -> list[dict]:
     slowk_period = params.get("slowk_period", 3)
     slowd_period = params.get("slowd_period", 3)
     k, d = talib.STOCH(
-        df["high"],
-        df["low"],
-        df["close"],
+        cast(np.ndarray, df["high"]),
+        cast(np.ndarray, df["low"]),
+        cast(np.ndarray, df["close"]),
         fastk_period=fastk_period,
         slowk_period=slowk_period,
         slowd_period=slowd_period,
@@ -84,7 +86,7 @@ def _calc_boll(df: pd.DataFrame, params: dict) -> list[dict]:
     period = params.get("timeperiod", 20)
     nbdev = params.get("nbdevup", 2)
     upper, middle, lower = talib.BBANDS(
-        df["close"], timeperiod=period, nbdevup=nbdev, nbdevdn=nbdev
+        cast(np.ndarray, df["close"]), timeperiod=period, nbdevup=nbdev, nbdevdn=nbdev
     )
     return [
         {
@@ -99,7 +101,12 @@ def _calc_boll(df: pd.DataFrame, params: dict) -> list[dict]:
 
 def _calc_atr(df: pd.DataFrame, params: dict) -> list[dict]:
     period = params.get("timeperiod", 14)
-    result = talib.ATR(df["high"], df["low"], df["close"], timeperiod=period)
+    result = talib.ATR(
+        cast(np.ndarray, df["high"]),
+        cast(np.ndarray, df["low"]),
+        cast(np.ndarray, df["close"]),
+        timeperiod=period,
+    )
     return [
         {"date": d, f"ATR{period}": None if np.isnan(v) else round(v, 4)}
         for d, v in zip(df["date"], result, strict=False)

@@ -1,6 +1,7 @@
 """Historical candlestick data service via longport."""
 
 from decimal import Decimal
+from typing import Any
 
 import pandas as pd
 
@@ -21,10 +22,10 @@ def candles_to_df(candles: list) -> pd.DataFrame:
     return df
 
 
-_PERIOD_MAP: dict[str, object] = {}
+_PERIOD_MAP: dict[str, Any] = {}
 
 
-def _get_period(period: str):
+def _get_period(period: str) -> Any:
     """Lazy-load longport Period enum and map string to enum value."""
     if not _PERIOD_MAP:
         from longport.openapi import Period
