@@ -11,7 +11,7 @@ dependencies = [
     "loguru>=0.7.3",
     "longport>=4.3.3",
     "akshare>=1.18.63",
-    "ta-lib>=0.6.8",
+    "ta-lib>=0.7.0",
     "pandas>=3.0.1",
     "httpx>=0.28.1",
     "scipy>=1.18.0",
@@ -22,7 +22,7 @@ dependencies = [
 ths-favorite = { git = "https://github.com/sunnysab/ths-favorite.git" }
 [dependency-groups]
 dev = [
-    "ty>=0.0.55",
+    "ty>=0.0.56",
     "ruff>=0.15.20",
     "pytest-asyncio>=1.4.0",
     "pytest>=9.0.2",
@@ -46,10 +46,13 @@ module-name = "stk"
 
 # Ruff
 [tool.ruff]
+include = ["pyproject.toml", "src/**/*.py", "scripts/**/*.py"]
 line-length = 100
 fix = true
 preview = true
 unsafe-fixes = true
+
+[tool.ruff.lint]
 select = [
     "E",    # pycodestyle errors
     "F",    # pyflakes
@@ -74,11 +77,15 @@ ignore = [
     "B008", # Typer calls in defaults (standard practice for Typer)
 ]
 allowed-confusables = ["，", "。", "：", "；", "！", "？", "（", "）", "“", "”"]
+fixable = ["ALL"]
 unfixable = []
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 combine-as-imports = true
 force-sort-within-sections = true
+
+[tool.ty.src]
+include = ["src"]
 
 # Pytest
 [tool.pytest.ini_options]

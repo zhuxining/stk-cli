@@ -3,6 +3,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -39,8 +40,8 @@ _EMA_60 = 60
 _EMA5 = 5
 _EMA10 = 10
 _EMA20 = 20
-_RESONANCE_WINDOW = 3
-_BEAR_RESONANCE_WINDOW = 5  # 空方更宽，便于尽早发现退出信号
+_RESONANCE_WINDOW = 2
+_BEAR_RESONANCE_WINDOW = 2
 _MIN_HISTORY = 30
 _MIN_ENTRY_RISK_REWARD = 1.2
 _STRONG_RISK_REWARD = 1.8
@@ -941,10 +942,10 @@ def _build_context(
 
     Aggregated via _overall_bias into: supportive / mixed / conflicting / risky.
     """
-    close = df["close"]
-    high = df["high"]
-    low = df["low"]
-    volume = df["volume"]
+    close = cast(pd.Series, df["close"])
+    high = cast(pd.Series, df["high"])
+    low = cast(pd.Series, df["low"])
+    volume = cast(pd.Series, df["volume"])
 
     macd_factor, macd_hist = _calc_macd_factor(close_arr, direction=direction)
     boll_factor, warnings = _calc_boll_factor(
