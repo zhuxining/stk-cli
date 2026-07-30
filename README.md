@@ -4,21 +4,23 @@
 
 核心能力：
 
-- 从 Longport 请求日/周/月 K 线，并用 ta-lib 与 stockstats 计算技术指标。
-- 管理 Longport 自选分组。
-- 在 Longport 与同花顺之间同步分组。
-- 扫描 Longport 分组的已确认日线信号，并按 entry/exit 信号分流。
+- 从 Longport 请求日、周、月 K 线并计算技术指标。
+- 管理 Longport 分组，并与同花顺分组双向同步。
+- 扫描 Longport 分组的已确认日线，生成当前买入与卖出信号快照。
 
-所有命令向 stdout 输出统一 JSON envelope，日志写入 stderr。
+所有命令向 stdout 输出统一 JSON envelope，日志写入 stderr。本项目只提供数据和信号，
+不生成交易订单或仓位建议。
 
 ## 安装
+
+项目要求 Python 3.14，并使用 uv 管理依赖：
 
 ```bash
 uv sync
 uv run stk --help
 ```
 
-项目使用 Python 3.14。完整检查：
+开发检查：
 
 ```bash
 make check
@@ -38,78 +40,36 @@ THS_USERNAME=手机号
 THS_PASSWORD=密码
 ```
 
-## 命令结构
+## 常用工作流
 
-```text
-stk
-├── data
-│   └── kline
-├── group
-│   ├── longport
-│   │   └── list / show / create / add / remove / delete
-│   ├── ths
-│   │   └── list
-│   ├── sync
-│   │   └── diff / push / pull
-│   └── route
-└── scan
-```
-
-### K 线与指标
+请求 K 线与指标：
 
 ```bash
 stk data kline 600519
 stk data kline 600519,000001 700.HK --period week --count 60
 ```
 
-每根 K 线合并返回 OHLCV、EMA、MACD、RSI、WR、KDJ、BOLL、ATR 和 Supertrend。
-其中 KDJ、WR、ATR 与 Supertrend 由 stockstats 计算，其余技术指标继续使用 ta-lib。
-
-### Longport 分组
+管理和同步分组：
 
 ```bash
 stk group longport list
 stk group longport show 核心池
-stk group longport create 核心池 --symbol 600519 --symbol 000001
-stk group longport add 核心池 700.HK AAPL.US
-stk group longport remove 核心池 000001
-stk group longport delete 核心池
-```
-
-### 同花顺分组与同步
-
-```bash
 stk group ths list
-
 stk group sync diff 长桥组 同花顺组
 stk group sync push 长桥组 同花顺组
-stk group sync push 长桥组 同花顺组 --replace
-stk group sync pull 同花顺组 长桥组
 stk group sync pull 同花顺组 长桥组 --replace
 ```
 
-目标分组名可省略，默认与源分组同名。默认同步为追加；`--replace` 使目标与源一致。
-
-### 分组信号扫描
+扫描并更新每日信号分组：
 
 ```bash
 stk scan 核心池
 stk scan 核心池 --daily10
-stk scan 核心池 --full-context
+stk group route 核心池 买入信号 卖出信号
 ```
 
-扫描仅使用已确认日线。输出包含信号决策、主趋势、辅助因子、ATR 风控和单标的错误。
-
-### 信号分流
-
-```bash
-stk group route 核心池 买入观察 卖出预警
-stk group route 核心池 买入观察 卖出预警 --replace
-```
-
-- `趋势买入`、`超卖修复` → entry 目标组。
-- `趋势退出` → exit 目标组。
-- 默认追加；`--replace` 会让两个目标组与本次扫描结果一致。
+`scan` 只使用已确认日线。`route` 默认完整刷新买入和卖出两个 Longport 快照组；
+任一标的扫描失败时不会覆盖已有快照。
 
 ## Symbol
 
@@ -117,6 +77,12 @@ stk group route 核心池 买入观察 卖出预警 --replace
 - `000001` → `000001.SZ`
 - `800001` → `800001.BJ`
 - 港股使用 `700.HK`
-- 美股可使用 `AAPL.US`
+- 美股使用 `AAPL.US`
 
 所有命令支持全局 `--no-cache`，用于单次跳过缓存。
+
+## 进一步阅读
+
+- [架构设计](docs/design/architecture.md)
+- [信号规则](docs/design/signal-strategy.md)
+- [Agent CLI Skill](docs/skills/stk-cli-reference/SKILL.md)

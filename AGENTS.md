@@ -1,89 +1,53 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文档约束在本仓库中工作的编码 Agent。
 
-## Project Overview
+## 项目定位
 
-`stk-cli` is a Stock Query CLI tool built with Typer, designed for agent-driven interaction. It uses **longport** as the unified data source for all markets (A-share, HK, US), with **ta-lib** for technical analysis.
+`stk-cli` 是基于 Typer 的 JSON CLI，核心能力是请求 K 线与指标、同步 Longport/同花顺
+分组，以及扫描 Longport 分组并维护每日买入和卖出信号快照。
 
-- Python 3.14, managed with **uv**
-- Src layout: source in `src/stk/` (built as wheel package via `uv_build`)
-- Entry point: `src/stk/cli.py` → `cli()` (registered as `stk` command via `project.scripts`)
+- Python 3.14，使用 uv 管理依赖。
+- 源码采用 `src/` 布局，入口为 `src/stk/cli.py`。
+- Longport 提供行情、K 线和主要分组；同花顺仅作为分组同步对端。
+- pandas 用于数据处理；ta-lib 与 stockstats 用于指标计算。
 
-## Commands
+## 开发命令
 
 ```bash
-# Install dependencies
 uv sync
-
-# Run the CLI
-uv run stk
-
-# All checks (lint + format + type + tests)
-make check
-
-# Run a single test file
+uv run stk --help
 uv run pytest tests/path/to/test_file.py
+make check
 ```
 
-## Architecture
+## 架构约束
 
-Three-layer architecture. Full design doc: `docs/design/architecture.md`.
+- `commands/` 只解析参数、调用服务并渲染输出，不承载业务规则。
+- `services/` 负责外部 API、指标计算、信号判断和工作流编排，不写 stdout。
+- `models/` 定义服务与 JSON 输出之间的 Pydantic 契约。
+- `store/` 只保存缓存和本地映射，不作为行情或分组的权威来源。
+- CLI 输出统一使用 `ok/data/error/meta` envelope；日志只写 stderr。
+- 服务将外部异常转换为明确的 `StkError` 子类，由 CLI 统一处理。
+- Symbol 转换集中在 `utils/symbol.py`，不得在命令或服务中重复实现。
 
-```
-src/stk/
-├── cli.py              # Root Typer app, registers all subcommand groups
-├── config.py           # pydantic-settings Settings (reads .env)
-├── output.py           # Unified JSON envelope output
-├── errors.py           # Custom exceptions + global error handler
-├── deps.py             # Lazy singletons (longport ctx, etc.)
-├── commands/           # Thin layer: parse args → call service → render output
-│   ├── market.py       # stk market — indices, temperature, rank, hotspot, candidates
-│   ├── stock.py        # stk stock — scan, kline, comparison
-│   ├── watchlist.py    # stk watchlist — CRUD + scan + kline
-│   ├── doctor.py       # stk doctor — data source health check
-│   └── cache.py        # stk cache — cache management
-├── services/           # Business logic: call APIs → return Pydantic models
-│   ├── rank.py         # Stock technical rankings (THS)
-│   ├── market.py       # Market overview: indices (CN/HK/US), temperature
-│   ├── comparison.py  # Valuation (via calc_indexes), industry comparison, profile
-│   ├── quote.py # Longport raw API wrapper
-│   ├── history.py      # K-line history fetch + caching
-│   ├── indicator.py    # ta-lib calculations + get_daily (OHLCV + all indicators merged)
-│   ├── score.py        # Multi-indicator resonance score + ATR risk control
-│   ├── scan.py         # Batch analysis: watchlist scan + stock scan + kline_watchlist
-│   ├── health.py       # Data source connectivity check
-│   └── watchlist.py    # Watchlist via longport API, local group ID cache
-├── models/             # Pydantic models (data contracts, JSON schema for agents)
-│   ├── common.py       # Envelope, ErrorDetail
-│   └── ...             # One file per domain
-├── store/              # Local JSON file storage (~/.stk/)
-│   ├── file_store.py   # Atomic JSON read/write
-│   └── cache.py        # API response cache
-└── utils/              # Utility functions
-    ├── price.py        # Price formatting
-    └── symbol.py       # Symbol normalization
-```
+## 修改原则
 
-### Key conventions
+- 保持命令层轻薄，优先在服务层实现可测试的纯业务逻辑。
+- 修改公开 JSON 字段时同步 Pydantic 模型、测试和 Agent Skill。
+- 修改信号阈值、优先级或时间语义时同步信号规则文档。
+- 使用 loguru 记录日志，不向 stdout 输出调试信息。
+- 保留用户已有改动，避免无关格式化和破坏性 Git 操作。
 
-- **commands/** — Thin. No business logic. Parse params → call service → `output.render()`.
-- **services/** — All logic here. Call data source → transform → return Pydantic model. No stdout.
-- **models/** — Data contracts between layers. Also the JSON schema agents consume.
-- **Data flow**: CLI command → commands/ → services/ → longport API → pandas DataFrame → models/ → output.py (JSON envelope to stdout).
-- **Symbol normalization** (in `utils/symbol.py`): `600519`→`600519.SH`, `000001`→`000001.SZ`, `8xxxxx`→`8xxxxx.BJ`; `.HK`/`.US`/`.` prefix → pass through.
-- **Target types**: `--type stock|index` (default `stock`).
-- **JSON envelope**: `{"ok": true, "data": [...], "error": null, "meta": {...}}`. All output to stdout, logs to stderr.
-- **Errors**: `StkError` → `ConfigError` / `SourceError` / `SymbolNotFoundError` / `IndicatorError` / `DataNotFoundError`. Services wrap SDK exceptions; global handler formats JSON error output.
-- **Storage**: `~/.stk/` directory for local caches (e.g. `watchlist_groups.json` for group name→id mapping). Atomic writes (tmp file + rename). Watchlist data is stored on longport server.
+## 验证要求
 
-Use `loguru` for all logging. Use `pandas` + `ta-lib` for indicator calculations in services.
-Longport is the primary data source. akshare supplements A-share features: tech screening rankings (THS), industry comparison, company profile.
+- 为新增或变化的业务行为补充单元测试。
+- 外部数据源在单元测试中使用 mock，测试不得依赖网络。
+- 完成前运行 `make check`，包括 Ruff、格式、ty 和非集成测试。
 
-## Non-goals
+## 设计文档
 
-- **Not a trading advisor.** Outputs data and signals; does not generate buy/sell orders or portfolio allocations.
-- **Not a human-facing UI.** All output is JSON envelope to stdout; logs go to stderr.
-- **Not a real-time trading system.** Daily monitoring uses confirmed daily candles; intraday (`scan-live`) is alert-only, not execution.
-- **Not a backtesting engine.** Signal strategies are documented but not backtested.
-- **Not a data warehouse.** Caches are transient copies; longport and akshare are the source of truth.
+- [架构与边界](docs/design/architecture.md)
+- [信号规则](docs/design/signal-strategy.md)
+
+项目不负责交易下单、仓位分配、实时交易、回测或长期数据仓储。

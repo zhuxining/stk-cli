@@ -2,57 +2,66 @@
 
 > Status: active
 
-`stk-cli` 是面向 Agent 的单进程 CLI，聚焦数据指标、分组同步和分组信号扫描。
+`stk-cli` 是面向 Agent 的单进程 JSON CLI，聚焦 K 线与指标、跨平台分组同步和分组信号
+扫描。
 
-## 边界
+## 系统边界
 
 ```text
-CLI runtime
-  ├── data command  ──> history ──> indicator
-  ├── scan command  ──> watchlist ──> score/scan ──> quote
-  └── group command
-        ├── longport ──> watchlist
-        ├── ths ───────> ths_wrapper
-        ├── sync ──────> sync ──> watchlist/ths_wrapper
-        └── route ─────> scan ──> watchlist
+CLI
+├── data kline ───────> history ──> indicator
+├── scan ─────────────> watchlist ──> score/scan ──> quote
+└── group
+    ├── longport ─────> watchlist
+    ├── ths ──────────> ths_wrapper
+    ├── sync ─────────> sync ──> watchlist/ths_wrapper
+    └── route ────────> scan ──> watchlist
 ```
 
-- `commands/` 仅解析参数、调用服务和渲染结果。
-- `services/` 负责外部 API、指标、评分、扫描和同步编排，不写 stdout。
-- `models/` 是服务与 JSON 输出之间的数据契约。
-- `store/` 只保存缓存和 Longport 分组名称到 ID 的映射。
-- `output.py` 统一输出 `ok/data/error/meta` envelope。
+- Longport 是行情、K 线和主要分组的数据源。
+- 同花顺是分组同步对端，不参与行情或信号计算。
+- 本地存储只保存缓存和 Longport 分组名称到 ID 的映射。
+- 项目不执行交易、不管理仓位、不提供回测，也不长期保存行情数据。
+
+## 分层职责
+
+- `commands/`：解析参数、调用服务、渲染结果，不包含业务判断。
+- `services/`：访问外部系统、转换数据、计算指标和信号、编排工作流，不写 stdout。
+- `models/`：定义服务边界和公开 JSON 数据契约。
+- `store/`：提供缓存和本地映射的原子读写。
+- `utils/`：提供无业务状态的通用转换，例如 Symbol 规范化。
+- `output.py`：统一输出 `ok/data/error/meta` envelope。
+
+依赖方向保持为命令层 → 服务层 → 数据源/存储，模型可被命令层和服务层共同依赖。
 
 ## 核心数据流
 
-### K 线指标
+### K 线与指标
 
 ```text
-stk data kline
-  -> normalize symbols
+symbols
+  -> normalize
   -> Longport candlesticks
   -> pandas DataFrame
-  -> ta-lib + stockstats indicators
+  -> ta-lib / stockstats
   -> DailyResult[]
 ```
 
-支持日、周、月 K 线。输出合并 OHLCV、EMA、MACD、RSI、WR、KDJ、BOLL、ATR 和
-Supertrend。KDJ、WR、ATR 与 Supertrend 使用 stockstats，其他技术指标使用 ta-lib。
+指标服务只负责计算和解释数据，不决定扫描或 route 的成员资格。
 
 ### 分组扫描
 
 ```text
-stk scan <longport-group>
-  -> fetch Longport group
-  -> fetch closed daily candles
+Longport group
+  -> confirmed daily candles
   -> score each symbol concurrently
+  -> classify routing state
   -> attach quote display data
-  -> filter and sort active focus signals
   -> MonitorResult
 ```
 
-评分由 `score.py` 完成；`scan.py` 只负责批量执行、聚合、过滤和排序。单标的失败记录在
-`errors`，不阻断其他标的。
+`score.py` 判断单标的事件与当前路由状态；`scan.py` 负责并发、聚合、过滤和排序。单标的
+失败记录到 `errors`，不会阻断普通 scan。
 
 ### 分组同步
 
@@ -60,22 +69,20 @@ stk scan <longport-group>
 Longport group <-> sync service <-> THS group
 ```
 
-- push 固定为 Longport → THS。
-- pull 固定为 THS → Longport。
-- 默认追加，不删除目标端已有成员。
-- replace 使目标分组与源分组一致。
-- 同步边界负责 Longport/THS symbol 转换和不支持资产过滤。
+同步服务负责方向、差异和写入模式；平台边界负责 Symbol 转换及不支持资产过滤。
 
-### 信号分流
+### 信号快照
 
-`group route` 先扫描 Longport 源分组，再将趋势买入/超卖修复写入 entry 组，将趋势退出
-写入 exit 组。默认追加；replace 会同时替换两个目标组，空结果对应空目标组。
+`group route` 扫描一个 Longport 源分组，并分别生成当前买入和卖出信号快照。默认使用
+replace 语义，不依赖昨日成员。扫描存在任何失败时，在写入目标组前中止，避免用不完整
+结果覆盖已有快照。
 
-## 运行时约束
+具体判定规则以[信号规则](signal-strategy.md)为唯一事实来源。
 
-- Longport 是行情、K 线和主要分组的数据源。
-- 同花顺只作为分组同步对端。
-- 每日扫描只使用已确认日线；未收盘的当日 K 线不会进入信号判断。
-- 服务边界将外部异常转换成 `StkError`；CLI 统一渲染错误 envelope。
+## 运行时不变量
+
+- 信号只使用已确认的完整日线；实时行情字段只用于展示。
 - stdout 只包含 JSON，日志写入 stderr。
-- 缓存是数据源副本，不是业务数据权威来源。
+- 服务将外部异常转换为 `StkError`，CLI 统一渲染错误。
+- Pydantic 模型是服务层与调用方之间的契约。
+- 缓存不是业务数据的权威来源，失败时不得静默伪造完整结果。
