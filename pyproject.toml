@@ -11,9 +11,11 @@ dependencies = [
     "loguru>=0.7.3",
     "longport>=4.3.3",
     "ta-lib>=0.7.0",
+    "stockstats>=0.6.8",
     "pandas>=3.0.1",
     "numpy>=2.4.3",
     "ths-favorite",
+
 ]
 
 [tool.uv.sources]
@@ -71,7 +73,7 @@ select = [
     "PD",   # pandas-specific
 ]
 ignore = [
-    "unused-import", # module imported but unused (handled by pyflakes)
+    "unused-import",                     # module imported but unused (handled by pyflakes)
     "function-call-in-default-argument", # Typer calls in defaults (standard practice for Typer)
 ]
 allowed-confusables = ["，", "。", "：", "；", "！", "？", "（", "）", "“", "”"]

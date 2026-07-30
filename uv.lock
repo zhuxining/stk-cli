@@ -917,6 +917,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "stockstats" },
     { name = "ta-lib" },
     { name = "ths-favorite" },
     { name = "typer" },
@@ -940,6 +941,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=3.0.1" },
     { name = "pydantic", specifier = ">=2.13.3" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
+    { name = "stockstats", specifier = ">=0.6.8" },
     { name = "ta-lib", specifier = ">=0.7.0" },
     { name = "ths-favorite", git = "https://github.com/sunnysab/ths-favorite.git" },
     { name = "typer", specifier = ">=0.26.8" },
@@ -953,6 +955,19 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
     { name = "ruff", specifier = ">=0.15.20" },
     { name = "ty", specifier = ">=0.0.56" },
+]
+
+[[package]]
+name = "stockstats"
+version = "0.6.8"
+source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+]
+sdist = { url = "http://mirrors.aliyun.com/pypi/packages/ff/41/488779ba0a09bf1c026509afe5201711886d4d1d7e3d71b7421d1fcc3341/stockstats-0.6.8.tar.gz", hash = "sha256:5f7462162a7cc47279a77c8e015c0504aaafd8835e99d1a1482242e4d3686c51" }
+wheels = [
+    { url = "http://mirrors.aliyun.com/pypi/packages/31/cd/6ff4431b1d58780885a03b67b1bb94fdb8771f79876d6f11dfdfb34e00ce/stockstats-0.6.8-py3-none-any.whl", hash = "sha256:2147bf457238a34f5af4b3fef11e7f56cd7f5e10bf8edc1da51e62237002e661" },
 ]
 
 [[package]]
