@@ -130,14 +130,18 @@ def pull(
 @app.command()
 def route(
     src: str = typer.Argument(help="Longport source group"),
-    entry_dst: str = typer.Argument(help="Destination for entry signals"),
-    exit_dst: str = typer.Argument(help="Destination for exit signals"),
-    replace: bool = typer.Option(False, "--replace", "-r", help="Replace destination contents"),
+    buy_dst: str = typer.Argument(help="Current buy-signal snapshot group"),
+    sell_dst: str = typer.Argument(help="Current sell-signal snapshot group"),
+    replace: bool = typer.Option(
+        True,
+        "--replace/--append",
+        help="Refresh destination snapshots (default) or append only",
+    ),
 ) -> None:
-    """Scan a Longport group and route entry and exit signals."""
-    if entry_dst == exit_dst:
-        raise StkError("Entry and exit destination groups must be different")
+    """Refresh current buy and sell signal snapshot groups."""
+    if len({src, buy_dst, sell_dst}) != 3:
+        raise StkError("Source, buy-signal, and sell-signal groups must be different")
 
     from stk.services.watchlist import route_signals
 
-    output.render(route_signals(src, entry_dst, exit_dst, replace=replace))
+    output.render(route_signals(src, buy_dst, sell_dst, replace=replace))

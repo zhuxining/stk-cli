@@ -13,6 +13,7 @@ from stk.errors import IndicatorError
 from stk.models.history import Candlestick
 from stk.models.score import ContextFactor, FactorState, SignalContext
 from stk.services.score import (
+    _build_routing_assessment,
     _calc_money_flow_factor,
     _check_low_volume_cross,
     _closed_daily_df,
@@ -89,6 +90,20 @@ def _neutral_context() -> SignalContext:
     )
 
 
+def _routing_context(*, rsi: float = 55, turnover_ratio: float = 1) -> SignalContext:
+    return SignalContext(
+        overall_bias="supportive",
+        factors=[
+            ContextFactor(name="momentum", state="confirming", metrics={"rsi14": rsi}),
+            ContextFactor(
+                name="volume_price",
+                state="confirming",
+                metrics={"volume_ratio_5d": turnover_ratio},
+            ),
+        ],
+    )
+
+
 def test_closed_daily_df_drops_current_cn_bar_before_close():
     df = pd.DataFrame({"date": ["2026-05-25 00:00:00", "2026-05-26 00:00:00"]})
     now = datetime(2026, 5, 26, 10, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
@@ -105,6 +120,110 @@ def test_closed_daily_df_keeps_current_cn_bar_after_close():
     result = _closed_daily_df(df, "600519.SH", now=now)
 
     assert result["date"].tolist() == ["2026-05-25 00:00:00", "2026-05-26 00:00:00"]
+
+
+def test_routing_entry_does_not_require_fresh_cross():
+    """Persistent eligibility depends on current trend state, not event age."""
+    close = np.linspace(90, 110, 60)
+    assessment = _build_routing_assessment(
+        pd.DataFrame({"close": close}),
+        ema9_arr=np.full(60, 105.0),
+        ema26_arr=np.full(60, 100.0),
+        st_direction_arr=np.ones(60, dtype=int),
+        atr_arr=np.full(60, 5.0),
+        context=_routing_context(),
+    )
+
+    assert assessment.state == "eligible"
+    assert assessment.entry_eligible is True
+    assert assessment.entry_patterns == ["healthy_continuation"]
+
+
+@patch("stk.services.score.talib.RSI")
+def test_routing_entry_accepts_pullback_hold(mock_rsi):
+    close = np.linspace(90, 103, 60)
+    close[-2:] = [102, 103]
+    mock_rsi.return_value = np.full(60, 42.0)
+    assessment = _build_routing_assessment(
+        pd.DataFrame({"close": close}),
+        ema9_arr=np.full(60, 105.0),
+        ema26_arr=np.full(60, 100.0),
+        st_direction_arr=np.ones(60, dtype=int),
+        atr_arr=np.full(60, 3.0),
+        context=_routing_context(rsi=42),
+    )
+
+    assert assessment.entry_eligible is True
+    assert assessment.entry_patterns == ["pullback_hold"]
+
+
+@pytest.mark.parametrize(
+    ("rsi", "close_value", "expected_reason"),
+    [
+        (75, 106, "已过热"),
+        (55, 113, "避免追高"),
+    ],
+)
+def test_routing_entry_rejects_overheated_or_extended_price(
+    rsi: float,
+    close_value: float,
+    expected_reason: str,
+):
+    close = np.linspace(90, close_value, 60)
+    assessment = _build_routing_assessment(
+        pd.DataFrame({"close": close}),
+        ema9_arr=np.full(60, 105.0),
+        ema26_arr=np.full(60, 100.0),
+        st_direction_arr=np.ones(60, dtype=int),
+        atr_arr=np.full(60, 5.0),
+        context=_routing_context(rsi=rsi),
+    )
+
+    assert assessment.entry_eligible is False
+    assert assessment.entry_patterns == []
+    assert any(expected_reason in reason for reason in assessment.reasons)
+
+
+def test_routing_risk_on_two_closes_below_ema26():
+    """Two confirmed closes below EMA26 remove an existing focus symbol."""
+    close = np.linspace(90, 110, 60)
+    close[-2:] = [99, 98]
+    assessment = _build_routing_assessment(
+        pd.DataFrame({"close": close}),
+        ema9_arr=np.full(60, 101.0),
+        ema26_arr=np.full(60, 100.0),
+        st_direction_arr=np.ones(60, dtype=int),
+        atr_arr=np.full(60, 1.0),
+        context=_routing_context(),
+    )
+
+    assert assessment.state == "risk"
+    assert assessment.exit_trigger is True
+    assert "连续2根收盘价低于EMA26" in assessment.reasons
+
+
+@patch("stk.services.score.talib.RSI")
+def test_routing_sell_signal_takes_priority_over_entry_path(mock_rsi):
+    close = np.linspace(90, 104, 60)
+    close[-2:] = [103, 104]
+    rsi = np.full(60, 55.0)
+    rsi[-2:] = [76, 70]
+    mock_rsi.return_value = rsi
+
+    assessment = _build_routing_assessment(
+        pd.DataFrame({"close": close}),
+        ema9_arr=np.full(60, 105.0),
+        ema26_arr=np.full(60, 100.0),
+        st_direction_arr=np.ones(60, dtype=int),
+        atr_arr=np.full(60, 3.0),
+        context=_routing_context(rsi=70),
+    )
+
+    assert assessment.state == "risk"
+    assert assessment.exit_trigger is True
+    assert assessment.entry_eligible is False
+    assert assessment.entry_patterns == []
+    assert "RSI从过热区回落且收盘价跌破EMA9" in assessment.reasons
 
 
 @patch("stk.services.score.get_history")

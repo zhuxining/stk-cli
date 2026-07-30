@@ -3,34 +3,41 @@
 from types import SimpleNamespace
 
 from longport.openapi import SecuritiesUpdateMode
+import pytest
 
-from stk.models.scan import MonitorSummary
+from stk.errors import SourceError
+from stk.models.scan import MonitorSummary, ScanError
 from stk.models.watchlist import Watchlist
 from stk.services import watchlist as watchlist_service
 
 
-def _scan_result(signals: list[tuple[str, str]]) -> SimpleNamespace:
+def _scan_result(
+    buy: list[str],
+    *,
+    sell: list[str] | None = None,
+    errors: list[ScanError] | None = None,
+) -> SimpleNamespace:
     return SimpleNamespace(
-        focus=[
-            SimpleNamespace(symbol=symbol, decision=SimpleNamespace(signal=signal))
-            for symbol, signal in signals
-        ],
+        focus=[SimpleNamespace(symbol=symbol) for symbol in buy],
+        risk=[SimpleNamespace(symbol=symbol) for symbol in sell or []],
         summary=MonitorSummary(
-            focus_count=len(signals),
-            recommend_count=len(signals),
-            entry_signal_count=sum(signal != "趋势退出" for _, signal in signals),
-            exit_signal_count=sum(signal == "趋势退出" for _, signal in signals),
+            focus_count=len(buy),
+            recommend_count=len(buy),
+            entry_signal_count=len(buy),
+            exit_signal_count=len(sell or []),
             watch_signal_count=0,
         ),
+        errors=errors or [],
     )
 
 
-def test_route_appends_entry_and_exit_signals(monkeypatch):
+def test_route_replaces_current_buy_and_sell_snapshots(monkeypatch):
     calls: list[tuple[str, list[str], object]] = []
     monkeypatch.setattr(
         "stk.services.scan.scan_watchlist",
         lambda *args, **kwargs: _scan_result(
-            [("600519.SH", "趋势买入"), ("000001.SZ", "趋势退出")]
+            ["600519.SH"],
+            sell=["000001.SZ"],
         ),
     )
     monkeypatch.setattr(
@@ -47,17 +54,22 @@ def test_route_appends_entry_and_exit_signals(monkeypatch):
     result = watchlist_service.route_signals("source", "entry", "exit")
 
     assert calls == [
-        ("entry", ["600519.SH"], SecuritiesUpdateMode.Add),
-        ("exit", ["000001.SZ"], SecuritiesUpdateMode.Add),
+        ("entry", ["600519.SH"], SecuritiesUpdateMode.Replace),
+        ("exit", ["000001.SZ"], SecuritiesUpdateMode.Replace),
     ]
+    assert result.buy == ["600519.SH"]
+    assert result.sell == ["000001.SZ"]
     assert [group.name for group in result.destinations] == ["entry", "exit"]
 
 
-def test_route_replace_clears_empty_destination(monkeypatch):
+def test_route_aborts_without_modifying_groups_when_scan_fails(monkeypatch):
     calls: list[tuple[str, list[str], object]] = []
     monkeypatch.setattr(
         "stk.services.scan.scan_watchlist",
-        lambda *args, **kwargs: _scan_result([("600519.SH", "趋势买入")]),
+        lambda *args, **kwargs: _scan_result(
+            [],
+            errors=[ScanError(symbol="600519.SH", reason="history unavailable")],
+        ),
     )
     monkeypatch.setattr(
         watchlist_service,
@@ -70,9 +82,7 @@ def test_route_replace_clears_empty_destination(monkeypatch):
         lambda name: Watchlist(id=1, name=name),
     )
 
-    watchlist_service.route_signals("source", "entry", "exit", replace=True)
+    with pytest.raises(SourceError, match="signal groups were not modified"):
+        watchlist_service.route_signals("source", "entry", "exit")
 
-    assert calls == [
-        ("entry", ["600519.SH"], SecuritiesUpdateMode.Replace),
-        ("exit", [], SecuritiesUpdateMode.Replace),
-    ]
+    assert calls == []

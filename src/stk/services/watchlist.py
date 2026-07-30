@@ -163,46 +163,48 @@ def delete_group(name: str) -> None:
     save_json(_CACHE_FILE, mapping)
 
 
-_ENTRY_SIGNALS = {"趋势买入", "超卖修复"}
-_EXIT_SIGNALS = {"趋势退出"}
-
-
 def route_signals(
     src: str,
-    entry_dst: str,
-    exit_dst: str,
+    buy_dst: str,
+    sell_dst: str,
     *,
-    replace: bool = False,
+    replace: bool = True,
 ) -> WorkflowResult:
-    """Scan a group and route entry/exit signals to destination groups."""
+    """Refresh current buy and sell signal snapshots from one source group."""
     from stk.services.scan import scan_watchlist
 
-    scan_result = scan_watchlist(src, include_daily10=False, include_full_context=False)
+    scan_result = scan_watchlist(
+        src,
+        include_daily10=False,
+        include_full_context=False,
+    )
+    if scan_result.errors:
+        raise SourceError(
+            f"Route aborted: {len(scan_result.errors)} symbols failed to scan; "
+            "signal groups were not modified"
+        )
 
-    entry_symbols: list[str] = []
-    exit_symbols: list[str] = []
-    for item in scan_result.focus:
-        signal = item.decision.signal
-        if signal in _ENTRY_SIGNALS:
-            entry_symbols.append(item.symbol)
-        elif signal in _EXIT_SIGNALS:
-            exit_symbols.append(item.symbol)
+    buy_symbols = sorted(item.symbol for item in scan_result.focus)
+    sell_symbols = sorted(item.symbol for item in scan_result.risk)
 
     mode = SecuritiesUpdateMode.Replace if replace else SecuritiesUpdateMode.Add
 
-    if entry_symbols or replace:
-        add_symbols(entry_dst, entry_symbols, mode=mode)
-    if exit_symbols or replace:
-        add_symbols(exit_dst, exit_symbols, mode=mode)
+    if buy_symbols or mode == SecuritiesUpdateMode.Replace:
+        add_symbols(buy_dst, buy_symbols, mode=mode)
+    if sell_symbols or mode == SecuritiesUpdateMode.Replace:
+        add_symbols(sell_dst, sell_symbols, mode=mode)
 
     destinations: list[Watchlist] = []
     with contextlib.suppress(SourceError):
-        destinations.append(get_watchlist(entry_dst))
+        destinations.append(get_watchlist(buy_dst))
     with contextlib.suppress(SourceError):
-        destinations.append(get_watchlist(exit_dst))
+        destinations.append(get_watchlist(sell_dst))
 
     return WorkflowResult(
         action="route",
+        candidates_found=len(buy_symbols) + len(sell_symbols),
         source_summary=scan_result.summary,
         destinations=destinations,
+        buy=buy_symbols,
+        sell=sell_symbols,
     )

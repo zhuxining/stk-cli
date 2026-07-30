@@ -17,11 +17,13 @@ from stk.models.score import (
     Decision,
     DecisionSignal,
     EmaCross,
+    EntryPattern,
     FactorState,
     MetricValue,
     PrimarySignal,
     RiskLevel,
     RiskProfile,
+    RoutingAssessment,
     ScoreResult,
     SignalContext,
     SignalPattern,
@@ -62,6 +64,9 @@ _MACD_SIGNAL = 9
 _BOLL_PERIOD = 20
 _BOLL_NBDEV = 2
 _DIVERGENCE_LOOKBACK = 20
+_ROUTING_TRIGGER_WINDOW = 3
+_ENTRY_RSI_OVERHEATED = 75
+_ENTRY_ATR_EXTENSION = 1.5
 
 
 def _closed_daily_df(
@@ -435,6 +440,184 @@ def _metric_number(factor: ContextFactor | None, name: str) -> float | None:
         return None
     value = factor.metrics.get(name)
     return float(value) if isinstance(value, int | float) else None
+
+
+def _build_routing_assessment(
+    df: pd.DataFrame,
+    *,
+    ema9_arr: np.ndarray,
+    ema26_arr: np.ndarray,
+    st_direction_arr: np.ndarray,
+    atr_arr: np.ndarray,
+    context: SignalContext,
+) -> RoutingAssessment:
+    """Classify actionable daily buy and sell signals for route snapshots."""
+    close = df["close"].to_numpy(dtype=float)
+    current_close = round(float(close[-1]), 4)
+    ema9 = _safe_last(ema9_arr)
+    ema26 = _safe_last(ema26_arr)
+    atr = _safe_last(atr_arr)
+    rsi = _metric_number(_factor_by_name(context, "momentum"), "rsi14")
+    turnover_ratio = _metric_number(
+        _factor_by_name(context, "volume_price"),
+        "volume_ratio_5d",
+    )
+
+    if (
+        ema9 is None
+        or ema26 is None
+        or atr is None
+        or atr <= 0
+        or rsi is None
+        or st_direction_arr[-1] == 0
+    ):
+        return RoutingAssessment(
+            state="ignored",
+            close=current_close,
+            ema9=ema9,
+            ema26=ema26,
+            atr10=atr,
+            rsi14=rsi,
+            turnover_ratio_5d=turnover_ratio,
+            reasons=["趋势、动量或ATR指标尚未形成有效值"],
+        )
+
+    rsi_arr = talib.RSI(close, timeperiod=_RSI_PERIOD)
+    st_bullish = st_direction_arr[-1] > 0
+    st_bearish = st_direction_arr[-1] < 0
+    ema_bullish = ema9 > ema26
+    max_entry_price = ema9 + _ENTRY_ATR_EXTENSION * atr
+    entry_baseline = (
+        ema_bullish
+        and st_bullish
+        and current_close >= ema26
+        and rsi < _ENTRY_RSI_OVERHEATED
+        and current_close <= max_entry_price
+    )
+
+    entry_patterns: list[EntryPattern] = []
+    if current_close >= ema9 and 45 <= rsi < 70:
+        entry_patterns.append("healthy_continuation")
+    if (
+        len(close) >= 2
+        and ema26 <= current_close <= ema9
+        and rsi >= 40
+        and current_close > close[-2]
+    ):
+        entry_patterns.append("pullback_hold")
+
+    momentum_recovery = False
+    for age in range(min(_ROUTING_TRIGGER_WINDOW, len(rsi_arr) - 1)):
+        current_index = len(rsi_arr) - 1 - age
+        previous_index = current_index - 1
+        if (
+            not np.isnan(rsi_arr[previous_index])
+            and not np.isnan(rsi_arr[current_index])
+            and rsi_arr[previous_index] < 50 <= rsi_arr[current_index]
+        ):
+            momentum_recovery = rsi >= 50
+            break
+    if momentum_recovery:
+        entry_patterns.append("momentum_recovery")
+
+    bull_flip_age = _last_supertrend_flip_age(st_direction_arr, target=1)
+    trend_start = bull_flip_age is not None and bull_flip_age < _ROUTING_TRIGGER_WINDOW
+    if trend_start:
+        entry_patterns.append("trend_start")
+
+    two_closes_below_ema26 = False
+    if len(close) >= 2 and not np.isnan(ema26_arr[-2]):
+        two_closes_below_ema26 = close[-2] < ema26_arr[-2] and current_close < ema26
+    overheated = rsi >= _ENTRY_RSI_OVERHEATED
+    overheat_reversal = (
+        len(close) >= 2
+        and not np.isnan(rsi_arr[-2])
+        and rsi_arr[-2] >= _ENTRY_RSI_OVERHEATED
+        and rsi < rsi_arr[-2]
+        and current_close < ema9
+    )
+    exit_trigger = st_bearish or two_closes_below_ema26 or overheat_reversal
+    entry_eligible = entry_baseline and bool(entry_patterns) and not exit_trigger
+
+    _, _, macd_hist = talib.MACD(
+        close,
+        fastperiod=_MACD_FAST,
+        slowperiod=_MACD_SLOW,
+        signalperiod=_MACD_SIGNAL,
+    )
+    ema5 = _safe_last(talib.EMA(close, timeperiod=_EMA5))
+    recovery = (
+        len(close) >= 2
+        and ema5 is not None
+        and not np.isnan(rsi_arr[-2])
+        and not np.isnan(rsi_arr[-1])
+        and not np.isnan(macd_hist[-2])
+        and not np.isnan(macd_hist[-1])
+        and rsi_arr[-2] <= 30 < rsi_arr[-1]
+        and macd_hist[-2] <= 0 < macd_hist[-1]
+        and current_close > ema5
+    )
+
+    reasons: list[str] = []
+    if entry_eligible:
+        pattern_labels = {
+            "healthy_continuation": "健康延续",
+            "pullback_hold": "回踩企稳",
+            "momentum_recovery": "动量恢复",
+            "trend_start": "趋势启动",
+        }
+        reasons.append(
+            "买入基线成立，触发路径：" + "、".join(pattern_labels[item] for item in entry_patterns)
+        )
+    elif ema_bullish and st_bullish:
+        if rsi >= _ENTRY_RSI_OVERHEATED:
+            reasons.append(f"RSI14={rsi:.2f} 已过热，不进入买入组")
+        elif current_close > max_entry_price:
+            reasons.append(f"收盘价高于 EMA9 + {_ENTRY_ATR_EXTENSION:g}xATR10，避免追高")
+        elif current_close < ema26:
+            reasons.append("收盘价低于EMA26，价格结构未满足买入基线")
+        elif not entry_patterns:
+            reasons.append("趋势基线成立，但尚无健康延续、回踩企稳或近期触发")
+    if exit_trigger:
+        if st_bearish:
+            reasons.append("Supertrend为空头")
+        if two_closes_below_ema26:
+            reasons.append("连续2根收盘价低于EMA26")
+        if overheat_reversal:
+            reasons.append("RSI从过热区回落且收盘价跌破EMA9")
+    elif recovery:
+        reasons.append("RSI离开超卖区且MACD柱转正，等待趋势确认")
+    elif ema_bullish or st_bullish:
+        reasons.append("趋势条件部分成立，继续观察")
+
+    if turnover_ratio is not None and turnover_ratio < 0.8:
+        reasons.append(f"5日成交额量比 {turnover_ratio:.2f}，量能偏弱")
+
+    if entry_eligible:
+        state = "eligible"
+    elif exit_trigger:
+        state = "risk"
+    elif recovery or ema_bullish or st_bullish:
+        state = "watch"
+    else:
+        state = "ignored"
+
+    return RoutingAssessment(
+        state=state,
+        entry_eligible=entry_eligible,
+        entry_patterns=entry_patterns if entry_eligible else [],
+        exit_trigger=exit_trigger,
+        recovery=recovery,
+        overheated=overheated,
+        close=current_close,
+        ema9=ema9,
+        ema26=ema26,
+        atr10=atr,
+        max_entry_price=round(max_entry_price, 4),
+        rsi14=round(rsi, 4),
+        turnover_ratio_5d=turnover_ratio,
+        reasons=reasons,
+    )
 
 
 def _setup_signal(
@@ -1107,6 +1290,14 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
 
     candidates = [trend_signal]
     bullish_context = context_for("bullish")
+    routing = _build_routing_assessment(
+        df,
+        ema9_arr=ema9_arr,
+        ema26_arr=ema26_arr,
+        st_direction_arr=st_direction_arr,
+        atr_arr=atr_arr,
+        context=bullish_context,
+    )
     if oversold_signal := _build_oversold_repair_signal(
         df,
         trend_signal,
@@ -1138,7 +1329,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     selected_signal = _select_signal(adjusted_candidates)
 
     rp = None
-    if atr_last is not None and atr_last > 0:
+    if atr_last is not None and atr_last > 0 and selected_signal.direction != "neutral":
         rp = _risk_points(
             current_price=current_price,
             atr=atr_last,
@@ -1156,4 +1347,5 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
         primary_signal=primary_signal,
         context=context,
         risk=risk_profile,
+        routing=routing,
     )

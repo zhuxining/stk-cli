@@ -14,6 +14,7 @@ from stk.models.score import (
     FactorState,
     PrimarySignal,
     RiskProfile,
+    RoutingAssessment,
     ScoreResult,
     SignalContext,
     SignalStatus,
@@ -31,6 +32,7 @@ def _score_result(
     bias: ContextBias = "supportive",
     factor_state: FactorState = "confirming",
     bars_since_signal: int | None = 1,
+    routing: RoutingAssessment | None = None,
 ) -> ScoreResult:
     return ScoreResult(
         symbol=symbol,
@@ -67,6 +69,14 @@ def _score_result(
             take_profit=12,
             risk_reward_ratio=2,
             risk_level="low",
+        ),
+        routing=routing
+        or RoutingAssessment(
+            state="eligible" if signal == "趋势买入" else "ignored",
+            entry_eligible=signal == "趋势买入",
+            close=10,
+            rsi14=55,
+            turnover_ratio_5d=1,
         ),
     )
 
@@ -332,3 +342,49 @@ def test_old_hold_with_single_risk_context_is_ignored(mock_score, mock_quotes):
 
     assert result.summary.focus_count == 0
     assert result.ignored.no_signal_count == 1
+
+
+@patch("stk.services.scan.get_realtime_quotes", return_value=[])
+@patch("stk.services.scan.calc_score")
+def test_stale_event_remains_focused_while_buy_signal_is_valid(mock_score, _mock_quotes):
+    """Current eligibility, rather than event age, controls the buy snapshot."""
+    mock_score.return_value = _score_result(
+        "600519.SH",
+        strength=None,
+        signal="观察",
+        status="stale",
+        routing=RoutingAssessment(
+            state="eligible",
+            entry_eligible=True,
+            close=100,
+            rsi14=62,
+        ),
+    )
+
+    result = _monitor_symbols(["600519.SH"], {}, universe_name="test")
+
+    assert [item.symbol for item in result.focus] == ["600519.SH"]
+
+
+@patch("stk.services.scan.get_realtime_quotes", return_value=[])
+@patch("stk.services.scan.calc_score")
+def test_current_sell_signal_is_expanded_in_risk(mock_score, _mock_quotes):
+    """Current sell conditions are returned independently from buy signals."""
+    mock_score.return_value = _score_result(
+        "600519.SH",
+        strength="预警",
+        signal="趋势退出",
+        status="new",
+        routing=RoutingAssessment(
+            state="risk",
+            exit_trigger=True,
+            close=90,
+            rsi14=35,
+        ),
+    )
+
+    result = _monitor_symbols(["600519.SH"], {}, universe_name="test")
+
+    assert result.focus == []
+    assert [item.symbol for item in result.risk] == ["600519.SH"]
+    assert result.summary.risk_count == 1

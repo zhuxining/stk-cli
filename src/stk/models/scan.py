@@ -4,7 +4,13 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
-from stk.models.score import Decision, PrimarySignal, RiskProfile, SignalContext
+from stk.models.score import (
+    Decision,
+    PrimarySignal,
+    RiskProfile,
+    RoutingAssessment,
+    SignalContext,
+)
 
 type CompactDailyValue = str | int | float | None
 
@@ -26,6 +32,7 @@ class MonitorSummary(BaseModel):
     entry_signal_count: int
     exit_signal_count: int
     watch_signal_count: int
+    risk_count: int = 0
 
 
 class FocusItem(BaseModel):
@@ -37,6 +44,7 @@ class FocusItem(BaseModel):
     primary_signal: PrimarySignal
     context: SignalContext
     risk: RiskProfile
+    routing: RoutingAssessment = Field(default_factory=RoutingAssessment)
     last: Decimal | None = None
     change_pct: Decimal | None = None
     source: str = "unknown"
@@ -63,5 +71,6 @@ class MonitorResult(BaseModel):
     universe: MonitorUniverse
     summary: MonitorSummary
     focus: list[FocusItem] = Field(default_factory=list)
+    risk: list[FocusItem] = Field(default_factory=list)
     ignored: IgnoredSummary
     errors: list[ScanError] = Field(default_factory=list)

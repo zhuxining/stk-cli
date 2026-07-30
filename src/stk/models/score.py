@@ -19,6 +19,10 @@ type SignalPattern = Literal["趋势共振", "超卖修复"]
 type ContextBias = Literal["supportive", "mixed", "conflicting", "risky"]
 type FactorState = Literal["confirming", "neutral", "conflicting", "risk", "opportunity", "none"]
 type RiskLevel = Literal["low", "medium", "high"]
+type RoutingState = Literal["eligible", "watch", "risk", "ignored"]
+type EntryPattern = Literal[
+    "healthy_continuation", "pullback_hold", "momentum_recovery", "trend_start"
+]
 type MetricValue = str | int | float | bool | None
 
 
@@ -90,6 +94,25 @@ class RiskProfile(BaseModel):
     risk_level: RiskLevel = "medium"
 
 
+class RoutingAssessment(BaseModel):
+    """Daily actionable filtering state for route groups."""
+
+    state: RoutingState = "ignored"
+    entry_eligible: bool = False
+    entry_patterns: list[EntryPattern] = Field(default_factory=list)
+    exit_trigger: bool = False
+    recovery: bool = False
+    overheated: bool = False
+    close: float | None = None
+    ema9: float | None = None
+    ema26: float | None = None
+    atr10: float | None = None
+    max_entry_price: float | None = None
+    rsi14: float | None = None
+    turnover_ratio_5d: float | None = None
+    reasons: list[str] = Field(default_factory=list)
+
+
 class ScoreResult(BaseModel):
     """Daily monitoring analysis for a single security."""
 
@@ -98,3 +121,4 @@ class ScoreResult(BaseModel):
     primary_signal: PrimarySignal
     context: SignalContext
     risk: RiskProfile
+    routing: RoutingAssessment = Field(default_factory=RoutingAssessment)

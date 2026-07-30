@@ -16,26 +16,14 @@ from stk.models.scan import (
     MonitorUniverse,
     ScanError,
 )
-from stk.models.score import (
-    ContextBias,
-    DecisionSignal,
-    FactorState,
-    ScoreResult,
-    SignalContext,
-    SignalStrength,
-)
+from stk.models.score import ContextBias, FactorState, ScoreResult, SignalContext
 from stk.services.indicator import get_daily
 from stk.services.quote import get_realtime_quotes
-from stk.services.score import _STRENGTH_RANK, calc_score
+from stk.services.score import calc_score
 from stk.services.watchlist import get_watchlist
 from stk.utils.symbol import to_longport_symbol
 from stk.utils.trading_session import is_unclosed_daily_bar
 
-_ENTRY_SIGNALS: set[DecisionSignal] = {"趋势买入", "超卖修复"}
-_EXIT_SIGNALS: set[DecisionSignal] = {"趋势退出"}
-_FOCUS_SIGNALS = _ENTRY_SIGNALS | _EXIT_SIGNALS
-_FOCUS_STRENGTHS: set[SignalStrength] = {"推荐", "预警"}
-_ACTIVE_SIGNAL_STATUSES = {"new", "active"}
 _BIAS_RANK: dict[ContextBias, int] = {
     "supportive": 0,
     "mixed": 1,
@@ -154,18 +142,11 @@ def _score_symbols(
 
 
 def _should_focus(score: ScoreResult) -> bool:
-    decision = score.decision
-    return (
-        decision.signal in _FOCUS_SIGNALS
-        and decision.strength in _FOCUS_STRENGTHS
-        and decision.signal_status in _ACTIVE_SIGNAL_STATUSES
-    )
+    return score.routing.entry_eligible
 
 
 def _needs_daily10(score: ScoreResult) -> bool:
-    return (
-        score.decision.strength in {"推荐", "预警"} and score.context.overall_bias != "conflicting"
-    )
+    return score.routing.entry_eligible or score.routing.recovery
 
 
 def _compact_context(context: SignalContext) -> SignalContext:
@@ -191,6 +172,7 @@ def _focus_item(
         primary_signal=score.primary_signal,
         context=score.context if include_full_context else _compact_context(score.context),
         risk=score.risk,
+        routing=score.routing,
         last=quote.last if quote else None,
         change_pct=quote.change_pct if quote else None,
         source=quote.source if quote else "unknown",
@@ -198,23 +180,27 @@ def _focus_item(
     )
 
 
-def _sort_key(item: FocusItem) -> tuple[int, int, int]:
-    bars = item.decision.bars_since_signal
-    bars_since_signal = 999 if bars is None else bars
+def _sort_key(item: FocusItem) -> tuple[int, int, float]:
+    state_rank = 0 if item.routing.entry_eligible else 1
+    turnover_ratio = item.routing.turnover_ratio_5d or 0
     return (
-        _STRENGTH_RANK[item.decision.strength],
+        state_rank,
         _BIAS_RANK[item.context.overall_bias],
-        bars_since_signal,
+        -turnover_ratio,
     )
 
 
-def _summary(focus: list[FocusItem]) -> MonitorSummary:
+def _summary(focus: list[FocusItem], scores: list[ScoreResult]) -> MonitorSummary:
+    eligible = sum(score.routing.entry_eligible for score in scores)
+    risks = sum(score.routing.exit_trigger for score in scores)
+    watches = sum(score.routing.state == "watch" for score in scores)
     return MonitorSummary(
         focus_count=len(focus),
-        recommend_count=sum(item.decision.strength == "推荐" for item in focus),
-        entry_signal_count=sum(item.decision.signal in _ENTRY_SIGNALS for item in focus),
-        exit_signal_count=sum(item.decision.signal in _EXIT_SIGNALS for item in focus),
-        watch_signal_count=sum(item.decision.signal == "观察" for item in focus),
+        recommend_count=eligible,
+        entry_signal_count=eligible,
+        exit_signal_count=risks,
+        watch_signal_count=watches,
+        risk_count=risks,
     )
 
 
@@ -239,6 +225,7 @@ def _monitor_symbols(
                 watch_signal_count=0,
             ),
             focus=[],
+            risk=[],
             ignored=IgnoredSummary(no_signal_count=0),
             errors=[],
         )
@@ -258,7 +245,20 @@ def _monitor_symbols(
         for symbol, score in score_map.items()
         if _should_focus(score)
     ]
+    risk = [
+        _focus_item(
+            symbol,
+            names,
+            quotes,
+            score,
+            include_daily10=False,
+            include_full_context=include_full_context,
+        )
+        for symbol, score in score_map.items()
+        if score.routing.exit_trigger
+    ]
     focus.sort(key=_sort_key)
+    risk.sort(key=_sort_key)
 
     return MonitorResult(
         run_date=_run_date(),
@@ -268,9 +268,10 @@ def _monitor_symbols(
             scanned=len(score_map),
             failed=len(errors),
         ),
-        summary=_summary(focus),
+        summary=_summary(focus, list(score_map.values())),
         focus=focus,
-        ignored=IgnoredSummary(no_signal_count=len(score_map) - len(focus)),
+        risk=risk,
+        ignored=IgnoredSummary(no_signal_count=len(score_map) - len(focus) - len(risk)),
         errors=errors,
     )
 

@@ -36,3 +36,5 @@ class WorkflowResult(BaseModel):
     candidates_found: int = 0
     source_summary: MonitorSummary | None = None
     destinations: list[Watchlist] = Field(default_factory=list)
+    buy: list[str] = Field(default_factory=list)
+    sell: list[str] = Field(default_factory=list)
