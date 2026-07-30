@@ -75,8 +75,3 @@ def get_realtime_quotes(symbols: list[str]) -> list[Quote]:
         raise
     except Exception as e:
         raise SourceError(f"Longport API error: {e}") from e
-
-
-def get_realtime_quote(symbol: str) -> Quote:
-    """Fetch real-time quote for a single symbol."""
-    return get_realtime_quotes([symbol])[0]

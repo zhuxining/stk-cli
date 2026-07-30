@@ -7,7 +7,6 @@ import pandas as pd
 
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
-from stk.models.common import TargetType
 from stk.models.history import Candlestick
 from stk.store.cache import cached
 from stk.utils.symbol import to_longport_symbol
@@ -34,30 +33,16 @@ def _get_period(period: str) -> Any:
             "day": Period.Day,
             "week": Period.Week,
             "month": Period.Month,
-            "1m": Period.Min_1,
-            "2m": Period.Min_2,
-            "3m": Period.Min_3,
-            "5m": Period.Min_5,
-            "10m": Period.Min_10,
-            "15m": Period.Min_15,
-            "20m": Period.Min_20,
-            "30m": Period.Min_30,
-            "45m": Period.Min_45,
-            "60m": Period.Min_60,
-            "120m": Period.Min_120,
-            "180m": Period.Min_180,
-            "240m": Period.Min_240,
         })
     lp_period = _PERIOD_MAP.get(period)
     if lp_period is None:
-        raise SourceError(f"Unsupported period: {period}. Use day/week/month or minute periods")
+        raise SourceError(f"Unsupported period: {period}. Use day/week/month")
     return lp_period
 
 
 def _query_history(
     symbol: str,
     *,
-    target_type: TargetType = TargetType.STOCK,
     period: str = "day",
     count: int = 30,
 ) -> list[Candlestick]:
@@ -91,20 +76,8 @@ def _query_history(
 def get_history(
     symbol: str,
     *,
-    target_type: TargetType = TargetType.STOCK,
     period: str = "day",
     count: int = 30,
 ) -> list[Candlestick]:
     """Get historical candlestick data from longport."""
-    return _query_history(symbol, target_type=target_type, period=period, count=count)
-
-
-def get_uncached_history(
-    symbol: str,
-    *,
-    target_type: TargetType = TargetType.STOCK,
-    period: str = "day",
-    count: int = 30,
-) -> list[Candlestick]:
-    """Get fresh candlestick data without the long-lived history cache."""
-    return _query_history(symbol, target_type=target_type, period=period, count=count)
+    return _query_history(symbol, period=period, count=count)

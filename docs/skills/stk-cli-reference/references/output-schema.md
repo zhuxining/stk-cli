@@ -1,83 +1,23 @@
-# 输出结构详解
+# 扫描输出结构
 
-**何时读取**：当你需要理解 `stk stock scan`、`stk watchlist scan`、`stk stock scan-live`、`stk watchlist scan-live` 返回结果中各字段的含义、类型和结构时读取此文件。
+`stk scan <longport-group>` 返回 `MonitorResult`：
 
-**关联文件**：字段的**取值含义**（如 `overall_bias` 的 `supportive`/`mixed`/`risky`/`conflicting` 分别代表什么、各信号如何解读）见 `references/signal-strategy.md`。本文仅描述字段结构和数据位置。
+| 字段 | 说明 |
+|---|---|
+| `run_date` | 扫描日期 |
+| `universe` | 分组名、总数、成功数、失败数 |
+| `summary` | focus、推荐、entry、exit 数量 |
+| `focus[]` | 当前需要关注的标的 |
+| `ignored` | 无有效信号数量 |
+| `errors[]` | 单标的非致命错误 |
 
----
+每个 `FocusItem` 包含：
 
-## MonitorResult（`stk stock scan` / `stk watchlist scan`）
+- `symbol`、`name`、`last`、`change_pct`
+- `decision`：信号、强度、状态、日期和信号年龄
+- `primary_signal`：EMA、Supertrend、ADX 和原因
+- `context`：辅助因子态度、指标与警告
+- `risk`：ATR、止损、目标位、移动止损和风险收益比
+- `daily10`：仅在请求 `--daily10` 且信号适合复核时出现
 
-顶层结构：
-
-| 字段       | 说明                                                                                                  |
-| ---------- | ----------------------------------------------------------------------------------------------------- |
-| `run_date` | 运行日期                                                                                              |
-| `universe` | `name`、`total`、`scanned`、`failed`                                                                  |
-| `summary`  | `focus_count`、`recommend_count`、`entry_signal_count`、`exit_signal_count`、`watch_signal_count` |
-| `focus[]`  | 重点关注标的                                                                                          |
-| `ignored`  | `no_signal_count`                                                                                     |
-| `errors[]` | 单标的非致命错误                                                                                      |
-
-### FocusItem
-
-| 分组             | 字段                                                                                                                                                         |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 展示             | `symbol`、`name`、`last`、`change_pct`、`source`                                                                                                             |
-| `decision`       | `signal`（`趋势买入` / `趋势退出` / `超卖修复` / `观察`）、`strength`（`推荐` / `预警`，无信号时不输出）、`signal_status`、`signal_date`、`bars_since_signal` |
-| `primary_signal` | `ema_cross`、`ema9`、`ema26`、`supertrend`、`supertrend_direction`、`adx`、`reasons`                                                                         |
-| `context`        | `overall_bias`、`factors[]`、`warnings[]`                                                                                                                    |
-| `risk`           | `atr`、`stop_loss`、`take_profit`、`target_1`、`target_2`、`trailing_stop`、`risk_reward_ratio`、`risk_level`                                                |
-| `daily10`        | 仅 `--daily10` 且推荐/预警信号、辅助不冲突时出现                                                                                                             |
-
-### context.factors[]
-
-| factor         | 主要 metrics                                                | 用途               |
-| -------------- | ----------------------------------------------------------- | ------------------ |
-| `momentum`     | `rsi14`、`rsi_zone`、`k`、`d`、`j`、`kdj_bias`              | 动量支持与过热判断 |
-| `macd`         | `dif`、`dea`、`hist`、`bias`                                | MACD 多空状态      |
-| `boll`         | `upper`、`middle`、`lower`、`position_pct`、`bandwidth_pct` | 价格位置与波动收敛 |
-| `volume_price` | `volume_ratio_5d`、`price_change_pct`                       | 量能确认           |
-| `ema_trend`    | `ema5`、`ema10`、`ema20`、`arrangement`                     | 短周期均线排列     |
-| `money_flow`   | `mfi14`、`mfi_zone`                                         | 资金流强弱         |
-| `divergence`   | `type`、`lookback`、`price_distance_pct`、`hist_delta`      | MACD 顶/底背离提示 |
-
-### daily10 字段（需 `--daily10`）
-
-| 分类     | 字段                                                                           |
-| -------- | ------------------------------------------------------------------------------ |
-| 价格量能 | `date`、`open`、`high`、`low`、`close`、`volume`、`turnover`、`change_pct`     |
-| 主信号   | `ema9`、`ema26`、`supertrend`、`supertrend_direction`                          |
-| 辅助指标 | `macd`、`macd_signal`、`macd_hist`、`rsi14`、`j`、`boll_position_pct`、`atr10` |
-
----
-
-## LiveScanResult（`stk stock scan-live` / `stk watchlist scan-live`）
-
-顶层结构：
-
-| 字段        | 说明                                                                               |
-| ----------- | ---------------------------------------------------------------------------------- |
-| `mode`      | 固定 `live`                                                                        |
-| `as_of`     | 扫描时间                                                                           |
-| `timeframe` | K 线周期（`5m` / `15m`）                                                           |
-| `universe`  | `name`、`total`、`scanned`、`failed`                                               |
-| `summary`   | `focus_count`、`follow_count`、`weaken_count`、`overheated_count`、`observe_count` |
-| `focus[]`   | 盘中触发提醒标的                                                                   |
-| `ignored`   | `no_live_signal_count`                                                             |
-| `errors[]`  | 单标的非致命错误                                                                   |
-
-### LiveFocusItem
-
-| 字段             | 说明                                 |
-| ---------------- | ------------------------------------ |
-| `daily_signal`   | 日线信号                             |
-| `daily_strength` | 日线强度                             |
-| `live_signal`    | `实时跟随` / `实时转弱` / `实时过热` |
-| `strength`       | `强提醒` / `普通提醒`                |
-| `trigger`        | 触发原因                             |
-| `risk_line`      | 分钟触发失效线或观察线               |
-| `volume_ratio`   | 最新分钟 K 成交额相对均值            |
-| `vwap`           | 成交量加权均价                       |
-| `ema20`          | 分钟 EMA20                           |
-| `rsi14`          | 分钟 RSI14                           |
+默认会从 `context.factors` 省略 neutral/none 因子；使用 `--full-context` 获取全部因子。

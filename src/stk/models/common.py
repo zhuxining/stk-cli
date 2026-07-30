@@ -1,17 +1,6 @@
 """Common models shared across domains."""
 
-from enum import StrEnum
-
 from pydantic import BaseModel
-
-
-class TargetType(StrEnum):
-    """Target type enumeration for symbol queries."""
-
-    STOCK = "stock"
-    SECTOR = "sector"
-    CONCEPT = "concept"
-    INDEX = "index"
 
 
 class ErrorDetail(BaseModel):

@@ -1,7 +1,6 @@
 """Technical indicator calculation service (ta-lib + pandas)."""
 
 import collections.abc
-import operator
 from typing import cast
 
 import numpy as np
@@ -9,7 +8,6 @@ import pandas as pd
 import talib
 
 from stk.errors import IndicatorError
-from stk.models.common import TargetType
 from stk.models.indicator import DailyResult
 from stk.services.history import candles_to_df, get_history
 
@@ -206,12 +204,11 @@ _INDICATOR_MAP: dict[str, collections.abc.Callable] = {
 def _fetch_df(
     symbol: str,
     *,
-    target_type: TargetType = TargetType.STOCK,
     period: str = "day",
     count: int = 60,
 ) -> pd.DataFrame:
     """Fetch history and convert to DataFrame (shared by single/all)."""
-    candles = get_history(symbol, target_type=target_type, period=period, count=count)
+    candles = get_history(symbol, period=period, count=count)
     if not candles:
         raise IndicatorError(f"No history data for {symbol}")
     return candles_to_df(candles)
@@ -220,13 +217,12 @@ def _fetch_df(
 def get_daily(
     symbol: str,
     *,
-    target_type: TargetType = TargetType.STOCK,
     period: str = "day",
     count: int = 10,
 ) -> DailyResult:
     """Get OHLCV + all indicators merged per day (single history fetch)."""
     warmup = 50
-    df = _fetch_df(symbol, target_type=target_type, period=period, count=count + warmup)
+    df = _fetch_df(symbol, period=period, count=count + warmup)
 
     # Compute all indicators on full df
     indicator_rows = {name: calc_fn(df, {}) for name, calc_fn in _INDICATOR_MAP.items()}
@@ -260,73 +256,3 @@ def get_daily(
 
     days.reverse()
     return DailyResult(symbol=symbol, days=days)
-
-
-def zigzag_pivots(
-    highs: list[float],
-    lows: list[float],
-    *,
-    order: int = 5,
-    pct: float = 5.0,
-) -> list[dict]:
-    """Detect zigzag pivot points using scipy argrelextrema.
-
-    - Pivot highs: local maxima of the high series (order bars each side).
-    - Pivot lows: local minima of the low series (order bars each side).
-    - Constructs zigzag by connecting alternating pivots with a minimum
-      reversal percentage.
-
-    Args:
-        highs: High prices, most recent last.
-        lows: Low prices, most recent last.
-        order: Bars to compare each side for extrema detection. Default 5.
-        pct: Minimum reversal %% to register a pivot. Default 5.0.
-
-    Returns:
-        Pivots from earliest to latest: [{index, price, type}].
-    """
-    from scipy.signal import argrelextrema
-
-    n = len(highs)
-    if n < order * 2 + 1:
-        return []
-
-    high_arr = np.array(highs)
-    low_arr = np.array(lows)
-
-    # Find local extrema indices
-    high_idx: set[int] = {int(i) for i in argrelextrema(high_arr, np.greater, order=order)[0]}
-    low_idx: set[int] = {int(i) for i in argrelextrema(low_arr, np.less, order=order)[0]}
-
-    # Merge by index and construct zigzag
-    all_pivots = sorted(
-        [{"index": i, "price": highs[i], "type": "high"} for i in high_idx]
-        + [{"index": i, "price": lows[i], "type": "low"} for i in low_idx],
-        key=operator.itemgetter("index"),
-    )
-    if not all_pivots:
-        return []
-
-    result = [all_pivots[0]]
-    for pivot in all_pivots[1:]:
-        last = result[-1]
-        p_price = float(pivot["price"])
-        l_price = float(last["price"])
-
-        if pivot["type"] == last["type"]:
-            # Same direction: keep more extreme (higher high / lower low)
-            if (pivot["type"] == "high" and p_price > l_price) or (
-                pivot["type"] == "low" and p_price < l_price
-            ):
-                result[-1] = pivot
-        else:
-            # Opposite direction: check reversal percentage
-            chg = (
-                (l_price - p_price) / l_price * 100
-                if last["type"] == "high"
-                else (p_price - l_price) / l_price * 100
-            )
-            if chg >= pct:
-                result.append(pivot)
-
-    return result

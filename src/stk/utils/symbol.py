@@ -2,10 +2,6 @@
 
 import re
 
-# ---------------------------------------------------------------------------
-# Symbol normalization — user input → longport/akshare/eastmoney format
-# ---------------------------------------------------------------------------
-
 
 def to_longport_symbol(symbol: str) -> str:
     """
@@ -36,57 +32,6 @@ def to_longport_symbol(symbol: str) -> str:
     return symbol
 
 
-def to_em_symbol(symbol: str) -> str:
-    """Convert to EastMoney format: 600519 → SH600519, 000001 → SZ000001."""
-    lp = to_longport_symbol(symbol)
-    if "." not in lp:
-        return lp
-    code, market = lp.split(".", 1)
-    return f"{market}{code}"
-
-
-def from_em_symbol(em_symbol: str) -> str:
-    """Convert EastMoney format back to longport: SH600519 → 600519.SH, SZ000001 → 000001.SZ."""
-    if len(em_symbol) < 3:
-        return em_symbol
-    market = em_symbol[:2]
-    code = em_symbol[2:]
-    if market in ("SH", "SZ"):
-        return f"{code}.{market}"
-    return em_symbol
-
-
-def to_ak_market(symbol: str) -> tuple[str, str]:
-    """
-    Convert symbol to akshare (stock, market) format.
-
-    Returns (code, market) where market is 'sh' or 'sz'.
-    Raises ValueError for non-A-share symbols.
-    """
-    lp = to_longport_symbol(symbol)
-    if not lp.endswith((".SH", ".SZ")):
-        raise ValueError(f"to_ak_market only supports A-share symbols (.SH/.SZ), got: {lp}")
-    code, market = lp.split(".", 1)
-    return code, market.lower()
-
-
-def is_hk(symbol: str) -> bool:
-    """Check if symbol is a HK stock."""
-    return to_longport_symbol(symbol).endswith(".HK")
-
-
-def to_hk_code(symbol: str) -> str:
-    """Extract HK code with zero padding: 700.HK → 00700, 3900.HK → 03900."""
-    lp = to_longport_symbol(symbol)
-    code = lp.split(".")[0]
-    return code.zfill(5)
-
-
-# ---------------------------------------------------------------------------
-# Symbol helpers
-# ---------------------------------------------------------------------------
-
-
 def expand_symbols(symbols: list[str]) -> list[str]:
     """展开逗号分隔的 symbol 列表，兼容空格和逗号两种分隔方式。
 
@@ -97,15 +42,6 @@ def expand_symbols(symbols: list[str]) -> list[str]:
         result.extend(x.strip() for x in s.split(",") if x.strip())
     return result
 
-
-def extract_code(symbol: str) -> str:
-    """Strip market suffix: '600519.SH' → '600519', '700.HK' → '700'."""
-    return symbol.split(".")[0] if "." in symbol else symbol
-
-
-# ---------------------------------------------------------------------------
-# THS (同花顺) symbol conversion
-# ---------------------------------------------------------------------------
 
 # A-share codes that need different market suffix in THS
 # 科创板: 688xxx → .KC (THS market code 18)
@@ -174,12 +110,3 @@ def is_longport_symbol(symbol: str) -> bool:
     """
     lp = to_longport_symbol(symbol)
     return "." in lp and lp.split(".", 1)[1] in _LONGPORT_MARKETS
-
-
-def is_etf(symbol: str) -> bool:
-    """Check if symbol is an A-share ETF (SH:5xxxxx / SZ:159xxx)."""
-    lp = to_longport_symbol(symbol)
-    code = extract_code(lp)
-    if lp.endswith(".SH") and code.startswith("5"):
-        return True
-    return bool(lp.endswith(".SZ") and code.startswith("159"))

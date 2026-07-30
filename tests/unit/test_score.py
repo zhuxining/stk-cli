@@ -38,7 +38,7 @@ def _candles_from_closes(closes: list[float], *, width: float = 1.0) -> list[Can
 
 
 def _strong_buy_candles() -> list[Candlestick]:
-    closes = [120 - i * 0.5 for i in range(55)] + [92 + i * 4.0 for i in range(6)]
+    closes = [120 - i * 0.5 for i in range(57)] + [90 + i * 8.0 for i in range(4)]
     return _candles_from_closes(closes)
 
 

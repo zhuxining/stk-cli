@@ -162,11 +162,11 @@ def test_clear_cache_all():
 def test_clear_cache_with_prefix():
     """clear_cache(prefix) should only remove matching entries."""
     _mem_cache["stk.services.board.get_board_list:abc123"] = (time.time() + 60, "data1")
-    _mem_cache["stk.services.rank.get_tech_rank:def456"] = (time.time() + 60, "data2")
+    _mem_cache["stk.services.quote.get_realtime_quotes:def456"] = (time.time() + 60, "data2")
 
     count = clear_cache("stk.services.board")
     assert count == 1
-    assert "stk.services.rank.get_tech_rank:def456" in _mem_cache
+    assert "stk.services.quote.get_realtime_quotes:def456" in _mem_cache
     assert "stk.services.board.get_board_list:abc123" not in _mem_cache
 
 

@@ -291,35 +291,3 @@ def scan_watchlist(
         include_daily10=include_daily10,
         include_full_context=include_full_context,
     )
-
-
-def batch_summary(
-    symbols: list[str],
-    *,
-    include_daily10: bool = False,
-    include_full_context: bool = False,
-) -> MonitorResult:
-    """Monitor an ad-hoc symbol universe and return symbols that need daily focus."""
-    return _monitor_symbols(
-        symbols,
-        {},
-        universe_name="ad-hoc",
-        include_daily10=include_daily10,
-        include_full_context=include_full_context,
-    )
-
-
-def kline_watchlist(name: str, *, period: str = "day", count: int = 10) -> list:
-    """Fetch K-line + all indicators for every stock in a watchlist group."""
-    watchlist = get_watchlist(name)
-    symbols = [s.symbol for s in watchlist.securities]
-
-    results: list = []
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        futures = {executor.submit(get_daily, s, period=period, count=count): s for s in symbols}
-        for future in as_completed(futures):
-            try:
-                results.append(future.result())
-            except Exception as e:
-                logger.debug(f"kline failed for {futures[future]}: {e}")
-    return results

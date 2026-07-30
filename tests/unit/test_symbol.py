@@ -3,12 +3,9 @@
 import pytest
 
 from stk.utils.symbol import (
+    expand_symbols,
     from_ths_symbol,
-    is_hk,
     is_longport_symbol,
-    to_ak_market,
-    to_em_symbol,
-    to_hk_code,
     to_longport_symbol,
     to_ths_symbol,
 )
@@ -56,67 +53,8 @@ def test_to_longport_symbol(input_symbol, expected):
     assert to_longport_symbol(input_symbol) == expected
 
 
-@pytest.mark.parametrize(
-    ("input_symbol", "expected"),
-    [
-        ("600519", "SH600519"),
-        ("000001", "SZ000001"),
-        ("688001", "SH688001"),
-        ("300750", "SZ300750"),
-        ("700.HK", "HK700"),  # to_em_symbol doesn't zero-pad HK codes
-    ],
-)
-def test_to_em_symbol(input_symbol, expected):
-    """Test conversion to EastMoney format."""
-    assert to_em_symbol(input_symbol) == expected
-
-
-@pytest.mark.parametrize(
-    ("input_symbol", "expected"),
-    [
-        ("600519", ("600519", "sh")),
-        ("000001", ("000001", "sz")),
-        ("688001", ("688001", "sh")),
-    ],
-)
-def test_to_ak_market(input_symbol, expected):
-    """Test conversion to akshare (code, market) format."""
-    assert to_ak_market(input_symbol) == expected
-
-
-@pytest.mark.parametrize("input_symbol", ["700.HK", "AAPL.US", ".DJI", "TSLA"])
-def test_to_ak_market_rejects_non_a_share(input_symbol):
-    """Test to_ak_market raises ValueError for non-A-share symbols."""
-    with pytest.raises(ValueError, match="only supports A-share"):
-        to_ak_market(input_symbol)
-
-
-@pytest.mark.parametrize(
-    ("input_symbol", "expected"),
-    [
-        ("700.HK", True),
-        ("00700.HK", True),
-        ("600519", False),
-        ("AAPL.US", False),
-    ],
-)
-def test_is_hk(input_symbol, expected):
-    """Test HK stock detection."""
-    assert is_hk(input_symbol) == expected
-
-
-@pytest.mark.parametrize(
-    ("input_symbol", "expected"),
-    [
-        ("700.HK", "00700"),
-        ("00700.HK", "00700"),
-        ("3900.HK", "03900"),
-        ("1234.HK", "01234"),
-    ],
-)
-def test_to_hk_code(input_symbol, expected):
-    """Test HK code extraction with zero padding."""
-    assert to_hk_code(input_symbol) == expected
+def test_expand_symbols_supports_commas_and_spaces():
+    assert expand_symbols(["600519,000001", "700.HK"]) == ["600519", "000001", "700.HK"]
 
 
 @pytest.mark.parametrize(

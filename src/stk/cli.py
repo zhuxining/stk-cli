@@ -38,15 +38,12 @@ def _callback(
         disable()
 
 
-# Register subcommand groups
-from stk.commands import cache, doctor, market, stock, sync, watchlist  # noqa: E402
+# Register public routes after the root callback is defined.
+from stk.commands import data, group, scan  # ruff: ignore[module-import-not-at-top-of-file]
 
-app.add_typer(market.app, name="market")
-app.add_typer(stock.app, name="stock")
-app.add_typer(watchlist.app, name="watchlist")
-app.add_typer(sync.app, name="sync")
-app.add_typer(doctor.app, name="doctor")
-app.add_typer(cache.app, name="cache")
+app.add_typer(data.app, name="data")
+app.add_typer(group.app, name="group")
+app.command("scan")(scan.scan)
 
 
 def cli() -> None:

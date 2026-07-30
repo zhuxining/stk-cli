@@ -19,7 +19,7 @@ from stk.models.score import (
     SignalStatus,
     SignalStrength,
 )
-from stk.services.scan import batch_summary
+from stk.services.scan import _monitor_symbols
 
 
 def _score_result(
@@ -143,7 +143,7 @@ def _compact_daily10() -> list[dict[str, str | int | float | None]]:
 @patch("stk.services.scan.get_realtime_quotes")
 @patch("stk.services.scan.get_daily")
 @patch("stk.services.scan.calc_score")
-def test_batch_summary_returns_focus_only(mock_score, mock_daily, mock_quotes):
+def test_monitor_symbols_returns_focus_only(mock_score, mock_daily, mock_quotes):
     """Only active signal candidates enter focus output."""
     mock_quotes.return_value = [
         Quote(symbol="600519.SH", name="贵州茅台", last=Decimal(100)),
@@ -171,7 +171,11 @@ def test_batch_summary_returns_focus_only(mock_score, mock_daily, mock_quotes):
 
     mock_score.side_effect = _score
 
-    result = batch_summary(["600519.SH", "000001.SZ", "300750.SZ"])
+    result = _monitor_symbols(
+        ["600519.SH", "000001.SZ", "300750.SZ"],
+        {},
+        universe_name="test",
+    )
 
     assert result.universe.total == 3
     assert result.universe.scanned == 2
@@ -195,7 +199,7 @@ def test_batch_summary_returns_focus_only(mock_score, mock_daily, mock_quotes):
 @patch("stk.services.scan.get_realtime_quotes")
 @patch("stk.services.scan.get_daily")
 @patch("stk.services.scan.calc_score")
-def test_batch_summary_includes_daily10_when_requested(mock_score, mock_daily, mock_quotes):
+def test_monitor_symbols_includes_daily10_when_requested(mock_score, mock_daily, mock_quotes):
     """Strong signals include daily10 only when explicitly requested."""
     mock_quotes.return_value = [Quote(symbol="600519.SH", name="贵州茅台", last=Decimal(100))]
     mock_daily.return_value = _daily_result()
@@ -206,7 +210,12 @@ def test_batch_summary_includes_daily10_when_requested(mock_score, mock_daily, m
         status="new",
     )
 
-    result = batch_summary(["600519.SH"], include_daily10=True)
+    result = _monitor_symbols(
+        ["600519.SH"],
+        {},
+        universe_name="test",
+        include_daily10=True,
+    )
 
     assert result.focus[0].daily10 == _compact_daily10()
     mock_daily.assert_called_once_with("600519.SH", count=11)
@@ -216,7 +225,7 @@ def test_batch_summary_includes_daily10_when_requested(mock_score, mock_daily, m
 @patch("stk.services.scan.get_realtime_quotes")
 @patch("stk.services.scan.get_daily")
 @patch("stk.services.scan.calc_score")
-def test_batch_summary_daily10_drops_unclosed_current_bar(
+def test_monitor_symbols_daily10_drops_unclosed_current_bar(
     mock_score,
     mock_daily,
     mock_quotes,
@@ -232,7 +241,12 @@ def test_batch_summary_daily10_drops_unclosed_current_bar(
         status="new",
     )
 
-    result = batch_summary(["600519.SH"], include_daily10=True)
+    result = _monitor_symbols(
+        ["600519.SH"],
+        {},
+        universe_name="test",
+        include_daily10=True,
+    )
 
     assert result.focus[0].daily10 == _compact_daily10()
     mock_unclosed.assert_called_once_with("2026-05-15", "600519.SH")
@@ -240,7 +254,7 @@ def test_batch_summary_daily10_drops_unclosed_current_bar(
 
 @patch("stk.services.scan.get_realtime_quotes")
 @patch("stk.services.scan.calc_score")
-def test_batch_summary_compacts_context_by_default(mock_score, mock_quotes):
+def test_monitor_symbols_compacts_context_by_default(mock_score, mock_quotes):
     """Default scan output omits neutral/no-signal context factors."""
     mock_quotes.return_value = []
     score = _score_result(
@@ -257,8 +271,13 @@ def test_batch_summary_compacts_context_by_default(mock_score, mock_quotes):
     ]
     mock_score.return_value = score
 
-    compact = batch_summary(["600519.SH"])
-    full = batch_summary(["600519.SH"], include_full_context=True)
+    compact = _monitor_symbols(["600519.SH"], {}, universe_name="test")
+    full = _monitor_symbols(
+        ["600519.SH"],
+        {},
+        universe_name="test",
+        include_full_context=True,
+    )
 
     assert [factor.name for factor in compact.focus[0].context.factors] == ["macd", "boll"]
     assert [factor.name for factor in full.focus[0].context.factors] == [
@@ -284,7 +303,7 @@ def test_hold_with_risk_context_is_ignored(mock_score, mock_quotes):
         bars_since_signal=5,
     )
 
-    result = batch_summary(["000001.SZ"])
+    result = _monitor_symbols(["000001.SZ"], {}, universe_name="test")
 
     assert result.summary.focus_count == 0
     assert result.summary.watch_signal_count == 0
@@ -307,7 +326,7 @@ def test_old_hold_with_single_risk_context_is_ignored(mock_score, mock_quotes):
         bars_since_signal=20,
     )
 
-    result = batch_summary(["000001.SZ"])
+    result = _monitor_symbols(["000001.SZ"], {}, universe_name="test")
 
     assert result.summary.focus_count == 0
     assert result.ignored.no_signal_count == 1

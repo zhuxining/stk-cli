@@ -1,6 +1,6 @@
 """Watchlist models."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from stk.models.scan import MonitorSummary
 
@@ -18,7 +18,7 @@ class Watchlist(BaseModel):
 
     id: int
     name: str
-    securities: list[WatchlistSecurity] = []
+    securities: list[WatchlistSecurity] = Field(default_factory=list)
 
 
 class WatchlistSummary(BaseModel):
@@ -30,9 +30,9 @@ class WatchlistSummary(BaseModel):
 
 
 class WorkflowResult(BaseModel):
-    """Result of a watchlist workflow operation (scoop/route)."""
+    """Result of a Longport signal routing operation."""
 
     action: str
     candidates_found: int = 0
     source_summary: MonitorSummary | None = None
-    destinations: list[Watchlist] = []
+    destinations: list[Watchlist] = Field(default_factory=list)
