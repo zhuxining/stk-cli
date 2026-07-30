@@ -32,12 +32,12 @@ stk data kline
   -> normalize symbols
   -> Longport candlesticks
   -> pandas DataFrame
-  -> ta-lib indicators
+  -> ta-lib + stockstats indicators
   -> DailyResult[]
 ```
 
-支持日、周、月 K 线。输出合并 OHLCV、EMA、MACD、RSI、KDJ、BOLL、ATR 和
-Supertrend。
+支持日、周、月 K 线。输出合并 OHLCV、EMA、MACD、RSI、WR、KDJ、BOLL、ATR 和
+Supertrend。KDJ、WR、ATR 与 Supertrend 使用 stockstats，其他技术指标使用 ta-lib。
 
 ### 分组扫描
 

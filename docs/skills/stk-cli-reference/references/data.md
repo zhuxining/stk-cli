@@ -8,7 +8,7 @@ stk data kline <symbols...> [--period day|week|month] [--count N]
 
 - OHLCV 与 `change_pct`
 - EMA5/9/10/20/26/60
-- MACD、RSI、KDJ、BOLL
-- ATR10/14、Supertrend
+- MACD、RSI、BOLL
+- KDJ9、WR（WR14）、ATR10/14、Supertrend（stockstats）
 
 symbols 支持空格或逗号分隔。A 股纯数字会自动转换为 Longport symbol。

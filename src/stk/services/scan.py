@@ -89,6 +89,7 @@ def _compact_daily_row(day: dict) -> dict[str, CompactDailyValue]:
         "signal": "macd_signal",
         "hist": "macd_hist",
         "RSI": "rsi14",
+        "WR": "wr14",
         "J": "j",
         "ATR10": "atr10",
     }

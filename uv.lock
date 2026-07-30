@@ -941,7 +941,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=3.0.1" },
     { name = "pydantic", specifier = ">=2.13.3" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
-    { name = "stockstats", specifier = ">=0.6.8" },
+    { name = "stockstats", specifier = ">=0.6.8,<0.7" },
     { name = "ta-lib", specifier = ">=0.7.0" },
     { name = "ths-favorite", git = "https://github.com/sunnysab/ths-favorite.git" },
     { name = "typer", specifier = ">=0.26.8" },

@@ -7,6 +7,7 @@ from typing import cast
 
 import numpy as np
 import pandas as pd
+from stockstats import StockDataFrame
 import talib
 
 from stk.errors import IndicatorError
@@ -31,7 +32,11 @@ from stk.models.score import (
     TrendSignal,
 )
 from stk.services.history import candles_to_df, get_history
-from stk.services.indicator import _calc_supertrend_arrays
+from stk.services.indicator import (
+    _calc_kdj_arrays,
+    _calc_supertrend_arrays,
+    _to_stock_frame,
+)
 from stk.utils.trading_session import is_unclosed_daily_bar
 
 _EMA_FAST = 9
@@ -56,9 +61,6 @@ _MACD_SLOW = 26
 _MACD_SIGNAL = 9
 _BOLL_PERIOD = 20
 _BOLL_NBDEV = 2
-_STOCH_FASTK = 9
-_STOCH_SLOWK = 3
-_STOCH_SLOWD = 3
 _DIVERGENCE_LOOKBACK = 20
 
 
@@ -581,23 +583,14 @@ def _factor_state_for_direction(
 
 def _calc_momentum_factor(
     close: pd.Series,
-    high: pd.Series,
-    low: pd.Series,
+    stock: StockDataFrame,
     *,
     direction: TrendDirection,
 ) -> ContextFactor:
     rsi = talib.RSI(close.to_numpy(), timeperiod=_RSI_PERIOD)
     rsi_now = _safe_last(rsi)
 
-    k, d = talib.STOCH(
-        high.to_numpy(),
-        low.to_numpy(),
-        close.to_numpy(),
-        fastk_period=_STOCH_FASTK,
-        slowk_period=_STOCH_SLOWK,
-        slowd_period=_STOCH_SLOWD,
-    )
-    j = 3 * k - 2 * d
+    k, d, j = _calc_kdj_arrays(stock)
     k_now, d_now, j_now = _safe_last(k), _safe_last(d), _safe_last(j)
 
     oversold = (rsi_now is not None and rsi_now < 30) or (j_now is not None and j_now < 20)
@@ -931,6 +924,7 @@ def _overall_bias(factors: list[ContextFactor]) -> ContextBias:
 def _build_context(
     df: pd.DataFrame,
     *,
+    stock: StockDataFrame,
     direction: TrendDirection,
     close_arr: np.ndarray,
     current_price: float,
@@ -954,7 +948,7 @@ def _build_context(
         direction=direction,
     )
     factors = [
-        _calc_momentum_factor(close, high, low, direction=direction),
+        _calc_momentum_factor(close, stock, direction=direction),
         macd_factor,
         boll_factor,
         _calc_volume_price_factor(df, close, direction=direction),
@@ -1079,7 +1073,8 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
     ema9_arr = talib.EMA(close, timeperiod=_EMA_FAST)
     ema26_arr = talib.EMA(close, timeperiod=_EMA_SLOW)
     ema60_arr = talib.EMA(close, timeperiod=_EMA_60)
-    supertrend_arr, st_direction_arr, atr_arr = _calc_supertrend_arrays(high, low, close)
+    stock = _to_stock_frame(df)
+    supertrend_arr, st_direction_arr, atr_arr = _calc_supertrend_arrays(stock)
 
     trend_signal = _build_trend_signal(
         df,
@@ -1103,6 +1098,7 @@ def calc_score(symbol: str, *, count: int = 60) -> ScoreResult:
         if direction not in contexts:
             contexts[direction] = _build_context(
                 df,
+                stock=stock,
                 direction=direction,
                 close_arr=close,
                 current_price=current_price,

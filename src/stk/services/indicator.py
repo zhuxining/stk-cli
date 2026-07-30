@@ -1,10 +1,11 @@
-"""Technical indicator calculation service (ta-lib + pandas)."""
+"""Technical indicator calculation service (ta-lib + stockstats + pandas)."""
 
-import collections.abc
-from typing import cast
+from threading import Lock
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
+from stockstats import StockDataFrame, set_dft_window, wrap
 import talib
 
 from stk.errors import IndicatorError
@@ -12,6 +13,36 @@ from stk.models.indicator import DailyResult
 from stk.services.history import candles_to_df, get_history
 
 _EMA_PERIODS = (5, 9, 10, 20, 26, 60)
+_KDJ_PERIOD = 9
+_WR_PERIOD = 14
+_SUPERTREND_PERIOD = 10
+_SUPERTREND_MULTIPLIER = 2.5
+_stockstats_config_lock = Lock()
+_stockstats_configured = False
+
+
+def _configure_stockstats() -> None:
+    """Configure process-wide stockstats defaults once before concurrent scans."""
+    global _stockstats_configured
+    if _stockstats_configured:
+        return
+    with _stockstats_config_lock:
+        if _stockstats_configured:
+            return
+        set_dft_window("supertrend", _SUPERTREND_PERIOD)
+        _stockstats_configured = True
+
+
+def _to_stock_frame(df: pd.DataFrame) -> StockDataFrame:
+    """Wrap a defensive DataFrame copy with the project's fixed indicator settings."""
+    _configure_stockstats()
+    stock = cast(StockDataFrame, wrap(df.copy()))
+    cast(Any, stock).SUPERTREND_MUL = _SUPERTREND_MULTIPLIER
+    return stock
+
+
+def _stock_values(stock: StockDataFrame, column: str) -> np.ndarray:
+    return stock[column].to_numpy(dtype=float)
 
 
 def _calc_ema(df: pd.DataFrame, params: dict) -> list[dict]:
@@ -55,28 +86,25 @@ def _calc_rsi(df: pd.DataFrame, params: dict) -> list[dict]:
     ]
 
 
-def _calc_kdj(df: pd.DataFrame, params: dict) -> list[dict]:
-    fastk_period = params.get("fastk_period", 9)
-    slowk_period = params.get("slowk_period", 3)
-    slowd_period = params.get("slowd_period", 3)
-    k, d = talib.STOCH(
-        cast(np.ndarray, df["high"]),
-        cast(np.ndarray, df["low"]),
-        cast(np.ndarray, df["close"]),
-        fastk_period=fastk_period,
-        slowk_period=slowk_period,
-        slowd_period=slowd_period,
+def _calc_kdj_arrays(stock: StockDataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return stockstats KDJ9 using its recursive 2/3 and 1/3 smoothing."""
+    return (
+        _stock_values(stock, f"kdjk_{_KDJ_PERIOD}"),
+        _stock_values(stock, f"kdjd_{_KDJ_PERIOD}"),
+        _stock_values(stock, f"kdjj_{_KDJ_PERIOD}"),
     )
-    # J = 3K - 2D
-    j = 3 * k - 2 * d
+
+
+def _calc_kdj(stock: StockDataFrame, dates: pd.Series) -> list[dict]:
+    k, d, j = _calc_kdj_arrays(stock)
     return [
         {
-            "date": dt,
+            "date": date,
             "K": None if np.isnan(kv) else round(kv, 4),
             "D": None if np.isnan(dv) else round(dv, 4),
             "J": None if np.isnan(jv) else round(jv, 4),
         }
-        for dt, kv, dv, jv in zip(df["date"], k, d, j, strict=False)
+        for date, kv, dv, jv in zip(dates, k, d, j, strict=False)
     ]
 
 
@@ -97,108 +125,60 @@ def _calc_boll(df: pd.DataFrame, params: dict) -> list[dict]:
     ]
 
 
-def _calc_atr(df: pd.DataFrame, params: dict) -> list[dict]:
+def _calc_atr(
+    stock: StockDataFrame,
+    dates: pd.Series,
+    params: dict,
+) -> list[dict]:
     period = params.get("timeperiod", 14)
-    result = talib.ATR(
-        cast(np.ndarray, df["high"]),
-        cast(np.ndarray, df["low"]),
-        cast(np.ndarray, df["close"]),
-        timeperiod=period,
-    )
+    result = _stock_values(stock, f"atr_{period}")
     return [
         {"date": d, f"ATR{period}": None if np.isnan(v) else round(v, 4)}
-        for d, v in zip(df["date"], result, strict=False)
+        for d, v in zip(dates, result, strict=False)
+    ]
+
+
+def _calc_wr(stock: StockDataFrame, dates: pd.Series) -> list[dict]:
+    """Calculate the 14-period Williams %R oscillator with stockstats."""
+    result = _stock_values(stock, f"wr_{_WR_PERIOD}")
+    return [
+        {"date": date, "WR": None if np.isnan(value) else round(value, 4)}
+        for date, value in zip(dates, result, strict=False)
     ]
 
 
 def _calc_supertrend_arrays(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
-    *,
-    period: int = 10,
-    multiplier: float = 2.5,
+    stock: StockDataFrame,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Core Supertrend calculation returning (supertrend, direction, atr) arrays."""
-    atr = talib.ATR(high, low, close, timeperiod=period)
-    hl2 = (high + low) / 2
-    basic_upper = hl2 + multiplier * atr
-    basic_lower = hl2 - multiplier * atr
+    """Return stockstats Supertrend line, direction, and its ATR10 series."""
+    supertrend = _stock_values(stock, "supertrend")
+    upper = _stock_values(stock, "supertrend_ub")
+    lower = _stock_values(stock, "supertrend_lb")
+    atr = _stock_values(stock, f"atr_{_SUPERTREND_PERIOD}")
 
-    n = len(close)
-    final_upper = np.full(n, np.nan)
-    final_lower = np.full(n, np.nan)
-    supertrend = np.full(n, np.nan)
-    direction = np.zeros(n, dtype=int)
-
-    for i in range(n):
-        if np.isnan(atr[i]):
-            continue
-
-        if i == 0 or np.isnan(final_upper[i - 1]) or np.isnan(final_lower[i - 1]):
-            final_upper[i] = basic_upper[i]
-            final_lower[i] = basic_lower[i]
-            direction[i] = 1
-            supertrend[i] = final_lower[i]
-            continue
-
-        prev_close = close[i - 1]
-        prev_upper = final_upper[i - 1]
-        prev_lower = final_lower[i - 1]
-
-        final_upper[i] = (
-            basic_upper[i] if basic_upper[i] < prev_upper or prev_close > prev_upper else prev_upper
-        )
-        final_lower[i] = (
-            basic_lower[i] if basic_lower[i] > prev_lower or prev_close < prev_lower else prev_lower
-        )
-
-        prev_direction = direction[i - 1] or 1
-        if prev_direction == -1 and close[i] > final_upper[i]:
-            direction[i] = 1
-        elif prev_direction == 1 and close[i] < final_lower[i]:
-            direction[i] = -1
-        else:
-            direction[i] = prev_direction
-
-        supertrend[i] = final_lower[i] if direction[i] == 1 else final_upper[i]
-
+    direction = np.zeros(len(supertrend), dtype=int)
+    separated_bands = ~np.isclose(upper, lower)
+    direction[np.isclose(supertrend, lower) & separated_bands] = 1
+    direction[np.isclose(supertrend, upper) & separated_bands] = -1
     return supertrend, direction, atr
 
 
-def _calc_supertrend(df: pd.DataFrame, params: dict) -> list[dict]:
-    """Supertrend indicator for daily output (uses shared core calculation)."""
-    period = params.get("timeperiod", 10)
-    multiplier = params.get("multiplier", 2.5)
-    high = df["high"].to_numpy(dtype=float)
-    low = df["low"].to_numpy(dtype=float)
-    close = df["close"].to_numpy(dtype=float)
-
-    supertrend, direction, atr = _calc_supertrend_arrays(
-        high, low, close, period=period, multiplier=multiplier
-    )
+def _calc_supertrend(stock: StockDataFrame, dates: pd.Series) -> list[dict]:
+    """Build the stable daily output fields from stockstats Supertrend."""
+    supertrend, direction, atr = _calc_supertrend_arrays(stock)
 
     rows: list[dict] = []
-    for d, st, trend, atr_value in zip(df["date"], supertrend, direction, atr, strict=False):
+    for d, st, trend, atr_value in zip(dates, supertrend, direction, atr, strict=False):
         trend_name = "bullish" if trend > 0 else "bearish" if trend < 0 else None
         rows.append({
             "date": d,
             "Supertrend": None if np.isnan(st) else round(float(st), 4),
             "SupertrendDirection": trend_name,
-            f"ATR{period}": None if np.isnan(atr_value) else round(float(atr_value), 4),
+            f"ATR{_SUPERTREND_PERIOD}": (
+                None if np.isnan(atr_value) else round(float(atr_value), 4)
+            ),
         })
     return rows
-
-
-_INDICATOR_MAP: dict[str, collections.abc.Callable] = {
-    "EMA": _calc_ema,
-    "MACD": _calc_macd,
-    "RSI": _calc_rsi,
-    "KDJ": _calc_kdj,
-    "BOLL": _calc_boll,
-    "ATR": _calc_atr,
-    "SUPERTREND": _calc_supertrend,
-}
 
 
 def _fetch_df(
@@ -223,9 +203,19 @@ def get_daily(
     """Get OHLCV + all indicators merged per day (single history fetch)."""
     warmup = 50
     df = _fetch_df(symbol, period=period, count=count + warmup)
+    stock = _to_stock_frame(df)
 
     # Compute all indicators on full df
-    indicator_rows = {name: calc_fn(df, {}) for name, calc_fn in _INDICATOR_MAP.items()}
+    indicator_rows = (
+        _calc_ema(df, {}),
+        _calc_macd(df, {}),
+        _calc_rsi(df, {}),
+        _calc_kdj(stock, df["date"]),
+        _calc_boll(df, {}),
+        _calc_atr(stock, df["date"], {}),
+        _calc_wr(stock, df["date"]),
+        _calc_supertrend(stock, df["date"]),
+    )
 
     # Take last `count` rows, merge OHLCV + indicators per day
     n = len(df)
@@ -247,7 +237,7 @@ def get_daily(
             if prev_close:
                 day["change_pct"] = round((row["close"] - prev_close) / prev_close * 100, 2)
         # Merge indicator values (skip date key)
-        for indicator_values in indicator_rows.values():
+        for indicator_values in indicator_rows:
             day_data = indicator_values[i]
             for key, value in day_data.items():
                 if key != "date":

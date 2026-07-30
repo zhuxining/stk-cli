@@ -4,7 +4,7 @@
 
 核心能力：
 
-- 从 Longport 请求日/周/月 K 线，并用 ta-lib 计算技术指标。
+- 从 Longport 请求日/周/月 K 线，并用 ta-lib 与 stockstats 计算技术指标。
 - 管理 Longport 自选分组。
 - 在 Longport 与同花顺之间同步分组。
 - 扫描 Longport 分组的已确认日线信号，并按 entry/exit 信号分流。
@@ -62,7 +62,8 @@ stk data kline 600519
 stk data kline 600519,000001 700.HK --period week --count 60
 ```
 
-每根 K 线合并返回 OHLCV、EMA、MACD、RSI、KDJ、BOLL、ATR 和 Supertrend。
+每根 K 线合并返回 OHLCV、EMA、MACD、RSI、WR、KDJ、BOLL、ATR 和 Supertrend。
+其中 KDJ、WR、ATR 与 Supertrend 由 stockstats 计算，其余技术指标继续使用 ta-lib。
 
 ### Longport 分组
 

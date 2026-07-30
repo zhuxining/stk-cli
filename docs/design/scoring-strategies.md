@@ -214,7 +214,7 @@
 
 - `EMA9`：短周期趋势线。
 - `EMA26`：慢周期趋势线。
-- `Supertrend(ATR10, multiplier=2.5)`：趋势方向与动态趋势线。
+- `Supertrend(ATR10, multiplier=2.5)`：由 stockstats 计算趋势方向与动态趋势线。
 - `ADX14`：趋势强度参考字段，`<20` 视为趋势偏弱，`>=25` 视为趋势较强；只补充到 `primary_signal.reasons`，不参与信号级别计算。
 
 触发事件：
@@ -252,7 +252,7 @@
 
 | factor name | 指标来源 | 输出语义 |
 |-------------|----------|----------|
-| `momentum` | `RSI14`、`KDJ(9,3,3)` | 动量是否支持当前方向，或是否出现超买、超卖。 |
+| `momentum` | `RSI14`、stockstats `KDJ9` | 动量是否支持当前方向，或是否出现超买、超卖。 |
 | `macd` | `MACD(12,26,9)` | MACD 多空状态是否支持当前方向。 |
 | `boll` | `BBANDS(20,2)` | 价格在布林区间中的位置，以及布林收窄预警。 |
 | `volume_price` | 最新完整日线成交额、前 5 根完整日线平均成交额、最新完整日线涨跌幅 | 放量上涨、放量下跌或量价中性。 |
@@ -385,7 +385,7 @@ MFI 解释规则：
 - OHLCV：`open`、`high`、`low`、`close`、`volume`、`turnover`、`change_pct`。
 - EMA：`EMA5`、`EMA9`、`EMA10`、`EMA20`、`EMA26`、`EMA60`。
 - 趋势与波动：`Supertrend`、`SupertrendDirection`、`ATR10`、`ATR14`。
-- 其他技术指标：`MACD`、`signal`、`hist`、`RSI`、`K`、`D`、`J`、`upper`、`middle`、`lower`。
+- 其他技术指标：`MACD`、`signal`、`hist`、`RSI`、`WR`（WR14）、`K`、`D`、`J`、`upper`、`middle`、`lower`。
 
 K 线指标服务只提供解释数据，不负责判断重点关注列表。
 
