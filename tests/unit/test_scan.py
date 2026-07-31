@@ -1,390 +1,150 @@
-"""Tests for daily monitoring scan service."""
+"""Tests for current buy/sell scan output."""
 
 from decimal import Decimal
-from types import SimpleNamespace
-from unittest.mock import patch
 
-from stk.errors import IndicatorError
 from stk.models.quote import Quote
 from stk.models.score import (
-    ContextBias,
-    ContextFactor,
-    Decision,
-    DecisionSignal,
-    FactorState,
-    PrimarySignal,
-    RiskProfile,
-    RoutingAssessment,
-    ScoreResult,
-    SignalContext,
-    SignalStatus,
-    SignalStrength,
+    QualitySummary,
+    SignalIndicators,
+    SignalRisk,
+    StockAssessment,
 )
 from stk.services.scan import _monitor_symbols
 
 
-def _score_result(
+def _assessment(
     symbol: str,
+    state: str,
     *,
-    strength: SignalStrength | None,
-    signal: DecisionSignal,
-    status: SignalStatus,
-    bias: ContextBias = "supportive",
-    factor_state: FactorState = "confirming",
-    bars_since_signal: int | None = 1,
-    routing: RoutingAssessment | None = None,
-) -> ScoreResult:
-    return ScoreResult(
+    turnover_ratio: float = 1,
+    with_details: bool = False,
+) -> StockAssessment:
+    trigger = (
+        ["healthy_continuation"]
+        if state == "buy"
+        else ["supertrend_bearish"]
+        if state == "sell"
+        else []
+    )
+    return StockAssessment(
         symbol=symbol,
-        decision=Decision(
-            signal=signal,
-            strength=strength,
-            signal_status=status,
-            signal_date="2026-05-12",
-            bars_since_signal=bars_since_signal,
-        ),
-        primary_signal=PrimarySignal(
-            ema_cross="death" if "退出" in signal else "golden",
-            ema9=10,
-            ema26=9,
-            supertrend=8,
-            supertrend_direction="bearish" if "退出" in signal else "bullish",
-            adx=25,
-            reasons=["test reason"],
-        ),
-        context=SignalContext(
-            overall_bias=bias,
-            factors=[
-                ContextFactor(
-                    name="momentum",
-                    state=factor_state,
-                    metrics={"rsi14": 55, "rsi_zone": "neutral"},
-                )
-            ],
-            warnings=[],
-        ),
-        risk=RiskProfile(
-            atr=1,
-            stop_loss=8,
-            take_profit=12,
-            risk_reward_ratio=2,
-            risk_level="low",
-        ),
-        routing=routing
-        or RoutingAssessment(
-            state="eligible" if signal == "趋势买入" else "ignored",
-            entry_eligible=signal == "趋势买入",
-            close=10,
-            rsi14=55,
-            turnover_ratio_5d=1,
-        ),
-    )
-
-
-def _daily_result() -> SimpleNamespace:
-    return SimpleNamespace(
-        days=[
-            {
-                "date": "2026-05-14",
-                "open": 99.0,
-                "high": 102.0,
-                "low": 98.0,
-                "close": 100.0,
-                "volume": 1000000,
-                "turnover": 100000000.0,
-                "change_pct": 1.23,
-                "EMA9": 98.5,
-                "EMA26": 95.1,
-                "Supertrend": 92.0,
-                "SupertrendDirection": "bullish",
-                "MACD": 1.2,
-                "signal": 1.0,
-                "hist": 0.2,
-                "RSI": 55.0,
-                "WR": -15.0,
-                "J": 68.0,
-                "upper": 105.0,
-                "lower": 90.0,
-                "ATR10": 2.1,
-            }
-        ]
-    )
-
-
-def _daily_result_with_unclosed_bar() -> SimpleNamespace:
-    result = _daily_result()
-    result.days.insert(
-        0,
-        {
-            **result.days[0],
-            "date": "2026-05-15",
-            "volume": 100,
-            "turnover": 10000.0,
-        },
-    )
-    return result
-
-
-def _compact_daily10() -> list[dict[str, str | int | float | None]]:
-    return [
-        {
-            "date": "2026-05-14",
-            "open": 99.0,
-            "high": 102.0,
-            "low": 98.0,
-            "close": 100.0,
-            "volume": 1000000,
-            "turnover": 100000000.0,
-            "change_pct": 1.23,
-            "ema9": 98.5,
-            "ema26": 95.1,
-            "supertrend": 92.0,
-            "supertrend_direction": "bullish",
-            "macd": 1.2,
-            "macd_signal": 1.0,
-            "macd_hist": 0.2,
-            "rsi14": 55.0,
-            "wr14": -15.0,
-            "j": 68.0,
-            "atr10": 2.1,
-            "boll_position_pct": 66.7,
-        }
-    ]
-
-
-@patch("stk.services.scan.get_realtime_quotes")
-@patch("stk.services.scan.get_daily")
-@patch("stk.services.scan.calc_score")
-def test_monitor_symbols_returns_focus_only(mock_score, mock_daily, mock_quotes):
-    """Only active signal candidates enter focus output."""
-    mock_quotes.return_value = [
-        Quote(symbol="600519.SH", name="贵州茅台", last=Decimal(100)),
-        Quote(symbol="000001.SZ", name="平安银行", last=Decimal(10)),
-    ]
-
-    def _score(symbol: str) -> ScoreResult:
-        if symbol == "300750.SZ":
-            raise IndicatorError("history_unavailable")
-        if symbol == "600519.SH":
-            return _score_result(
-                symbol,
-                strength="推荐",
-                signal="趋势买入",
-                status="new",
-            )
-        return _score_result(
-            symbol,
-            strength=None,
-            signal="观察",
-            status="stale",
-            bias="mixed",
-            factor_state="neutral",
-        )
-
-    mock_score.side_effect = _score
-
-    result = _monitor_symbols(
-        ["600519.SH", "000001.SZ", "300750.SZ"],
-        {},
-        universe_name="test",
-    )
-
-    assert result.universe.total == 3
-    assert result.universe.scanned == 2
-    assert result.universe.failed == 1
-    assert result.summary.focus_count == 1
-    assert result.summary.recommend_count == 1
-    assert result.summary.entry_signal_count == 1
-    assert result.ignored.no_signal_count == 1
-    assert result.errors[0].symbol == "300750.SZ"
-    assert result.focus[0].symbol == "600519.SH"
-    assert result.focus[0].decision.signal == "趋势买入"
-    assert {item.decision.signal for item in result.focus} <= {
-        "趋势买入",
-        "超卖修复",
-        "趋势退出",
-    }
-    assert result.focus[0].daily10 is None
-    mock_daily.assert_not_called()
-
-
-@patch("stk.services.scan.get_realtime_quotes")
-@patch("stk.services.scan.get_daily")
-@patch("stk.services.scan.calc_score")
-def test_monitor_symbols_includes_daily10_when_requested(mock_score, mock_daily, mock_quotes):
-    """Strong signals include daily10 only when explicitly requested."""
-    mock_quotes.return_value = [Quote(symbol="600519.SH", name="贵州茅台", last=Decimal(100))]
-    mock_daily.return_value = _daily_result()
-    mock_score.return_value = _score_result(
-        "600519.SH",
-        strength="推荐",
-        signal="趋势买入",
-        status="new",
-    )
-
-    result = _monitor_symbols(
-        ["600519.SH"],
-        {},
-        universe_name="test",
-        include_daily10=True,
-    )
-
-    assert result.focus[0].daily10 == _compact_daily10()
-    mock_daily.assert_called_once_with("600519.SH", count=11)
-
-
-@patch("stk.services.scan.is_unclosed_daily_bar", return_value=True)
-@patch("stk.services.scan.get_realtime_quotes")
-@patch("stk.services.scan.get_daily")
-@patch("stk.services.scan.calc_score")
-def test_monitor_symbols_daily10_drops_unclosed_current_bar(
-    mock_score,
-    mock_daily,
-    mock_quotes,
-    mock_unclosed,
-):
-    """daily10 follows the same closed-daily-bar policy as score calculation."""
-    mock_quotes.return_value = [Quote(symbol="600519.SH", name="贵州茅台", last=Decimal(100))]
-    mock_daily.return_value = _daily_result_with_unclosed_bar()
-    mock_score.return_value = _score_result(
-        "600519.SH",
-        strength="推荐",
-        signal="趋势买入",
-        status="new",
-    )
-
-    result = _monitor_symbols(
-        ["600519.SH"],
-        {},
-        universe_name="test",
-        include_daily10=True,
-    )
-
-    assert result.focus[0].daily10 == _compact_daily10()
-    mock_unclosed.assert_called_once_with("2026-05-15", "600519.SH")
-
-
-@patch("stk.services.scan.get_realtime_quotes")
-@patch("stk.services.scan.calc_score")
-def test_monitor_symbols_compacts_context_by_default(mock_score, mock_quotes):
-    """Default scan output omits neutral/no-signal context factors."""
-    mock_quotes.return_value = []
-    score = _score_result(
-        "600519.SH",
-        strength="推荐",
-        signal="趋势买入",
-        status="new",
-    )
-    score.context.factors = [
-        ContextFactor(name="macd", state="confirming", metrics={"bias": "bullish"}),
-        ContextFactor(name="volume_price", state="neutral", metrics={"volume_ratio_5d": 0.8}),
-        ContextFactor(name="divergence", state="none", metrics={"type": "none"}),
-        ContextFactor(name="boll", state="risk", metrics={"position_pct": 92.0}),
-    ]
-    mock_score.return_value = score
-
-    compact = _monitor_symbols(["600519.SH"], {}, universe_name="test")
-    full = _monitor_symbols(
-        ["600519.SH"],
-        {},
-        universe_name="test",
-        include_full_context=True,
-    )
-
-    assert [factor.name for factor in compact.focus[0].context.factors] == ["macd", "boll"]
-    assert [factor.name for factor in full.focus[0].context.factors] == [
-        "macd",
-        "volume_price",
-        "divergence",
-        "boll",
-    ]
-
-
-@patch("stk.services.scan.get_realtime_quotes")
-@patch("stk.services.scan.calc_score")
-def test_hold_with_risk_context_is_ignored(mock_score, mock_quotes):
-    """Observational decisions are counted but no longer expanded in focus."""
-    mock_quotes.return_value = []
-    mock_score.return_value = _score_result(
-        "000001.SZ",
-        strength=None,
-        signal="观察",
-        status="stale",
-        bias="risky",
-        factor_state="risk",
-        bars_since_signal=5,
-    )
-
-    result = _monitor_symbols(["000001.SZ"], {}, universe_name="test")
-
-    assert result.summary.focus_count == 0
-    assert result.summary.watch_signal_count == 0
-    assert result.ignored.no_signal_count == 1
-    assert result.focus == []
-
-
-@patch("stk.services.scan.get_realtime_quotes")
-@patch("stk.services.scan.calc_score")
-def test_old_hold_with_single_risk_context_is_ignored(mock_score, mock_quotes):
-    """Old observational decisions stay out of focus."""
-    mock_quotes.return_value = []
-    mock_score.return_value = _score_result(
-        "000001.SZ",
-        strength=None,
-        signal="观察",
-        status="stale",
-        bias="risky",
-        factor_state="risk",
-        bars_since_signal=20,
-    )
-
-    result = _monitor_symbols(["000001.SZ"], {}, universe_name="test")
-
-    assert result.summary.focus_count == 0
-    assert result.ignored.no_signal_count == 1
-
-
-@patch("stk.services.scan.get_realtime_quotes", return_value=[])
-@patch("stk.services.scan.calc_score")
-def test_stale_event_remains_focused_while_buy_signal_is_valid(mock_score, _mock_quotes):
-    """Current eligibility, rather than event age, controls the buy snapshot."""
-    mock_score.return_value = _score_result(
-        "600519.SH",
-        strength=None,
-        signal="观察",
-        status="stale",
-        routing=RoutingAssessment(
-            state="eligible",
-            entry_eligible=True,
+        as_of="2026-07-29",
+        state=state,
+        triggers=trigger,
+        reasons=["测试原因"],
+        indicators=SignalIndicators(
             close=100,
-            rsi14=62,
+            ema9=99,
+            ema26=95,
+            supertrend=92,
+            supertrend_direction="bearish" if state == "sell" else "bullish",
+            rsi14=55,
+            atr10=2,
+            turnover_ratio_5d=turnover_ratio,
+            max_entry_price=102 if state == "buy" else None,
         ),
+        quality=QualitySummary(
+            bias="supportive",
+            factors=[] if with_details else None,
+        ),
+        risk=SignalRisk(stop_loss=96, trailing_stop=92) if state == "buy" else None,
+        recent_bars=[] if with_details else None,
     )
 
-    result = _monitor_symbols(["600519.SH"], {}, universe_name="test")
 
-    assert [item.symbol for item in result.focus] == ["600519.SH"]
-
-
-@patch("stk.services.scan.get_realtime_quotes", return_value=[])
-@patch("stk.services.scan.calc_score")
-def test_current_sell_signal_is_expanded_in_risk(mock_score, _mock_quotes):
-    """Current sell conditions are returned independently from buy signals."""
-    mock_score.return_value = _score_result(
-        "600519.SH",
-        strength="预警",
-        signal="趋势退出",
-        status="new",
-        routing=RoutingAssessment(
-            state="risk",
-            exit_trigger=True,
-            close=90,
-            rsi14=35,
-        ),
+def test_monitor_returns_mutually_exclusive_counts(monkeypatch):
+    assessments = {
+        "buy": _assessment("600519.SH", "buy"),
+        "sell": _assessment("000001.SZ", "sell"),
+        "watch": _assessment("700.HK", "watch"),
+        "ignored": _assessment("AAPL.US", "ignored"),
+    }
+    monkeypatch.setattr(
+        "stk.services.scan.calc_score",
+        lambda symbol, **kwargs: assessments[symbol],
+    )
+    monkeypatch.setattr(
+        "stk.services.scan.get_realtime_quotes",
+        lambda symbols: [
+            Quote(
+                symbol="600519.SH",
+                name="贵州茅台",
+                last=Decimal("1500"),
+                change_pct=Decimal("1.2"),
+            )
+        ],
     )
 
-    result = _monitor_symbols(["600519.SH"], {}, universe_name="test")
+    result = _monitor_symbols(
+        list(assessments),
+        {"600519.SH": "贵州茅台"},
+        group="core",
+    )
 
-    assert result.focus == []
-    assert [item.symbol for item in result.risk] == ["600519.SH"]
-    assert result.summary.risk_count == 1
+    assert result.summary.model_dump() == {
+        "total": 4,
+        "analyzed": 4,
+        "failed": 0,
+        "buy": 1,
+        "sell": 1,
+        "watch": 1,
+        "ignored": 1,
+    }
+    assert result.buy[0].quote is not None
+    assert result.buy[0].signal.triggers == ["healthy_continuation"]
+    assert result.sell[0].risk is None
+
+
+def test_monitor_returns_partial_failures(monkeypatch):
+    def fake_score(symbol: str, **kwargs):
+        if symbol == "bad":
+            raise RuntimeError("boom")
+        return _assessment("600519.SH", "buy")
+
+    monkeypatch.setattr("stk.services.scan.calc_score", fake_score)
+    monkeypatch.setattr("stk.services.scan.get_realtime_quotes", lambda symbols: [])
+
+    result = _monitor_symbols(["good", "bad"], {}, group="core")
+
+    assert result.summary.total == 2
+    assert result.summary.analyzed == 1
+    assert result.summary.failed == 1
+    assert result.failures[0].code == "runtime_error"
+    assert result.failures[0].symbol == "bad"
+
+
+def test_monitor_passes_detail_options_to_assessment(monkeypatch):
+    calls: list[tuple[int, bool]] = []
+
+    def fake_score(symbol: str, *, recent_bars: int, include_factors: bool):
+        calls.append((recent_bars, include_factors))
+        return _assessment("600519.SH", "buy", with_details=True)
+
+    monkeypatch.setattr("stk.services.scan.calc_score", fake_score)
+    monkeypatch.setattr("stk.services.scan.get_realtime_quotes", lambda symbols: [])
+
+    result = _monitor_symbols(
+        ["600519.SH"],
+        {},
+        group="core",
+        recent_bars=5,
+        include_factors=True,
+    )
+
+    assert calls == [(5, True)]
+    assert result.buy[0].quality.factors == []
+    assert result.buy[0].recent_bars == []
+
+
+def test_buy_signals_sort_by_quality_then_turnover(monkeypatch):
+    first = _assessment("A.US", "buy", turnover_ratio=1)
+    second = _assessment("B.US", "buy", turnover_ratio=2)
+    monkeypatch.setattr(
+        "stk.services.scan.calc_score",
+        lambda symbol, **kwargs: {"a": first, "b": second}[symbol],
+    )
+    monkeypatch.setattr("stk.services.scan.get_realtime_quotes", lambda symbols: [])
+
+    result = _monitor_symbols(["a", "b"], {}, group="core")
+
+    assert [item.symbol for item in result.buy] == ["B.US", "A.US"]

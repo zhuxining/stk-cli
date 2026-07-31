@@ -1,95 +1,100 @@
-"""Tests for the public CLI command tree."""
+"""Tests for the public CLI command tree and new options."""
 
-from types import SimpleNamespace
+import json
 
 from typer.main import get_command
 from typer.testing import CliRunner
 
 from stk.cli import app
-from stk.models.indicator import DailyResult
-from stk.models.watchlist import WorkflowResult
+from stk.models.indicator import KlineSeries
+from stk.models.scan import ScanResult, ScanSummary
+from stk.models.watchlist import RouteResult, RouteSource, RouteTarget, RouteTargets
 
 runner = CliRunner()
 
 
 def test_root_exposes_only_core_routes():
-    command = get_command(app)
-
-    assert set(command.commands) == {"data", "group", "scan"}
+    assert set(get_command(app).commands) == {"data", "group", "scan"}
 
 
 def test_group_exposes_platforms_sync_and_route():
     result = runner.invoke(app, ["group", "--help"])
 
     assert result.exit_code == 0
-    assert "longport" in result.stdout
-    assert "ths" in result.stdout
-    assert "sync" in result.stdout
-    assert "route" in result.stdout
+    for command in ("longport", "ths", "sync", "route"):
+        assert command in result.stdout
 
 
-def test_sync_has_no_ambiguous_list_command():
-    result = runner.invoke(app, ["group", "sync", "--help"])
-
-    assert result.exit_code == 0
-    assert "diff" in result.stdout
-    assert "push" in result.stdout
-    assert "pull" in result.stdout
-    assert "list" not in result.stdout
-
-
-def test_data_kline_expands_symbols(monkeypatch):
-    calls: list[str] = []
-
-    def fake_get_daily(symbol: str, *, period: str, count: int) -> DailyResult:
-        calls.append(symbol)
-        return DailyResult(symbol=symbol, days=[])
+def test_data_kline_returns_partial_success(monkeypatch):
+    def fake_get_daily(symbol: str, *, period: str, count: int) -> KlineSeries:
+        if symbol == "bad":
+            raise RuntimeError("boom")
+        return KlineSeries(symbol=f"{symbol}.SH", bars=[])
 
     monkeypatch.setattr("stk.services.indicator.get_daily", fake_get_daily)
 
-    result = runner.invoke(app, ["data", "kline", "600519,000001", "700.HK"])
+    result = runner.invoke(app, ["data", "kline", "600519", "bad"])
+    payload = json.loads(result.stdout)
 
     assert result.exit_code == 0
-    assert calls == ["600519", "000001", "700.HK"]
+    assert payload["ok"] is True
+    assert payload["data"]["requested"] == 2
+    assert payload["data"]["series"][0]["symbol"] == "600519.SH"
+    assert payload["data"]["failures"][0]["code"] == "runtime_error"
 
 
-def test_group_route_delegates_to_service(monkeypatch):
+def test_group_route_delegates_with_replace_default(monkeypatch):
     calls: list[tuple[str, str, str, bool]] = []
 
-    def fake_route(src: str, entry: str, exit_: str, *, replace: bool) -> WorkflowResult:
-        calls.append((src, entry, exit_, replace))
-        return WorkflowResult(action="route")
+    def fake_route(src: str, buy: str, sell: str, *, replace: bool) -> RouteResult:
+        calls.append((src, buy, sell, replace))
+        return RouteResult(
+            mode="replace",
+            source=RouteSource(group=src, total=0, analyzed=0),
+            targets=RouteTargets(
+                buy=RouteTarget(group=buy),
+                sell=RouteTarget(group=sell),
+            ),
+        )
 
     monkeypatch.setattr("stk.services.watchlist.route_signals", fake_route)
 
-    result = runner.invoke(app, ["group", "route", "source", "entry", "exit", "--replace"])
+    result = runner.invoke(app, ["group", "route", "source", "buy", "sell"])
 
     assert result.exit_code == 0
-    assert calls == [("source", "entry", "exit", True)]
+    assert calls == [("source", "buy", "sell", True)]
 
 
-def test_group_route_rejects_shared_destination():
-    result = runner.invoke(app, ["group", "route", "source", "same", "same"])
+def test_scan_uses_new_detail_options(monkeypatch):
+    calls: list[tuple[str, int, bool]] = []
 
-    assert result.exit_code != 0
-    assert isinstance(result.exception, Exception)
-
-
-def test_scan_delegates_to_longport_group(monkeypatch):
-    calls: list[tuple[str, bool, bool]] = []
-
-    def fake_scan(
-        name: str,
-        *,
-        include_daily10: bool,
-        include_full_context: bool,
-    ) -> SimpleNamespace:
-        calls.append((name, include_daily10, include_full_context))
-        return SimpleNamespace(result="ok")
+    def fake_scan(name: str, *, recent_bars: int, include_factors: bool) -> ScanResult:
+        calls.append((name, recent_bars, include_factors))
+        return ScanResult(
+            group=name,
+            summary=ScanSummary(
+                total=0,
+                analyzed=0,
+                failed=0,
+                buy=0,
+                sell=0,
+                watch=0,
+                ignored=0,
+            ),
+        )
 
     monkeypatch.setattr("stk.services.scan.scan_watchlist", fake_scan)
 
-    result = runner.invoke(app, ["scan", "focus", "--daily10", "--full-context"])
+    result = runner.invoke(
+        app,
+        ["scan", "core", "--recent-bars", "5", "--include-factors"],
+    )
 
     assert result.exit_code == 0
-    assert calls == [("focus", True, True)]
+    assert calls == [("core", 5, True)]
+
+
+def test_scan_rejects_removed_options():
+    result = runner.invoke(app, ["scan", "core", "--daily10"])
+
+    assert result.exit_code != 0

@@ -1,68 +1,23 @@
-"""Stock monitoring signal models."""
+"""Current daily signal assessment models."""
 
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-type SignalStrength = Literal["推荐", "预警"]
+type AssessmentState = Literal["buy", "sell", "watch", "ignored"]
 type TrendDirection = Literal["bullish", "bearish", "neutral"]
-type EmaCross = Literal["golden", "death"]
-type SupertrendFlip = Literal["bullish", "bearish"]
-type DecisionSignal = Literal[
-    "趋势买入",
-    "趋势退出",
-    "超卖修复",
-    "观察",
+type SignalTrigger = Literal[
+    "healthy_continuation",
+    "pullback_hold",
+    "momentum_recovery",
+    "trend_start",
+    "supertrend_bearish",
+    "ema26_breakdown",
+    "overheat_reversal",
 ]
-type SignalStatus = Literal["new", "active", "stale"]
-type SignalPattern = Literal["趋势共振", "超卖修复"]
 type ContextBias = Literal["supportive", "mixed", "conflicting", "risky"]
 type FactorState = Literal["confirming", "neutral", "conflicting", "risk", "opportunity", "none"]
-type RiskLevel = Literal["low", "medium", "high"]
-type RoutingState = Literal["eligible", "watch", "risk", "ignored"]
-type EntryPattern = Literal[
-    "healthy_continuation", "pullback_hold", "momentum_recovery", "trend_start"
-]
 type MetricValue = str | int | float | bool | None
-
-
-class TrendSignal(BaseModel):
-    """Internal trend signal derived from EMA9/26 and Supertrend."""
-
-    strength: SignalStrength | None = None
-    direction: TrendDirection
-    pattern: SignalPattern = "趋势共振"
-    signal_date: str | None = None
-    bars_since_signal: int | None = None
-    ema9: float | None = None
-    ema26: float | None = None
-    supertrend: float | None = None
-    supertrend_direction: TrendDirection = "neutral"
-    ema_cross: EmaCross | None = None
-    supertrend_flip: SupertrendFlip | None = None
-    reasons: list[str] = Field(default_factory=list)
-
-
-class Decision(BaseModel):
-    """Monitoring decision used to select focus symbols."""
-
-    signal: DecisionSignal
-    strength: SignalStrength | None = None
-    signal_status: SignalStatus
-    signal_date: str | None = None
-    bars_since_signal: int | None = None
-
-
-class PrimarySignal(BaseModel):
-    """Raw evidence for the primary trend strategy."""
-
-    ema_cross: EmaCross | None = None
-    ema9: float | None = None
-    ema26: float | None = None
-    supertrend: float | None = None
-    supertrend_direction: TrendDirection = "neutral"
-    adx: float | None = None
-    reasons: list[str] = Field(default_factory=list)
 
 
 class ContextFactor(BaseModel):
@@ -73,52 +28,63 @@ class ContextFactor(BaseModel):
     metrics: dict[str, MetricValue] = Field(default_factory=dict)
 
 
-class SignalContext(BaseModel):
-    """Auxiliary context derived from non-primary indicators."""
+class QualitySummary(BaseModel):
+    """Auxiliary signal quality."""
 
-    overall_bias: ContextBias
-    factors: list[ContextFactor] = Field(default_factory=list)
+    bias: ContextBias
     warnings: list[str] = Field(default_factory=list)
+    factors: list[ContextFactor] | None = None
 
 
-class RiskProfile(BaseModel):
-    """ATR-based risk boundaries for a monitoring candidate."""
+class SignalIndicators(BaseModel):
+    """Core values used to explain the current assessment."""
 
-    atr: float | None = None
-    stop_loss: float | None = None
-    take_profit: float | None = None  # 保留向后兼容
-    target_1: float | None = None  # 2xATR 保守目标（减仓参考）
-    target_2: float | None = None  # 3xATR 激进目标（清仓参考）
-    trailing_stop: float | None = None  # Supertrend 动态止损参考
-    risk_reward_ratio: float | None = None
-    risk_level: RiskLevel = "medium"
+    close: float
+    ema9: float
+    ema26: float
+    supertrend: float
+    supertrend_direction: TrendDirection
+    rsi14: float
+    atr10: float
+    adx14: float | None = None
+    turnover_ratio_5d: float | None = None
+    max_entry_price: float | None = None
 
 
-class RoutingAssessment(BaseModel):
-    """Daily actionable filtering state for route groups."""
+class SignalRisk(BaseModel):
+    """Buy-side loss-control boundaries."""
 
-    state: RoutingState = "ignored"
-    entry_eligible: bool = False
-    entry_patterns: list[EntryPattern] = Field(default_factory=list)
-    exit_trigger: bool = False
-    recovery: bool = False
-    overheated: bool = False
-    close: float | None = None
+    stop_loss: float
+    trailing_stop: float | None = None
+
+
+class RecentSignalBar(BaseModel):
+    """Compact confirmed bar attached to a signal on request."""
+
+    date: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+    turnover: float | None = None
     ema9: float | None = None
     ema26: float | None = None
-    atr10: float | None = None
-    max_entry_price: float | None = None
     rsi14: float | None = None
-    turnover_ratio_5d: float | None = None
-    reasons: list[str] = Field(default_factory=list)
+    atr10: float | None = None
+    supertrend: float | None = None
+    supertrend_direction: TrendDirection | None = None
 
 
-class ScoreResult(BaseModel):
-    """Daily monitoring analysis for a single security."""
+class StockAssessment(BaseModel):
+    """Internal single-symbol result consumed by scan."""
 
     symbol: str
-    decision: Decision
-    primary_signal: PrimarySignal
-    context: SignalContext
-    risk: RiskProfile
-    routing: RoutingAssessment = Field(default_factory=RoutingAssessment)
+    as_of: str
+    state: AssessmentState
+    triggers: list[SignalTrigger] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    indicators: SignalIndicators
+    quality: QualitySummary
+    risk: SignalRisk | None = None
+    recent_bars: list[RecentSignalBar] | None = None

@@ -1,25 +1,31 @@
-"""Common models shared across domains."""
+"""Common public output models."""
+
+from typing import Literal
 
 from pydantic import BaseModel
 
+type Platform = Literal["longport", "ths"]
+
 
 class ErrorDetail(BaseModel):
-    """Error response details."""
+    """Request-level error."""
 
-    type: str
+    code: str
     message: str
 
 
-class ActionResult(BaseModel):
-    """Result of a mutation action."""
+class BatchFailure(BaseModel):
+    """One failed item in an otherwise successful batch."""
 
+    code: str
     message: str
+    symbol: str | None = None
 
 
-class Envelope(BaseModel):
-    """Unified JSON response envelope."""
+class MutationResult(BaseModel):
+    """Structured result for a group mutation."""
 
-    ok: bool
-    data: list | dict | None = None
-    error: ErrorDetail | None = None
-    meta: dict | None = None
+    operation: Literal["add", "remove", "delete"]
+    platform: Platform
+    group: str
+    requested_symbols: list[str] | None = None

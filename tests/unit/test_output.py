@@ -12,10 +12,23 @@ class SampleData(BaseModel):
     missing: str | None = None
 
 
-def test_render_can_omit_none_from_data(capsys):
-    output.render(SampleData(value=1), exclude_none=True)
+def test_render_omits_unused_success_fields(capsys):
+    output.render(SampleData(value=1))
 
     payload = json.loads(capsys.readouterr().out)
 
+    assert payload["ok"] is True
     assert payload["data"] == {"value": 1}
-    assert payload["error"] is None
+    assert "error" not in payload
+    assert "generated_at" in payload["meta"]
+
+
+def test_render_error_omits_data_and_uses_stable_shape(capsys):
+    output.render_error("source_error", "boom")
+
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["ok"] is False
+    assert payload["error"] == {"code": "source_error", "message": "boom"}
+    assert "data" not in payload
+    assert "generated_at" in payload["meta"]

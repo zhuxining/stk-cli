@@ -1,52 +1,50 @@
-"""Sync models — cross-platform watchlist sync data contracts."""
+"""Cross-platform group synchronization output models."""
+
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from stk.models.common import Platform
 
-class SyncItem(BaseModel):
-    """A single sync item: one stock to add or remove."""
-
-    symbol: str
-    """Longport symbol format."""
-    action: str
-    """Action: 'add', 'remove', or 'keep'."""
-    ths_symbol: str = ""
-    """THS symbol format (for THS sync)."""
+type SyncOperation = Literal["diff", "push", "pull"]
+type SyncMode = Literal["preview", "merge", "replace"]
 
 
-class SyncDiff(BaseModel):
-    """Difference between source and target groups."""
+class SyncEndpoint(BaseModel):
+    platform: Platform
+    group: str
 
-    from_group: str
-    """Source group name (Longport for push/diff; THS for pull)."""
-    to_group: str
-    """Target group name (THS for push/diff; Longport for pull)."""
-    to_add: list[SyncItem] = Field(default_factory=list)
-    """Symbols to add to target."""
-    to_remove: list[SyncItem] = Field(default_factory=list)
-    """Symbols to remove from target."""
-    unchanged: int = 0
-    """Number of symbols already in sync."""
+
+class SyncChanges(BaseModel):
+    add_symbols: list[str] = Field(default_factory=list)
+    remove_symbols: list[str] = Field(default_factory=list)
+    unchanged_count: int = 0
+
+
+class AppliedChanges(BaseModel):
+    added_count: int = 0
+    removed_count: int = 0
+
+
+class SyncFailure(BaseModel):
+    operation: Literal["add", "remove", "replace"]
+    message: str
+    symbol: str | None = None
 
 
 class SyncResult(BaseModel):
-    """Result of a sync operation."""
-
-    action: str
-    """'push', 'pull', or 'diff'."""
-    diff: SyncDiff
-    added: int = 0
-    """Number of symbols successfully added."""
-    removed: int = 0
-    """Number of symbols successfully removed."""
-    errors: list[str] = Field(default_factory=list)
-    """Error messages for failed operations."""
+    operation: SyncOperation
+    mode: SyncMode
+    source: SyncEndpoint
+    target: SyncEndpoint
+    changes: SyncChanges
+    applied: AppliedChanges | None = None
+    failures: list[SyncFailure] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class ThsGroup(BaseModel):
-    """THS watchlist group summary."""
-
+    id: str
     name: str
-    group_id: str
     count: int
     readonly: bool = False

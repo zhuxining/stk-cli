@@ -1,40 +1,61 @@
-"""Watchlist models."""
+"""Longport group and routing output models."""
+
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from stk.models.scan import MonitorSummary
+from stk.models.common import Platform
 
 
 class WatchlistSecurity(BaseModel):
-    """A security in a watchlist group."""
-
     symbol: str
     market: str = ""
     name: str = ""
 
 
 class Watchlist(BaseModel):
-    """User watchlist container."""
-
-    id: int
+    id: str
     name: str
+    count: int
     securities: list[WatchlistSecurity] = Field(default_factory=list)
 
 
 class WatchlistSummary(BaseModel):
-    """Watchlist group summary for list view."""
-
-    id: int
+    id: str
     name: str
     count: int
+    readonly: bool | None = None
 
 
-class WorkflowResult(BaseModel):
-    """Result of a Longport signal routing operation."""
+class GroupListResult(BaseModel):
+    platform: Platform
+    groups: list[WatchlistSummary] = Field(default_factory=list)
 
-    action: str
-    candidates_found: int = 0
-    source_summary: MonitorSummary | None = None
-    destinations: list[Watchlist] = Field(default_factory=list)
-    buy: list[str] = Field(default_factory=list)
-    sell: list[str] = Field(default_factory=list)
+
+class GroupDetailResult(BaseModel):
+    platform: Platform
+    group: Watchlist
+
+
+class RouteSource(BaseModel):
+    platform: Literal["longport"] = "longport"
+    group: str
+    total: int
+    analyzed: int
+
+
+class RouteTarget(BaseModel):
+    group: str
+    symbols: list[str] = Field(default_factory=list)
+
+
+class RouteTargets(BaseModel):
+    buy: RouteTarget
+    sell: RouteTarget
+
+
+class RouteResult(BaseModel):
+    operation: Literal["route"] = "route"
+    mode: Literal["replace", "append"]
+    source: RouteSource
+    targets: RouteTargets

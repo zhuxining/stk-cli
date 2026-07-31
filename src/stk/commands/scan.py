@@ -7,23 +7,26 @@ from stk import output
 
 def scan(
     group: str = typer.Argument(help="Longport group name"),
-    daily10: bool = typer.Option(
-        False,
-        "--daily10",
-        help="Include recent compact daily bars for focus signals",
+    recent_bars: int | None = typer.Option(
+        None,
+        "--recent-bars",
+        min=1,
+        max=30,
+        help="Attach up to 30 recent confirmed bars to each signal",
     ),
-    full_context: bool = typer.Option(
+    include_factors: bool = typer.Option(
         False,
-        "--full-context",
-        help="Include neutral and no-signal context factors",
+        "--include-factors",
+        help="Include detailed auxiliary quality factors",
     ),
 ) -> None:
-    """Scan confirmed daily signals for a Longport group."""
+    """Scan current buy and sell signals for a Longport group."""
     from stk.services.scan import scan_watchlist
 
-    result = scan_watchlist(
-        group,
-        include_daily10=daily10,
-        include_full_context=full_context,
+    output.render(
+        scan_watchlist(
+            group,
+            recent_bars=recent_bars or 0,
+            include_factors=include_factors,
+        )
     )
-    output.render(result, exclude_none=True)

@@ -34,7 +34,7 @@ make check
 ## 修改原则
 
 - 保持命令层轻薄，优先在服务层实现可测试的纯业务逻辑。
-- 修改公开 JSON 字段时同步 Pydantic 模型、测试和 Agent Skill。
+- 修改公开 JSON 字段时同步 Pydantic 模型、精确契约测试和 Agent Skill。
 - 修改信号阈值、优先级或时间语义时同步信号规则文档。
 - 使用 loguru 记录日志，不向 stdout 输出调试信息。
 - 保留用户已有改动，避免无关格式化和破坏性 Git 操作。

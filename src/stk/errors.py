@@ -1,5 +1,12 @@
 """Custom exceptions for stk-cli."""
 
+import re
+
+
+def error_code(error: Exception) -> str:
+    """Convert an exception class name to a stable snake_case code."""
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", type(error).__name__).lower()
+
 
 class StkError(Exception):
     """Base exception for all stk-cli errors."""

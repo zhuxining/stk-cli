@@ -1,4 +1,4 @@
-"""Unified JSON envelope output for agent consumption."""
+"""Unified compact JSON envelope output for agent consumption."""
 
 from datetime import datetime, timedelta, timezone
 import json
@@ -7,39 +7,34 @@ from typing import Any
 from pydantic import BaseModel
 
 
-def render(
-    data: Any,
-    *,
-    meta: dict[str, Any] | None = None,
-    exclude_none: bool = False,
-) -> None:
-    """Print success JSON envelope to stdout."""
-    serialized = (
-        [_serialize(item, exclude_none=exclude_none) for item in data]
-        if isinstance(data, list)
-        else _serialize(data, exclude_none=exclude_none)
-    )
-
+def _meta() -> dict[str, str]:
     cst = timezone(timedelta(hours=8))
-    combined_meta = {"updated_at": datetime.now(cst).isoformat(timespec="seconds")}
-    if meta:
-        combined_meta.update(meta)
-    envelope = {"ok": True, "data": serialized, "error": None, "meta": combined_meta}
+    return {"generated_at": datetime.now(cst).isoformat(timespec="seconds")}
+
+
+def render(data: object) -> None:
+    """Print a successful envelope, omitting null model fields."""
+    envelope = {
+        "ok": True,
+        "data": _serialize(data),
+        "meta": _meta(),
+    }
     print(json.dumps(envelope, ensure_ascii=False, default=str))
 
 
-def render_error(error_type: str, message: str) -> None:
-    """Print error JSON envelope to stdout."""
+def render_error(code: str, message: str) -> None:
+    """Print a request-level failure envelope."""
     envelope = {
         "ok": False,
-        "data": None,
-        "error": {"type": error_type, "message": message},
-        "meta": {},
+        "error": {"code": code, "message": message},
+        "meta": _meta(),
     }
     print(json.dumps(envelope, ensure_ascii=False))
 
 
-def _serialize(obj: Any, *, exclude_none: bool) -> Any:
+def _serialize(obj: object) -> Any:
     if isinstance(obj, BaseModel):
-        return obj.model_dump(mode="json", exclude_none=exclude_none)
+        return obj.model_dump(mode="json", exclude_none=True)
+    if isinstance(obj, list):
+        return [_serialize(item) for item in obj]
     return obj

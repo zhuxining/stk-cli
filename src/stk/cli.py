@@ -1,5 +1,6 @@
 """Root Typer app — registers all subcommand groups."""
 
+import re
 import sys
 
 from loguru import logger
@@ -7,7 +8,7 @@ import typer
 
 from stk import output
 from stk.config import settings
-from stk.errors import StkError
+from stk.errors import StkError, error_code
 
 app = typer.Typer(
     name="stk",
@@ -51,8 +52,8 @@ def cli() -> None:
     try:
         app()
     except StkError as e:
-        output.render_error(type(e).__name__, e.message)
+        output.render_error(error_code(e), e.message)
         raise SystemExit(1) from None
     except Exception as e:
-        output.render_error("UnexpectedError", str(e))
+        output.render_error("unexpected_error", str(e))
         raise SystemExit(1) from None

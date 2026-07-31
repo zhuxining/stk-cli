@@ -71,8 +71,8 @@ def list_ths_groups() -> list[ThsGroup]:
         for name, g in groups.items():
             result.append(
                 ThsGroup(
+                    id=str(g.group_id),
                     name=name,
-                    group_id=g.group_id,
                     count=len(g.items),
                     readonly=g.readonly,
                 )

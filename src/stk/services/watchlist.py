@@ -1,6 +1,5 @@
 """Watchlist service — backed by longport watchlist API + local group ID cache."""
 
-import contextlib
 import time
 from typing import Any
 
@@ -9,10 +8,13 @@ from longport.openapi import SecuritiesUpdateMode, WatchlistGroup
 from stk.deps import get_longport_ctx
 from stk.errors import SourceError
 from stk.models.watchlist import (
+    RouteResult,
+    RouteSource,
+    RouteTarget,
+    RouteTargets,
     Watchlist,
     WatchlistSecurity,
     WatchlistSummary,
-    WorkflowResult,
 )
 from stk.store.file_store import load_json, save_json
 from stk.utils.symbol import to_longport_symbol
@@ -66,7 +68,12 @@ def _to_watchlist(group: WatchlistGroup) -> Watchlist:
         )
         for s in (group.securities or [])
     ]
-    return Watchlist(id=group.id, name=group.name, securities=securities)
+    return Watchlist(
+        id=str(group.id),
+        name=group.name,
+        count=len(securities),
+        securities=securities,
+    )
 
 
 def list_watchlists() -> list[WatchlistSummary]:
@@ -74,7 +81,7 @@ def list_watchlists() -> list[WatchlistSummary]:
     groups = _fetch_groups()
     return [
         WatchlistSummary(
-            id=g.id,
+            id=str(g.id),
             name=g.name,
             count=len(g.securities or []),
         )
@@ -103,7 +110,7 @@ def create_group(name: str, symbols: list[str] | None = None) -> Watchlist:
     for g in groups:
         if g.id == group_id:
             return _to_watchlist(g)
-    return Watchlist(id=group_id, name=name, securities=[])
+    return Watchlist(id=str(group_id), name=name, count=0, securities=[])
 
 
 def add_symbols(name: str, symbols: list[str], mode: Any = SecuritiesUpdateMode.Add) -> None:
@@ -169,23 +176,23 @@ def route_signals(
     sell_dst: str,
     *,
     replace: bool = True,
-) -> WorkflowResult:
+) -> RouteResult:
     """Refresh current buy and sell signal snapshots from one source group."""
     from stk.services.scan import scan_watchlist
 
     scan_result = scan_watchlist(
         src,
-        include_daily10=False,
-        include_full_context=False,
+        recent_bars=0,
+        include_factors=False,
     )
-    if scan_result.errors:
+    if scan_result.failures:
         raise SourceError(
-            f"Route aborted: {len(scan_result.errors)} symbols failed to scan; "
+            f"Route aborted: {len(scan_result.failures)} symbols failed to scan; "
             "signal groups were not modified"
         )
 
-    buy_symbols = sorted(item.symbol for item in scan_result.focus)
-    sell_symbols = sorted(item.symbol for item in scan_result.risk)
+    buy_symbols = sorted(item.symbol for item in scan_result.buy)
+    sell_symbols = sorted(item.symbol for item in scan_result.sell)
 
     mode = SecuritiesUpdateMode.Replace if replace else SecuritiesUpdateMode.Add
 
@@ -194,17 +201,15 @@ def route_signals(
     if sell_symbols or mode == SecuritiesUpdateMode.Replace:
         add_symbols(sell_dst, sell_symbols, mode=mode)
 
-    destinations: list[Watchlist] = []
-    with contextlib.suppress(SourceError):
-        destinations.append(get_watchlist(buy_dst))
-    with contextlib.suppress(SourceError):
-        destinations.append(get_watchlist(sell_dst))
-
-    return WorkflowResult(
-        action="route",
-        candidates_found=len(buy_symbols) + len(sell_symbols),
-        source_summary=scan_result.summary,
-        destinations=destinations,
-        buy=buy_symbols,
-        sell=sell_symbols,
+    return RouteResult(
+        mode="replace" if replace else "append",
+        source=RouteSource(
+            group=src,
+            total=scan_result.summary.total,
+            analyzed=scan_result.summary.analyzed,
+        ),
+        targets=RouteTargets(
+            buy=RouteTarget(group=buy_dst, symbols=buy_symbols),
+            sell=RouteTarget(group=sell_dst, symbols=sell_symbols),
+        ),
     )

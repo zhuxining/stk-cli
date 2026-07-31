@@ -44,7 +44,7 @@ symbols
   -> Longport candlesticks
   -> pandas DataFrame
   -> ta-lib / stockstats
-  -> DailyResult[]
+  -> KlineBatchResult
 ```
 
 指标服务只负责计算和解释数据，不决定扫描或 route 的成员资格。
@@ -55,9 +55,9 @@ symbols
 Longport group
   -> confirmed daily candles
   -> score each symbol concurrently
-  -> classify routing state
+  -> classify StockAssessment state
   -> attach quote display data
-  -> MonitorResult
+  -> ScanResult
 ```
 
 `score.py` 判断单标的事件与当前路由状态；`scan.py` 负责并发、聚合、过滤和排序。单标的

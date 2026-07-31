@@ -1,76 +1,65 @@
-"""Daily monitoring scan models."""
+"""Public scan output models."""
 
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from stk.models.common import BatchFailure
 from stk.models.score import (
-    Decision,
-    PrimarySignal,
-    RiskProfile,
-    RoutingAssessment,
-    SignalContext,
+    QualitySummary,
+    RecentSignalBar,
+    SignalIndicators,
+    SignalRisk,
+    SignalTrigger,
 )
 
-type CompactDailyValue = str | int | float | None
+
+class QuoteSnapshot(BaseModel):
+    """Optional realtime display data."""
+
+    last: Decimal
+    change_pct: Decimal | None = None
+    source: str
 
 
-class MonitorUniverse(BaseModel):
-    """Universe coverage for a monitoring run."""
+class SignalDetail(BaseModel):
+    """Current actionable trigger and explanation."""
 
-    name: str
-    total: int
-    scanned: int
-    failed: int
+    triggers: list[SignalTrigger] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
 
 
-class MonitorSummary(BaseModel):
-    """Aggregated signal counts for a monitoring run."""
-
-    focus_count: int
-    recommend_count: int
-    entry_signal_count: int
-    exit_signal_count: int
-    watch_signal_count: int
-    risk_count: int = 0
-
-
-class FocusItem(BaseModel):
-    """One symbol selected for daily focus."""
+class SignalItem(BaseModel):
+    """One current buy or sell signal."""
 
     symbol: str
     name: str = ""
-    decision: Decision
-    primary_signal: PrimarySignal
-    context: SignalContext
-    risk: RiskProfile
-    routing: RoutingAssessment = Field(default_factory=RoutingAssessment)
-    last: Decimal | None = None
-    change_pct: Decimal | None = None
-    source: str = "unknown"
-    daily10: list[dict[str, CompactDailyValue]] | None = None
+    as_of: str
+    quote: QuoteSnapshot | None = None
+    signal: SignalDetail
+    indicators: SignalIndicators
+    quality: QualitySummary
+    risk: SignalRisk | None = None
+    recent_bars: list[RecentSignalBar] | None = None
 
 
-class IgnoredSummary(BaseModel):
-    """Symbols that were scanned but did not produce focus output."""
+class ScanSummary(BaseModel):
+    """Mutually exclusive scan coverage and state counts."""
 
-    no_signal_count: int
+    total: int
+    analyzed: int
+    failed: int
+    buy: int
+    sell: int
+    watch: int
+    ignored: int
 
 
-class ScanError(BaseModel):
-    """Non-fatal per-symbol scan error."""
+class ScanResult(BaseModel):
+    """Current buy and sell signals for a Longport group."""
 
-    symbol: str
-    reason: str
-
-
-class MonitorResult(BaseModel):
-    """Daily monitoring result for a watchlist or ad-hoc universe."""
-
-    run_date: str
-    universe: MonitorUniverse
-    summary: MonitorSummary
-    focus: list[FocusItem] = Field(default_factory=list)
-    risk: list[FocusItem] = Field(default_factory=list)
-    ignored: IgnoredSummary
-    errors: list[ScanError] = Field(default_factory=list)
+    group: str
+    summary: ScanSummary
+    buy: list[SignalItem] = Field(default_factory=list)
+    sell: list[SignalItem] = Field(default_factory=list)
+    failures: list[BatchFailure] = Field(default_factory=list)

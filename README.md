@@ -8,8 +8,9 @@
 - 管理 Longport 分组，并与同花顺分组双向同步。
 - 扫描 Longport 分组的已确认日线，生成当前买入与卖出信号快照。
 
-所有命令向 stdout 输出统一 JSON envelope，日志写入 stderr。本项目只提供数据和信号，
-不生成交易订单或仓位建议。
+所有命令向 stdout 输出统一 JSON envelope，日志写入 stderr。成功输出
+`ok/data/meta`，请求级失败输出 `ok/error/meta`，未使用字段不会以 `null` 占位。
+本项目只提供数据和信号，不生成交易订单或仓位建议。
 
 ## 安装
 
@@ -64,7 +65,7 @@ stk group sync pull 同花顺组 长桥组 --replace
 
 ```bash
 stk scan 核心池
-stk scan 核心池 --daily10
+stk scan 核心池 --recent-bars 10 --include-factors
 stk group route 核心池 买入信号 卖出信号
 ```
 

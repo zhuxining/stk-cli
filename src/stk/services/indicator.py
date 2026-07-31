@@ -9,8 +9,9 @@ from stockstats import StockDataFrame, set_dft_window, wrap
 import talib
 
 from stk.errors import IndicatorError
-from stk.models.indicator import DailyResult
+from stk.models.indicator import KlineBar, KlinePeriod, KlineSeries
 from stk.services.history import candles_to_df, get_history
+from stk.utils.symbol import to_longport_symbol
 
 _EMA_PERIODS = (5, 9, 10, 20, 26, 60)
 _KDJ_PERIOD = 9
@@ -197,9 +198,9 @@ def _fetch_df(
 def get_daily(
     symbol: str,
     *,
-    period: str = "day",
+    period: KlinePeriod = KlinePeriod.DAY,
     count: int = 10,
-) -> DailyResult:
+) -> KlineSeries:
     """Get OHLCV + all indicators merged per day (single history fetch)."""
     warmup = 50
     df = _fetch_df(symbol, period=period, count=count + warmup)
@@ -219,7 +220,7 @@ def get_daily(
 
     # Take last `count` rows, merge OHLCV + indicators per day
     n = len(df)
-    days: list[dict] = []
+    bars: list[KlineBar] = []
     for i in range(n - count, n):
         row = df.iloc[i]
         day: dict = {
@@ -242,7 +243,42 @@ def get_daily(
             for key, value in day_data.items():
                 if key != "date":
                     day[key] = value
-        days.append(day)
+        bars.append(
+            KlineBar(
+                date=str(day["date"]),
+                open=float(day["open"]),
+                high=float(day["high"]),
+                low=float(day["low"]),
+                close=float(day["close"]),
+                volume=int(day["volume"]),
+                turnover=_number(day.get("turnover")),
+                change_pct=_number(day.get("change_pct")),
+                ema5=_number(day.get("EMA5")),
+                ema9=_number(day.get("EMA9")),
+                ema10=_number(day.get("EMA10")),
+                ema20=_number(day.get("EMA20")),
+                ema26=_number(day.get("EMA26")),
+                ema60=_number(day.get("EMA60")),
+                macd=_number(day.get("MACD")),
+                macd_signal=_number(day.get("signal")),
+                macd_hist=_number(day.get("hist")),
+                rsi14=_number(day.get("RSI")),
+                kdj_k=_number(day.get("K")),
+                kdj_d=_number(day.get("D")),
+                kdj_j=_number(day.get("J")),
+                wr14=_number(day.get("WR")),
+                boll_upper=_number(day.get("upper")),
+                boll_middle=_number(day.get("middle")),
+                boll_lower=_number(day.get("lower")),
+                atr10=_number(day.get("ATR10")),
+                atr14=_number(day.get("ATR14")),
+                supertrend=_number(day.get("Supertrend")),
+                supertrend_direction=day.get("SupertrendDirection"),
+            )
+        )
 
-    days.reverse()
-    return DailyResult(symbol=symbol, days=days)
+    return KlineSeries(symbol=to_longport_symbol(symbol), bars=bars)
+
+
+def _number(value: object) -> float | None:
+    return float(value) if isinstance(value, int | float) else None

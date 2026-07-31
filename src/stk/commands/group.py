@@ -4,8 +4,8 @@ import typer
 
 from stk import output
 from stk.errors import StkError
-from stk.models.common import ActionResult
-from stk.models.sync import SyncResult
+from stk.models.common import MutationResult
+from stk.models.watchlist import GroupDetailResult, GroupListResult, WatchlistSummary
 
 app = typer.Typer(help="Manage and synchronize security groups", no_args_is_help=True)
 longport_app = typer.Typer(help="Manage Longport groups", no_args_is_help=True)
@@ -19,18 +19,16 @@ app.add_typer(sync_app, name="sync")
 
 @longport_app.command("list")
 def longport_list() -> None:
-    """List Longport groups."""
     from stk.services.watchlist import list_watchlists
 
-    output.render(list_watchlists(), meta={"platform": "longport"})
+    output.render(GroupListResult(platform="longport", groups=list_watchlists()))
 
 
 @longport_app.command()
 def show(name: str = typer.Argument(help="Longport group name")) -> None:
-    """Show securities in a Longport group."""
     from stk.services.watchlist import get_watchlist
 
-    output.render(get_watchlist(name), meta={"platform": "longport"})
+    output.render(GroupDetailResult(platform="longport", group=get_watchlist(name)))
 
 
 @longport_app.command()
@@ -38,12 +36,16 @@ def create(
     name: str = typer.Argument(help="New Longport group name"),
     symbols: list[str] | None = typer.Option(None, "--symbol", "-s", help="Initial symbols"),
 ) -> None:
-    """Create a Longport group."""
     from stk.services.watchlist import create_group
     from stk.utils.symbol import expand_symbols
 
     expanded = expand_symbols(symbols or [])
-    output.render(create_group(name, symbols=expanded or None))
+    output.render(
+        GroupDetailResult(
+            platform="longport",
+            group=create_group(name, symbols=expanded or None),
+        )
+    )
 
 
 @longport_app.command()
@@ -51,13 +53,19 @@ def add(
     name: str = typer.Argument(help="Longport group name"),
     symbols: list[str] = typer.Argument(help="Symbols to add"),
 ) -> None:
-    """Add symbols to a Longport group."""
     from stk.services.watchlist import add_symbols
-    from stk.utils.symbol import expand_symbols
+    from stk.utils.symbol import expand_symbols, to_longport_symbol
 
-    expanded = expand_symbols(symbols)
+    expanded = [to_longport_symbol(item) for item in expand_symbols(symbols)]
     add_symbols(name, expanded)
-    output.render(ActionResult(message=f"Added {len(expanded)} symbols to {name}"))
+    output.render(
+        MutationResult(
+            operation="add",
+            platform="longport",
+            group=name,
+            requested_symbols=expanded,
+        )
+    )
 
 
 @longport_app.command()
@@ -65,30 +73,43 @@ def remove(
     name: str = typer.Argument(help="Longport group name"),
     symbols: list[str] = typer.Argument(help="Symbols to remove"),
 ) -> None:
-    """Remove symbols from a Longport group."""
     from stk.services.watchlist import remove_symbols
-    from stk.utils.symbol import expand_symbols
+    from stk.utils.symbol import expand_symbols, to_longport_symbol
 
-    expanded = expand_symbols(symbols)
+    expanded = [to_longport_symbol(item) for item in expand_symbols(symbols)]
     remove_symbols(name, expanded)
-    output.render(ActionResult(message=f"Removed {len(expanded)} symbols from {name}"))
+    output.render(
+        MutationResult(
+            operation="remove",
+            platform="longport",
+            group=name,
+            requested_symbols=expanded,
+        )
+    )
 
 
 @longport_app.command()
 def delete(name: str = typer.Argument(help="Longport group name")) -> None:
-    """Delete a Longport group."""
     from stk.services.watchlist import delete_group
 
     delete_group(name)
-    output.render(ActionResult(message=f"Deleted group '{name}'"))
+    output.render(MutationResult(operation="delete", platform="longport", group=name))
 
 
 @ths_app.command("list")
 def ths_list() -> None:
-    """List THS groups."""
     from stk.services.ths_wrapper import list_ths_groups
 
-    output.render(list_ths_groups(), meta={"platform": "ths"})
+    groups = [
+        WatchlistSummary(
+            id=item.id,
+            name=item.name,
+            count=item.count,
+            readonly=item.readonly,
+        )
+        for item in list_ths_groups()
+    ]
+    output.render(GroupListResult(platform="ths", groups=groups))
 
 
 @sync_app.command()
@@ -96,11 +117,9 @@ def diff(
     from_group: str = typer.Argument(help="Longport source group"),
     to_group: str | None = typer.Argument(None, help="THS target group"),
 ) -> None:
-    """Compare a Longport group with a THS group without modifying either."""
     from stk.services.sync import compute_diff
 
-    target = to_group or from_group
-    output.render(SyncResult(action="diff", diff=compute_diff(from_group, target)))
+    output.render(compute_diff(from_group, to_group or from_group))
 
 
 @sync_app.command()
@@ -109,7 +128,6 @@ def push(
     to_group: str | None = typer.Argument(None, help="THS target group"),
     replace: bool = typer.Option(False, "--replace", "-r", help="Replace target contents"),
 ) -> None:
-    """Push a Longport group to THS."""
     from stk.services.sync import push_to_ths
 
     output.render(push_to_ths(from_group, to_group or from_group, replace=replace))
@@ -121,7 +139,6 @@ def pull(
     to_group: str | None = typer.Argument(None, help="Longport target group"),
     replace: bool = typer.Option(False, "--replace", "-r", help="Replace target contents"),
 ) -> None:
-    """Pull a THS group into Longport."""
     from stk.services.sync import pull_from_ths
 
     output.render(pull_from_ths(from_group, to_group or from_group, replace=replace))
@@ -138,7 +155,6 @@ def route(
         help="Refresh destination snapshots (default) or append only",
     ),
 ) -> None:
-    """Refresh current buy and sell signal snapshot groups."""
     if len({src, buy_dst, sell_dst}) != 3:
         raise StkError("Source, buy-signal, and sell-signal groups must be different")
 

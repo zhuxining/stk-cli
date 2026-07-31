@@ -18,38 +18,26 @@ def test_get_daily(mock_history, make_candles):
     """Test get_daily merges OHLCV + all indicators per day."""
     mock_history.return_value = make_candles(60)  # 10 + 50 warmup
     result = get_daily("600519", count=10)
-    assert result.symbol == "600519"
-    assert len(result.days) == 10
+    assert result.symbol == "600519.SH"
+    assert len(result.bars) == 10
     mock_history.assert_called_once()
 
-    newest = result.days[0]
-    # OHLCV fields
-    for field in ("date", "open", "high", "low", "close", "volume"):
-        assert field in newest
-    # Change percent
-    assert "change_pct" in newest
-    # Indicator fields
-    assert "EMA5" in newest
-    assert "EMA9" in newest
-    assert "EMA26" in newest
-    assert "EMA60" in newest
-    assert "MACD" in newest
-    assert "RSI" in newest
-    assert "K" in newest
-    assert "upper" in newest
-    assert "ATR10" in newest
-    assert "ATR14" in newest
-    assert "WR" in newest
-    assert "Supertrend" in newest
-    assert "SupertrendDirection" in newest
-    assert newest["ATR10"] is not None
-    assert newest["ATR14"] is not None
-    assert newest["K"] == 83.3333
-    assert newest["D"] == 83.3333
-    assert newest["J"] == 83.3333
-    assert newest["WR"] == -11.7647
-    assert newest["Supertrend"] is not None
-    assert newest["SupertrendDirection"] == "bullish"
+    assert result.bars[0].date < result.bars[-1].date
+    newest = result.bars[-1]
+    assert newest.ema5 is not None
+    assert newest.ema9 is not None
+    assert newest.ema26 is not None
+    assert newest.ema60 is not None
+    assert newest.macd is not None
+    assert newest.rsi14 is not None
+    assert newest.atr10 is not None
+    assert newest.atr14 is not None
+    assert newest.kdj_k == 83.3333
+    assert newest.kdj_d == 83.3333
+    assert newest.kdj_j == 83.3333
+    assert newest.wr14 == -11.7647
+    assert newest.supertrend is not None
+    assert newest.supertrend_direction == "bullish"
 
 
 def test_stockstats_does_not_mutate_input(make_candles):
