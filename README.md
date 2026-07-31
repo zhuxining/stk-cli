@@ -7,6 +7,7 @@
 - 从 Longport 请求日、周、月 K 线并计算技术指标。
 - 管理 Longport 分组，并与同花顺分组双向同步。
 - 扫描 Longport 分组的已确认日线，生成当前买入与卖出信号快照。
+- 对多个 ETF 来源池独立排名，生成启动、领涨、退潮和落后阶段快照。
 
 所有命令向 stdout 输出统一 JSON envelope，日志写入 stderr。成功或部分成功输出
 `ok/status/data/meta`，请求级失败输出 `ok/status/error/meta`，未使用字段不会以
@@ -78,6 +79,27 @@ sell 在任一指标最近转空时即可预警。两者均只保留三根确认
 `data.failures[]` 中存在单项失败，`failed` 表示请求无法执行。`partial` 仍保持
 `ok: true`。
 
+ETF 双池轮动：
+
+```bash
+# 只计算，不修改分组
+stk rotate 主题ETF 资产ETF
+
+# 计算成功后完整替换四个共享阶段组
+stk group rotate \
+  --source 主题ETF \
+  --source 资产ETF \
+  --emerging ETF启动 \
+  --leading ETF领涨 \
+  --weakening ETF退潮 \
+  --lagging ETF落后
+```
+
+每个来源池独立计算风险调整后的 20/60 日相对动量、5 日加速度和成交确认，再结合
+Supertrend、EMA、RSI 与 ATR 产生唯一阶段和 action。目标组只有 replace 语义；
+来源组之间不得有重复 Symbol，来源与目标组必须互不相同。六种 action 只出现在 JSON
+中，不创建额外分组。完整规则见 [ETF 双池轮动](docs/design/etf-rotation.md)。
+
 ## Symbol
 
 - `600519` → `600519.SH`
@@ -92,4 +114,5 @@ sell 在任一指标最近转空时即可预警。两者均只保留三根确认
 
 - [架构设计](docs/design/architecture.md)
 - [信号规则](docs/design/signal-strategy.md)
+- [ETF 双池轮动](docs/design/etf-rotation.md)
 - [Agent CLI Skill](docs/skills/stk-cli-reference/SKILL.md)

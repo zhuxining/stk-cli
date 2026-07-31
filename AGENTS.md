@@ -5,7 +5,8 @@
 ## 项目定位
 
 `stk-cli` 是基于 Typer 的 JSON CLI，核心能力是请求 K 线与指标、同步 Longport/同花顺
-分组，以及扫描 Longport 分组并维护每日买入和卖出信号快照。
+分组、扫描 Longport 分组并维护每日买入和卖出信号快照，以及执行 ETF 多池横截面
+轮动并维护四阶段快照。
 
 - Python 3.14，使用 uv 管理依赖。
 - 源码采用 `src/` 布局，入口为 `src/stk/cli.py`。
@@ -17,6 +18,7 @@
 ```bash
 uv sync
 uv run stk --help
+uv run stk rotate 主题ETF 资产ETF
 uv run pytest tests/path/to/test_file.py
 make check
 ```
@@ -50,5 +52,6 @@ make check
 
 - [架构与边界](docs/design/architecture.md)
 - [信号规则](docs/design/signal-strategy.md)
+- [ETF 双池轮动](docs/design/etf-rotation.md)
 
 项目不负责交易下单、仓位分配、实时交易、回测或长期数据仓储。

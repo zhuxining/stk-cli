@@ -2,26 +2,9 @@
 
 > Status: active
 
-本文档是当前买卖信号阈值、优先级和时间语义的唯一事实来源。系统只维护一套
-`StockAssessment`，不再计算事件型推荐、预警或兼容评分。
-
-## ETF rotation_v1
-
-ETF 轮动与股票买卖信号相互独立。每个来源池分别计算 20/60 日风险调整相对动量、
-20 日趋势质量、5 日非重叠相对加速度、成交额与 MFI 确认，再按池内 0–100 百分位
-组合为 strength 和 momentum。
-
-阶段边界为：
-
-- `strength <= 50, momentum >= 55`：emerging
-- `strength > 50, momentum >= 45`：leading
-- `strength > 50, momentum < 45`：weakening
-- `strength <= 50, momentum < 55`：lagging
-
-技术确认使用 TA-Lib EMA9/20/26/60、RSI14、MFI14，以及 stockstats
-Supertrend(10,3) 与同源 ATR10。事件有效期为最近三根确认日线；action 优先级固定为
-exit、rotate_in、hold、reduce、watch、avoid。成交额和 MFI 只解释为交易活跃度与价格
-方向确认，不解释为净申购或资金净流入。
+本文档是股票买卖信号阈值、优先级和时间语义的唯一事实来源。系统只维护一套
+`StockAssessment`，不再计算事件型推荐、预警或兼容评分。ETF 横截面轮动使用独立
+模型与规则，详见 [ETF 双池轮动](etf-rotation.md)。
 
 ## 目标与状态
 

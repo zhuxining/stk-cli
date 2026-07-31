@@ -2,8 +2,8 @@
 
 > Status: active
 
-`stk-cli` 是面向 Agent 的单进程 JSON CLI，聚焦 K 线与指标、跨平台分组同步和分组信号
-扫描。
+`stk-cli` 是面向 Agent 的单进程 JSON CLI，聚焦 K 线与指标、跨平台分组同步、股票
+信号扫描和 ETF 横截面轮动。
 
 ## 系统边界
 
@@ -11,11 +11,13 @@
 CLI
 ├── data kline ───────> history ──> indicator
 ├── scan ─────────────> watchlist ──> score/scan ──> quote
+├── rotate ───────────> watchlist ──> history/rotation
 └── group
     ├── longport ─────> watchlist
     ├── ths ──────────> ths_wrapper
     ├── sync ─────────> sync ──> watchlist/ths_wrapper
-    └── route ────────> scan ──> watchlist
+    ├── route ────────> scan ──> watchlist
+    └── rotate ───────> rotation ──> watchlist
 ```
 
 - Longport 是行情、K 线和主要分组的数据源。
@@ -71,6 +73,29 @@ Longport group <-> sync service <-> THS group
 
 同步服务负责方向、差异和写入模式；平台边界负责 Symbol 转换及不支持资产过滤。
 
+### ETF 双池轮动
+
+```text
+Longport source groups
+  -> reject duplicate symbols
+  -> fetch 90 confirmed daily bars concurrently
+  -> align each pool to its modal as_of
+  -> TA-Lib / stockstats per-symbol indicators
+  -> independent pool medians and percentiles
+  -> strength / momentum / stage
+  -> absolute trend and action
+  -> merge and sort four stages
+  -> RotationResult
+```
+
+`rotation.py` 同时承担单标的指标、池级横截面、跨池聚合和路由编排，但公开副作用只在
+路由最后发生。`rotate` 只读；`group rotate` 在所有来源池成功完成后，使用 replace
+刷新四个目标快照。来源池整体不可用时不修改目标组，个别标的失败则记录到
+`failures[]` 并继续。
+
+ETF 阶段是池内相对排名，action 才结合绝对趋势和三日技术事件。详细公式和字段契约见
+[ETF 双池轮动](etf-rotation.md)。
+
 ### 信号快照
 
 `group route` 扫描一个 Longport 源分组，并生成三日有效的反转快照：多头反转要求
@@ -83,6 +108,7 @@ Supertrend 与 EMA 双指标确认，空头反转由任一指标转空即可预�
 ## 运行时不变量
 
 - 信号只使用已确认的完整日线；实时行情字段只用于展示。
+- ETF 来源池分别计算横截面，两个池不共享中位数、波动率下限或百分位。
 - stdout 只包含 JSON，日志写入 stderr。成功响应的 `status` 为 `success` 或
   `partial`；后者通过 `data.failures[]` 暴露可跳过的单项失败。请求级错误使用
   `ok: false, status: failed`。
