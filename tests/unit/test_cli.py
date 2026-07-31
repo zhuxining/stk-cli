@@ -14,14 +14,14 @@ runner = CliRunner()
 
 
 def test_root_exposes_only_core_routes():
-    assert set(get_command(app).commands) == {"data", "group", "scan"}
+    assert set(get_command(app).commands) == {"data", "group", "rotate", "scan"}
 
 
 def test_group_exposes_platforms_sync_and_route():
     result = runner.invoke(app, ["group", "--help"])
 
     assert result.exit_code == 0
-    for command in ("longport", "ths", "sync", "route"):
+    for command in ("longport", "ths", "sync", "route", "rotate"):
         assert command in result.stdout
 
 
@@ -51,7 +51,7 @@ def test_group_route_delegates_with_replace_default(monkeypatch):
         calls.append((src, buy, sell, replace))
         return RouteResult(
             mode="replace",
-                source=RouteSource(group=src, total=0, analyzed=0, failed=0),
+            source=RouteSource(group=src, total=0, analyzed=0, failed=0),
             targets=RouteTargets(
                 buy=RouteTarget(group=buy),
                 sell=RouteTarget(group=sell),

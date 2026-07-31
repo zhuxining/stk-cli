@@ -40,11 +40,12 @@ def _callback(
 
 
 # Register public routes after the root callback is defined.
-from stk.commands import data, group, scan  # ruff: ignore[module-import-not-at-top-of-file]
+from stk.commands import data, group, rotate, scan  # ruff: ignore[module-import-not-at-top-of-file]
 
 app.add_typer(data.app, name="data")
 app.add_typer(group.app, name="group")
 app.command("scan")(scan.scan)
+app.command("rotate")(rotate.rotate)
 
 
 def cli() -> None:

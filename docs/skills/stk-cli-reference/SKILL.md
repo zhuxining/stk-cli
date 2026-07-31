@@ -2,7 +2,7 @@
 name: stk-cli-reference
 description: >
   使用 `stk` JSON CLI 请求 K 线与技术指标、管理 Longport 分组、查看与同步
-  同花顺分组、扫描日线信号，以及生成每日 buy/sell 分组快照。凡是用户要求
+  同花顺分组、扫描日线信号、执行 ETF 双池轮动，以及生成每日信号分组快照。凡是用户要求
   调用 stk、查询股票指标、维护或同步股票分组、扫描买卖信号、执行 group route，
   或解读 stk JSON 输出时，都应使用本 Skill。
 ---
@@ -44,6 +44,25 @@ description: >
 
 批量操作遇到个别失败时继续处理其他项。调用方应先检查 `ok`，再检查 `status`；
 `partial` 不应按整体失败重试，只处理 `data.failures[]` 中的项目。
+
+## ETF rotation
+
+分析多个独立 ETF 来源池，不修改任何分组：
+
+```bash
+stk rotate ETF主题池 ETF资产池
+```
+
+分析完成后完整替换四个共享阶段快照：
+
+```bash
+stk group rotate --source ETF主题池 --source ETF资产池 \
+  --emerging ETF启动 --leading ETF领涨 --weakening ETF退潮 --lagging ETF落后
+```
+
+输出使用 `rotation_v1`，包含
+`sources/summary/emerging/leading/weakening/lagging/failures`。来源池和目标组必须
+全部不同，来源池间不得重复代码；目标组只支持 replace。
 
 ## K 线与指标
 
