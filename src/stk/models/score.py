@@ -6,14 +6,11 @@ from pydantic import BaseModel, Field
 
 type AssessmentState = Literal["buy", "sell", "watch", "ignored"]
 type TrendDirection = Literal["bullish", "bearish", "neutral"]
-type SignalTrigger = Literal[
-    "healthy_continuation",
-    "pullback_hold",
-    "momentum_recovery",
-    "trend_start",
-    "supertrend_bearish",
-    "ema26_breakdown",
-    "overheat_reversal",
+type SignalTriggerCode = Literal[
+    "supertrend_bullish_reversal",
+    "ema_bullish_crossover",
+    "supertrend_bearish_reversal",
+    "ema_bearish_crossover",
 ]
 type ContextBias = Literal["supportive", "mixed", "conflicting", "risky"]
 type FactorState = Literal["confirming", "neutral", "conflicting", "risk", "opportunity", "none"]
@@ -58,6 +55,21 @@ class SignalRisk(BaseModel):
     trailing_stop: float | None = None
 
 
+class SignalTrigger(BaseModel):
+    """One recent confirmed trend-reversal event."""
+
+    code: SignalTriggerCode
+    occurred_at: str
+    age_bars: int = Field(ge=0)
+
+
+class SignalConfirmation(BaseModel):
+    """The event that starts the current actionable signal window."""
+
+    confirmed_at: str
+    age_bars: int = Field(ge=0, le=2)
+
+
 class RecentSignalBar(BaseModel):
     """Compact confirmed bar attached to a signal on request."""
 
@@ -83,6 +95,7 @@ class StockAssessment(BaseModel):
     as_of: str
     state: AssessmentState
     triggers: list[SignalTrigger] = Field(default_factory=list)
+    confirmation: SignalConfirmation | None = None
     reasons: list[str] = Field(default_factory=list)
     indicators: SignalIndicators
     quality: QualitySummary

@@ -73,9 +73,10 @@ Longport group <-> sync service <-> THS group
 
 ### 信号快照
 
-`group route` 扫描一个 Longport 源分组，并分别生成当前买入和卖出信号快照。默认使用
-replace 语义，不依赖昨日成员。个别标的扫描失败时跳过该标的，其余结果继续写入目标
-组；成功响应通过 `source.failed` 和 `failures[]` 暴露完整失败信息。
+`group route` 扫描一个 Longport 源分组，并生成三日有效的反转快照：多头反转要求
+Supertrend 与 EMA 双指标确认，空头反转由任一指标转空即可预警。默认使用 replace
+语义，不依赖昨日成员。个别标的扫描失败时跳过该标的，其余结果继续写入目标组；
+成功响应通过 `source.failed` 和 `failures[]` 暴露完整失败信息。
 
 具体判定规则以[信号规则](signal-strategy.md)为唯一事实来源。
 

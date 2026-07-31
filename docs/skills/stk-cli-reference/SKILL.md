@@ -129,16 +129,22 @@ failures[]
 
 - `symbol`、`name` 和最新确认日线日期 `as_of`。
 - 可选实时展示数据 `quote`。
-- `signal.triggers`：适合机器判断的稳定英文触发码。
+- `signal.confirmation`：当前信号窗口的 `confirmed_at` 和三日有效期 `age_bars`。
+  buy 从双指标中的第二个反转事件开始；sell 从最近一次有效空头事件开始。
+- `signal.triggers[]`：实际触发信号的结构化事件。buy 固定包含 Supertrend 与 EMA
+  两个确认事件；sell 包含一个或两个当前有效的空头事件。每项包含稳定英文 `code`、
+  `occurred_at` 和距今确认日线数 `age_bars`。
 - `signal.reasons`：包含数值语义的中文说明。
 - `indicators`：本次判断使用的核心指标快照。
 - `quality`：辅助态度、警告和可选 factors。
 - buy 项可有 `risk`，用于表达止损和跟踪线；sell 项不生成做空目标。
 - 使用 `--recent-bars` 时出现的 `recent_bars`。
 
-先用 `buy[]` / `sell[]` 判断方向，再用 `triggers` 做稳定分支判断、用 `reasons`
-解释原因。`watch` 和 `ignored` 只计入 summary，不展开明细。扫描规则的具体阈值属于
-策略实现，不要根据字段名称自行推断或覆写。
+先用 `buy[]` / `sell[]` 判断方向，再用 `signal.confirmation.age_bars` 检查三根
+确认日线有效期，用 `triggers[].code` 和 `occurred_at` 解读两个组成事件。
+`reasons` 用于解释原因。
+`watch` 和 `ignored` 只计入 summary，不展开明细。扫描规则的具体阈值属于策略实现，
+不要根据字段名称自行推断或覆写。
 
 ## 生成每日信号分组
 

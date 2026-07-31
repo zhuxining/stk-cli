@@ -70,8 +70,9 @@ stk scan 核心池 --recent-bars 10 --include-factors
 stk group route 核心池 买入信号 卖出信号
 ```
 
-`scan` 只使用已确认日线。`route` 默认完整刷新买入和卖出两个 Longport 快照组；
-个别标的扫描失败不会阻断刷新，失败详情随成功结果返回。
+`scan` 只使用已确认日线。buy 要求 Supertrend 与 EMA 在三根日线内完成双重确认；
+sell 在任一指标最近转空时即可预警。两者均只保留三根确认日线。`route` 默认完整刷新
+两个 Longport 快照组；个别标的扫描失败不会阻断刷新，失败详情随成功结果返回。
 
 所有输出都包含顶层 `status`：`success` 表示完整成功，`partial` 表示整体已执行但
 `data.failures[]` 中存在单项失败，`failed` 表示请求无法执行。`partial` 仍保持

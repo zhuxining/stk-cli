@@ -81,6 +81,8 @@ def _signal_item(
     names: dict[str, str],
     quotes: dict[str, Quote],
 ) -> SignalItem:
+    if assessment.confirmation is None:
+        raise ValueError(f"Actionable signal for {assessment.symbol} has no confirmation")
     quote = quotes.get(assessment.symbol)
     return SignalItem(
         symbol=assessment.symbol,
@@ -96,6 +98,7 @@ def _signal_item(
             else None
         ),
         signal=SignalDetail(
+            confirmation=assessment.confirmation,
             triggers=assessment.triggers,
             reasons=assessment.reasons,
         ),

@@ -12,49 +12,65 @@
 
 每只成功分析的标的恰好属于一种状态：
 
-- `buy`：满足买入基线并命中至少一种买入触发。
-- `sell`：命中至少一种退出触发，优先于 buy。
-- `watch`：趋势部分成立，但当前不具备有效买点。
-- `ignored`：未形成需要关注的状态。
+- `buy`：最近三根确认日线内发生多头反转，当前结构同向且通过买入过滤。
+- `sell`：最近三根确认日线内至少一个趋势指标转空，且该指标当前仍为空头。
+- `watch`：EMA 与 Supertrend 尚未同向，或近期多头反转未通过买入过滤。
+- `ignored`：趋势已经持续超过信号窗口，或未形成需要关注的反转。
 
 scan 只展开 buy 和 sell；watch 与 ignored 只进入汇总计数。route 直接使用这两个数组
 刷新目标分组。
 
+## 反转事件与有效期
+
+系统只识别四种事件：
+
+| trigger code | 事件 |
+|---|---|
+| `supertrend_bullish_reversal` | Supertrend 由空翻多 |
+| `ema_bullish_crossover` | EMA9 上穿 EMA26 |
+| `supertrend_bearish_reversal` | Supertrend 由多翻空 |
+| `ema_bearish_crossover` | EMA9 下穿 EMA26 |
+
+buy 的两个同向事件必须相隔不超过 2 根确认日线。第二个事件发生时完成反转确认，并
+输出 `signal.confirmation.confirmed_at`；确认当日的 `age_bars=0`，随后两根确认
+日线为 1 和 2，从 3 开始失效。有效期内若当前方向反转，原信号立即失效。
+
+`signal.triggers[]` 保留两个组成事件各自的 `code`、`occurred_at` 和相对当前的
+`age_bars`。由于第一个事件最多早于确认事件两根日线，当确认信号处于最后一个有效日
+时，第一个事件的 `age_bars` 最大可以是 4。
+
 ## 买入信号
 
-必须满足全部基线：
+必须同时满足：
 
 ```text
 EMA9 > EMA26
 AND Supertrend bullish
+AND Supertrend 翻多与 EMA9 上穿 EMA26 相隔不超过 2 根确认日线
+AND 双指标确认发生在最近三根确认日线内
 AND close >= EMA26
 AND RSI14 < 75
 AND close <= EMA9 + 1.5 * ATR10
 ```
 
-并至少命中一种结构化触发：
-
-| trigger | 判定 |
-|---|---|
-| `healthy_continuation` | `close >= EMA9` 且 `45 <= RSI14 < 70` |
-| `pullback_hold` | `EMA26 <= close <= EMA9`、`RSI14 >= 40`，且收盘价高于前一日 |
-| `momentum_recovery` | 最近 3 根已确认日线内 RSI14 上穿 50，当前仍不低于 50 |
-| `trend_start` | 最近 3 根已确认日线内 Supertrend 翻多，当前仍为多头 |
-
-成交额量比只解释量能，不作为买入硬门槛。
+第一个多头事件只形成 setup，归入 watch；第二个事件完成确认后才进入 buy。若完成
+确认时价格已经过热、跌破 EMA26 或高于追价上限，仍归入 watch。成交额量比只解释
+量能，不作为买入硬门槛。
 
 ## 卖出信号
 
 满足任意一项：
 
-| trigger | 判定 |
-|---|---|
-| `supertrend_bearish` | 当前 Supertrend 为空头 |
-| `ema26_breakdown` | 连续 2 根收盘价低于各自 EMA26 |
-| `overheat_reversal` | 前一日 RSI14 不低于 75、今日 RSI14 下降且 `close < EMA9` |
+```text
+最近三根确认日线内 Supertrend 由多翻空，且当前仍为 bearish
+OR
+最近三根确认日线内 EMA9 下穿 EMA26，且当前仍保持 EMA9 < EMA26
+```
 
-卖出表示退出或风险预警，不表示做空。卖出优先于买入，同一标的不会同时进入两个数组。
-单独 RSI 过热不会触发卖出，也不要求回落当日已经跌出过热区。
+任一事件即可触发 sell；两项同时有效时返回两个 trigger。`signal.confirmation` 使用
+最近一次有效空头事件作为三日窗口起点。卖出表示趋势转空的退出或风险预警，不表示
+做空。单独 RSI 过热、持续空头或普通价格跌破不会产生卖出信号。sell 优先于 buy，
+同一标的不会同时进入两个数组。
 
 ## 质量解释
 

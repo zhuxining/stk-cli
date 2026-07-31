@@ -5,8 +5,10 @@ from decimal import Decimal
 from stk.models.quote import Quote
 from stk.models.score import (
     QualitySummary,
+    SignalConfirmation,
     SignalIndicators,
     SignalRisk,
+    SignalTrigger,
     StockAssessment,
 )
 from stk.services.scan import _monitor_symbols
@@ -19,18 +21,29 @@ def _assessment(
     turnover_ratio: float = 1,
     with_details: bool = False,
 ) -> StockAssessment:
-    trigger = (
-        ["healthy_continuation"]
-        if state == "buy"
-        else ["supertrend_bearish"]
-        if state == "sell"
-        else []
-    )
+    trigger = []
+    if state in {"buy", "sell"}:
+        trigger = [
+            SignalTrigger(
+                code=(
+                    "supertrend_bullish_reversal"
+                    if state == "buy"
+                    else "supertrend_bearish_reversal"
+                ),
+                occurred_at="2026-07-29",
+                age_bars=0,
+            )
+        ]
     return StockAssessment(
         symbol=symbol,
         as_of="2026-07-29",
         state=state,
         triggers=trigger,
+        confirmation=(
+            SignalConfirmation(confirmed_at="2026-07-29", age_bars=0)
+            if state in {"buy", "sell"}
+            else None
+        ),
         reasons=["测试原因"],
         indicators=SignalIndicators(
             close=100,
@@ -91,7 +104,9 @@ def test_monitor_returns_mutually_exclusive_counts(monkeypatch):
         "ignored": 1,
     }
     assert result.buy[0].quote is not None
-    assert result.buy[0].signal.triggers == ["healthy_continuation"]
+    assert result.buy[0].signal.confirmation.age_bars == 0
+    assert result.buy[0].signal.triggers[0].code == "supertrend_bullish_reversal"
+    assert result.buy[0].signal.triggers[0].age_bars == 0
     assert result.sell[0].risk is None
 
 

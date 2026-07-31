@@ -8,6 +8,7 @@ from stk.models.common import BatchFailure
 from stk.models.score import (
     QualitySummary,
     RecentSignalBar,
+    SignalConfirmation,
     SignalIndicators,
     SignalRisk,
     SignalTrigger,
@@ -25,6 +26,7 @@ class QuoteSnapshot(BaseModel):
 class SignalDetail(BaseModel):
     """Current actionable trigger and explanation."""
 
+    confirmation: SignalConfirmation
     triggers: list[SignalTrigger] = Field(default_factory=list)
     reasons: list[str] = Field(default_factory=list)
 
