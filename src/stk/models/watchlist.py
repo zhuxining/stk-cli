@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from stk.models.common import Platform
+from stk.models.common import BatchFailure, Platform
 
 
 class WatchlistSecurity(BaseModel):
@@ -42,6 +42,7 @@ class RouteSource(BaseModel):
     group: str
     total: int
     analyzed: int
+    failed: int
 
 
 class RouteTarget(BaseModel):
@@ -59,3 +60,4 @@ class RouteResult(BaseModel):
     mode: Literal["replace", "append"]
     source: RouteSource
     targets: RouteTargets
+    failures: list[BatchFailure] = Field(default_factory=list)

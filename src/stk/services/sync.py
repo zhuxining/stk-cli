@@ -5,7 +5,7 @@ from typing import Any
 
 from loguru import logger
 
-from stk.errors import SourceError
+from stk.errors import SourceError, error_code
 from stk.models.sync import (
     AppliedChanges,
     SyncChanges,
@@ -108,12 +108,24 @@ def push_to_ths(from_group: str, to_group: str, *, replace: bool = False) -> Syn
         try:
             added_count = add_ths_stocks(to_group, add_symbols)
         except Exception as err:
-            failures.append(SyncFailure(operation="add", message=str(err)))
+            failures.append(
+                SyncFailure(
+                    operation="add",
+                    code=error_code(err),
+                    message=str(err),
+                )
+            )
     if remove_symbols:
         try:
             removed_count = remove_ths_stocks(to_group, remove_symbols)
         except Exception as err:
-            failures.append(SyncFailure(operation="remove", message=str(err)))
+            failures.append(
+                SyncFailure(
+                    operation="remove",
+                    code=error_code(err),
+                    message=str(err),
+                )
+            )
 
     source_endpoint, target_endpoint = _endpoints("push", from_group, to_group)
     return SyncResult(
@@ -182,6 +194,7 @@ def pull_from_ths(from_group: str, to_group: str, *, replace: bool = False) -> S
         failures.append(
             SyncFailure(
                 operation="replace" if replace else "add",
+                code=error_code(err),
                 message=str(err),
             )
         )

@@ -28,6 +28,7 @@ class AppliedChanges(BaseModel):
 
 class SyncFailure(BaseModel):
     operation: Literal["add", "remove", "replace"]
+    code: str
     message: str
     symbol: str | None = None
 

@@ -114,4 +114,5 @@ def test_pull_surfaces_structured_failure(monkeypatch):
     result = sync_mod.pull_from_ths("ths_group", "lp_group")
 
     assert result.failures[0].operation == "add"
+    assert result.failures[0].code == "runtime_error"
     assert result.failures[0].message == "boom"

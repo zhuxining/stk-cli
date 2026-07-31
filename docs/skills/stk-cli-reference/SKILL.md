@@ -19,6 +19,7 @@ description: >
 ```json
 {
   "ok": true,
+  "status": "success",
   "data": {},
   "meta": {"generated_at": "2026-01-01T00:00:00+00:00"}
 }
@@ -29,13 +30,20 @@ description: >
 ```json
 {
   "ok": false,
+  "status": "failed",
   "error": {"code": "error_code", "message": "错误说明"},
   "meta": {"generated_at": "2026-01-01T00:00:00+00:00"}
 }
 ```
 
-不要依赖空占位字段：无值字段会被省略。先检查顶层 `ok`；批量命令即使整体成功，
-也可能在 `data.failures` 中包含单项失败。
+不要依赖空占位字段：无值字段会被省略。顶层状态语义：
+
+- `ok: true, status: success`：操作完整成功。
+- `ok: true, status: partial`：操作已经执行，但 `data.failures[]` 中有单项失败。
+- `ok: false, status: failed`：配置、认证、源对象或请求级错误导致操作无法执行。
+
+批量操作遇到个别失败时继续处理其他项。调用方应先检查 `ok`，再检查 `status`；
+`partial` 不应按整体失败重试，只处理 `data.failures[]` 中的项目。
 
 ## K 线与指标
 
@@ -141,11 +149,12 @@ stk group route <src> <buy-dst> <sell-dst> [--replace|--append]
 - 三个参数都是 Longport 分组，并且名称必须互不相同。
 - 默认 `--replace`：分别将当前仍满足条件的 buy 和 sell 标的写为两个完整快照。
 - 两个目标组都由源分组的当前已确认日线重新计算，不依赖昨日目标组成员。
-- 任一标的扫描失败时，整个 route 在写入前中止，两个目标组均保持不变。
+- 个别标的扫描失败时跳过该标的，其余结果继续写入，并在成功响应中返回失败详情。
 - `--append` 只追加本次结果，不移除历史成员；每日快照通常使用默认 replace。
 
 返回的 `data` 包含 `operation`、`mode`、`source` 和 `targets`。`targets` 直接表示
-本次写入 buy、sell 分组的 Symbol，不代表交易订单。
+本次写入 buy、sell 分组的 Symbol，不代表交易订单。`source.failed` 给出失败数量，
+`failures[]` 给出每个失败标的的 `symbol`、`code` 和 `message`。
 
 ## 常用工作流
 

@@ -27,7 +27,8 @@ make check
 - `services/` 负责外部 API、指标计算、信号判断和工作流编排，不写 stdout。
 - `models/` 定义服务与 JSON 输出之间的 Pydantic 契约。
 - `store/` 只保存缓存和本地映射，不作为行情或分组的权威来源。
-- CLI 输出统一使用 `ok/data/error/meta` envelope；日志只写 stderr。
+- CLI 输出统一使用 `ok/status/data/error/meta` envelope；`partial` 表示整体已执行
+  但存在 `data.failures[]`，日志只写 stderr。
 - 服务将外部异常转换为明确的 `StkError` 子类，由 CLI 统一处理。
 - Symbol 转换集中在 `utils/symbol.py`，不得在命令或服务中重复实现。
 

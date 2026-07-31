@@ -38,6 +38,7 @@ def test_data_kline_returns_partial_success(monkeypatch):
 
     assert result.exit_code == 0
     assert payload["ok"] is True
+    assert payload["status"] == "partial"
     assert payload["data"]["requested"] == 2
     assert payload["data"]["series"][0]["symbol"] == "600519.SH"
     assert payload["data"]["failures"][0]["code"] == "runtime_error"
@@ -50,7 +51,7 @@ def test_group_route_delegates_with_replace_default(monkeypatch):
         calls.append((src, buy, sell, replace))
         return RouteResult(
             mode="replace",
-            source=RouteSource(group=src, total=0, analyzed=0),
+                source=RouteSource(group=src, total=0, analyzed=0, failed=0),
             targets=RouteTargets(
                 buy=RouteTarget(group=buy),
                 sell=RouteTarget(group=sell),

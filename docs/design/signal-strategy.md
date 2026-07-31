@@ -89,5 +89,5 @@ AND close <= EMA9 + 1.5 * ATR10
 - scan 中单标的失败进入 `failures`，其他标的继续处理。
 - `summary.buy + sell + watch + ignored = analyzed`。
 - `summary.total = analyzed + failed`。
-- route 发现任何 scan failure 时，在首次分组写入前中止。
+- route 跳过扫描失败的标的，继续写入其余结果，并在成功响应中返回 `failures`。
 - `--recent-bars N` 使用评分时已获取的数据附加最近 1–30 根紧凑日线，不二次请求。

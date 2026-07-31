@@ -185,11 +185,6 @@ def route_signals(
         recent_bars=0,
         include_factors=False,
     )
-    if scan_result.failures:
-        raise SourceError(
-            f"Route aborted: {len(scan_result.failures)} symbols failed to scan; "
-            "signal groups were not modified"
-        )
 
     buy_symbols = sorted(item.symbol for item in scan_result.buy)
     sell_symbols = sorted(item.symbol for item in scan_result.sell)
@@ -207,9 +202,11 @@ def route_signals(
             group=src,
             total=scan_result.summary.total,
             analyzed=scan_result.summary.analyzed,
+            failed=scan_result.summary.failed,
         ),
         targets=RouteTargets(
             buy=RouteTarget(group=buy_dst, symbols=buy_symbols),
             sell=RouteTarget(group=sell_dst, symbols=sell_symbols),
         ),
+        failures=scan_result.failures,
     )

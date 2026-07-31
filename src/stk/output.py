@@ -13,10 +13,12 @@ def _meta() -> dict[str, str]:
 
 
 def render(data: object) -> None:
-    """Print a successful envelope, omitting null model fields."""
+    """Print a successful or partially successful envelope."""
+    serialized = _serialize(data)
     envelope = {
         "ok": True,
-        "data": _serialize(data),
+        "status": _success_status(serialized),
+        "data": serialized,
         "meta": _meta(),
     }
     print(json.dumps(envelope, ensure_ascii=False, default=str))
@@ -26,6 +28,7 @@ def render_error(code: str, message: str) -> None:
     """Print a request-level failure envelope."""
     envelope = {
         "ok": False,
+        "status": "failed",
         "error": {"code": code, "message": message},
         "meta": _meta(),
     }
@@ -38,3 +41,9 @@ def _serialize(obj: object) -> Any:
     if isinstance(obj, list):
         return [_serialize(item) for item in obj]
     return obj
+
+
+def _success_status(data: Any) -> str:
+    if isinstance(data, dict) and data.get("failures"):
+        return "partial"
+    return "success"

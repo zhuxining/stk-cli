@@ -8,8 +8,9 @@
 - 管理 Longport 分组，并与同花顺分组双向同步。
 - 扫描 Longport 分组的已确认日线，生成当前买入与卖出信号快照。
 
-所有命令向 stdout 输出统一 JSON envelope，日志写入 stderr。成功输出
-`ok/data/meta`，请求级失败输出 `ok/error/meta`，未使用字段不会以 `null` 占位。
+所有命令向 stdout 输出统一 JSON envelope，日志写入 stderr。成功或部分成功输出
+`ok/status/data/meta`，请求级失败输出 `ok/status/error/meta`，未使用字段不会以
+`null` 占位。
 本项目只提供数据和信号，不生成交易订单或仓位建议。
 
 ## 安装
@@ -70,7 +71,11 @@ stk group route 核心池 买入信号 卖出信号
 ```
 
 `scan` 只使用已确认日线。`route` 默认完整刷新买入和卖出两个 Longport 快照组；
-任一标的扫描失败时不会覆盖已有快照。
+个别标的扫描失败不会阻断刷新，失败详情随成功结果返回。
+
+所有输出都包含顶层 `status`：`success` 表示完整成功，`partial` 表示整体已执行但
+`data.failures[]` 中存在单项失败，`failed` 表示请求无法执行。`partial` 仍保持
+`ok: true`。
 
 ## Symbol
 

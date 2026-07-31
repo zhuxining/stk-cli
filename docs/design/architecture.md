@@ -74,15 +74,17 @@ Longport group <-> sync service <-> THS group
 ### 信号快照
 
 `group route` 扫描一个 Longport 源分组，并分别生成当前买入和卖出信号快照。默认使用
-replace 语义，不依赖昨日成员。扫描存在任何失败时，在写入目标组前中止，避免用不完整
-结果覆盖已有快照。
+replace 语义，不依赖昨日成员。个别标的扫描失败时跳过该标的，其余结果继续写入目标
+组；成功响应通过 `source.failed` 和 `failures[]` 暴露完整失败信息。
 
 具体判定规则以[信号规则](signal-strategy.md)为唯一事实来源。
 
 ## 运行时不变量
 
 - 信号只使用已确认的完整日线；实时行情字段只用于展示。
-- stdout 只包含 JSON，日志写入 stderr。
+- stdout 只包含 JSON，日志写入 stderr。成功响应的 `status` 为 `success` 或
+  `partial`；后者通过 `data.failures[]` 暴露可跳过的单项失败。请求级错误使用
+  `ok: false, status: failed`。
 - 服务将外部异常转换为 `StkError`，CLI 统一渲染错误。
 - Pydantic 模型是服务层与调用方之间的契约。
 - 缓存不是业务数据的权威来源，失败时不得静默伪造完整结果。
