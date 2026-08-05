@@ -5,9 +5,11 @@ import pytest
 from stk.utils.symbol import (
     expand_symbols,
     from_ths_symbol,
+    from_xueqiu_symbol,
     is_longport_symbol,
     to_longport_symbol,
     to_ths_symbol,
+    to_xueqiu_symbol,
 )
 
 
@@ -115,3 +117,31 @@ def test_from_ths_symbol(input_symbol, expected):
 def test_is_longport_symbol(input_symbol, expected):
     """Test longport-supported symbol detection."""
     assert is_longport_symbol(input_symbol) == expected
+
+
+@pytest.mark.parametrize(
+    ("input_symbol", "expected"),
+    [
+        ("600519.SH", "SH600519"),
+        ("000001.SZ", "SZ000001"),
+        ("920001.BJ", "BJ920001"),
+        ("00700.HK", "00700"),
+        ("AAPL.US", "AAPL"),
+    ],
+)
+def test_to_xueqiu_symbol(input_symbol, expected):
+    assert to_xueqiu_symbol(input_symbol) == expected
+
+
+@pytest.mark.parametrize(
+    ("symbol", "exchange", "expected"),
+    [
+        ("SH600519", "SH", "600519.SH"),
+        ("SZ000001", "SZ", "000001.SZ"),
+        ("BJ920001", "BJ", "920001.BJ"),
+        ("00700", "HK", "00700.HK"),
+        ("AAPL", "NASDAQ", "AAPL.US"),
+    ],
+)
+def test_from_xueqiu_symbol(symbol, exchange, expected):
+    assert from_xueqiu_symbol(symbol, exchange) == expected

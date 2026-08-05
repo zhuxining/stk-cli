@@ -41,6 +41,9 @@ LONGPORT_ACCESS_TOKEN=your_access_token
 # 使用同花顺同步时配置
 THS_USERNAME=手机号
 THS_PASSWORD=密码
+XUEQIU_UID=浏览器 Cookie 中的 u
+XUEQIU_A_TOKEN=浏览器 Cookie 中的 xq_a_token
+XUEQIU_ID_TOKEN=浏览器 Cookie 中的 xq_id_token
 ```
 
 ## 常用工作流
@@ -58,10 +61,24 @@ stk data kline 600519,000001 700.HK --period week --count 60
 stk group longport list
 stk group longport show 核心池
 stk group ths list
+stk group xueqiu list
+stk group xueqiu show
+stk group xueqiu show 策略池
+stk group xueqiu create 策略池
+stk group xueqiu add 策略池 600519 000001
+stk group xueqiu remove 策略池 600519
+stk group xueqiu delete 策略池
 stk group sync diff 长桥组 同花顺组
 stk group sync push 长桥组 同花顺组
 stk group sync pull 同花顺组 长桥组 --replace
+stk group sync diff 长桥组 --platform xueqiu
+stk group sync push 长桥组 --platform xueqiu
+stk group sync pull --platform xueqiu --replace
 ```
+
+雪球支持默认“我的自选”和股票自定义分组；系统动态分组只读。三个 Cookie 值从已登录
+浏览器复制到 `.env`，程序不会保存、刷新或输出这些凭据。省略同步远端组名时使用
+“我的自选”。
 
 扫描并更新每日信号分组：
 

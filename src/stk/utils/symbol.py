@@ -102,6 +102,37 @@ def from_ths_symbol(ths_symbol: str) -> str:
     return ths_symbol
 
 
+def to_xueqiu_symbol(longport_symbol: str) -> str:
+    """Convert a Longport symbol to Xueqiu's portfolio symbol format."""
+    symbol = to_longport_symbol(longport_symbol)
+    if "." not in symbol:
+        return symbol
+    code, market = symbol.rsplit(".", 1)
+    if market in {"SH", "SZ", "BJ"}:
+        return f"{market}{code}"
+    return code
+
+
+def from_xueqiu_symbol(symbol: str, exchange: str = "") -> str:
+    """Convert a Xueqiu portfolio item to Longport symbol format."""
+    value = symbol.upper()
+    market = exchange.upper()
+    for prefix in ("SH", "SZ", "BJ"):
+        if value.startswith(prefix) and value[2:].isdigit():
+            return f"{value[2:]}.{prefix}"
+    if market in {"SH", "SSE"}:
+        return f"{value}.SH"
+    if market in {"SZ", "SZSE"}:
+        return f"{value}.SZ"
+    if market in {"BJ", "BSE"}:
+        return f"{value}.BJ"
+    if market in {"HK", "HKG"}:
+        return f"{value}.HK"
+    if market in {"US", "NASDAQ", "NYSE", "AMEX"}:
+        return f"{value}.US"
+    return value
+
+
 def is_longport_symbol(symbol: str) -> bool:
     """Check whether a symbol has a longport-supported market suffix.
 

@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     ths_password: str = ""
     """同花顺密码"""
 
+    # Xueqiu (雪球) default watchlist sync
+    xueqiu_uid: str = ""
+    xueqiu_a_token: str = ""
+    xueqiu_id_token: str = ""
+
     # Logging
     log_level: str = "WARNING"
 

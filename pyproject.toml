@@ -14,6 +14,7 @@ dependencies = [
     "stockstats>=0.6.8,<0.7",
     "pandas>=3.0.1",
     "numpy>=2.4.3",
+    "requests>=2.34.2",
     "ths-favorite",
 ]
 

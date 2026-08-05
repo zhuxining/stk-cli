@@ -15,13 +15,15 @@ CLI
 └── group
     ├── longport ─────> watchlist
     ├── ths ──────────> ths_wrapper
-    ├── sync ─────────> sync ──> watchlist/ths_wrapper
+    ├── xueqiu ───────> xueqiu
+    ├── sync ─────────> sync ──> watchlist/ths_wrapper/xueqiu
     ├── route ────────> scan ──> watchlist
     └── rotate ───────> rotation ──> watchlist
 ```
 
 - Longport 是行情、K 线和主要分组的数据源。
-- 同花顺是分组同步对端，不参与行情或信号计算。
+- 同花顺和雪球是分组同步对端，不参与行情或信号计算；雪球支持默认自选和股票自定义
+  分组，系统动态分组只读。
 - 本地存储只保存缓存和 Longport 分组名称到 ID 的映射。
 - 项目不执行交易、不管理仓位、不提供回测，也不长期保存行情数据。
 
@@ -68,10 +70,12 @@ Longport group
 ### 分组同步
 
 ```text
-Longport group <-> sync service <-> THS group
+Longport group <-> sync service <-> THS group / Xueqiu default watchlist
 ```
 
 同步服务负责方向、差异和写入模式；平台边界负责 Symbol 转换及不支持资产过滤。
+雪球认证仅从环境变量读取浏览器 Cookie `u`、`xq_a_token`、`xq_id_token`，不负责账号
+密码登录、token 刷新或持久化。雪球 replace 先新增后删除，新增失败时跳过全部删除。
 
 ### ETF 双池轮动
 

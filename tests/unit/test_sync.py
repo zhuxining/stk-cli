@@ -116,3 +116,37 @@ def test_pull_surfaces_structured_failure(monkeypatch):
     assert result.failures[0].operation == "add"
     assert result.failures[0].code == "runtime_error"
     assert result.failures[0].message == "boom"
+
+
+def test_xueqiu_push_replace_skips_removals_when_add_fails(monkeypatch):
+    removed: list[str] = []
+
+    monkeypatch.setitem(
+        sys.modules,
+        "stk.services.watchlist",
+        SimpleNamespace(
+            get_watchlist=lambda _name: SimpleNamespace(
+                securities=[SimpleNamespace(symbol="600519.SH")]
+            )
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "stk.services.xueqiu",
+        SimpleNamespace(
+            XueqiuClient=lambda: SimpleNamespace(
+                get_watchlist=lambda _name: SimpleNamespace(
+                    securities=[SimpleNamespace(symbol="SZ000001", market="SZ")]
+                ),
+                add_stocks=lambda _name, _symbols: (_ for _ in ()).throw(RuntimeError("boom")),
+                remove_stocks=lambda _name, symbols: removed.extend(symbols),
+            ),
+        ),
+    )
+
+    result = sync_mod.push_to_xueqiu("lp", "我的自选", replace=True)
+
+    assert result.changes.add_symbols == ["SH600519"]
+    assert result.changes.remove_symbols == ["SZ000001"]
+    assert result.failures[0].operation == "add"
+    assert removed == []

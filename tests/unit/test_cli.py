@@ -21,7 +21,7 @@ def test_group_exposes_platforms_sync_and_route():
     result = runner.invoke(app, ["group", "--help"])
 
     assert result.exit_code == 0
-    for command in ("longport", "ths", "sync", "route", "rotate"):
+    for command in ("longport", "ths", "xueqiu", "sync", "route", "rotate"):
         assert command in result.stdout
 
 

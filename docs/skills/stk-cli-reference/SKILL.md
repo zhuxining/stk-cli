@@ -129,6 +129,21 @@ stk group ths list
 
 该命令用于查看同花顺分组；同花顺分组写入由 `group sync` 完成。
 
+## 雪球自选
+
+先从已登录浏览器的 Cookie 中复制 `u`、`xq_a_token`、`xq_id_token`，分别写入
+`XUEQIU_UID`、`XUEQIU_A_TOKEN`、`XUEQIU_ID_TOKEN`。支持默认“我的自选”和股票
+自定义分组，系统动态分组只读：
+
+```bash
+stk group xueqiu list
+stk group xueqiu show [group]
+stk group xueqiu create <group>
+stk group xueqiu add <group> <symbols...>
+stk group xueqiu remove <group> <symbols...>
+stk group xueqiu delete <group>
+```
+
 ## 跨平台同步
 
 先配置 `THS_USERNAME` 和 `THS_PASSWORD`：
@@ -137,6 +152,9 @@ stk group ths list
 stk group sync diff <longport-group> [ths-group]
 stk group sync push <longport-group> [ths-group] [--replace]
 stk group sync pull <ths-group> [longport-group] [--replace]
+stk group sync diff <longport-group> [xueqiu-group] --platform xueqiu
+stk group sync push <longport-group> [xueqiu-group] --platform xueqiu [--replace]
+stk group sync pull [xueqiu-group] [longport-group] --platform xueqiu [--replace]
 ```
 
 - `diff` 比较 Longport 源组与同花顺目标组，不写入。
@@ -145,6 +163,9 @@ stk group sync pull <ths-group> [longport-group] [--replace]
 - 省略目标分组名时，使用源分组名。
 - 默认 merge，只添加目标缺少的成员；`--replace` 同时移除目标多出的成员。
 - 跨平台同步会转换 Symbol，并过滤同花顺不支持的资产。
+- `--platform` 默认为 `ths`；选择 `xueqiu` 时省略远端组名即使用“我的自选”，也可
+  指定自定义分组名称。
+- 雪球 replace 会先新增；任一新增失败时不执行删除，避免产生破坏性半同步。
 
 同步结果包含 `operation`、`mode`、`source`、`target`、`changes`、`failures` 和
 `warnings`；写操作还包含 `applied`。`changes` 中的 Symbol 使用目标平台格式。
@@ -220,8 +241,11 @@ stk data kline 600519 0700.HK AAPL.US --count 60
 ```bash
 stk group longport list
 stk group ths list
+stk group xueqiu list
+stk group xueqiu show
 stk group sync diff 长桥组 同花顺组
 stk group sync push 长桥组 同花顺组
+stk group sync diff 长桥组 --platform xueqiu
 ```
 
 扫描源分组并刷新每日信号快照：
