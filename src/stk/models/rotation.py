@@ -4,13 +4,17 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-type RotationStage = Literal["emerging", "leading", "weakening", "lagging"]
-type RotationAction = Literal["exit", "rotate_in", "hold", "reduce", "watch", "avoid"]
+type RotationStage = Literal["emerging", "strong", "fading"]
+type RotationState = Literal["inactive", "emerging", "strong", "fading"]
+type RotationAction = Literal["exit", "rotate_in", "hold", "reduce", "watch"]
+type RotationSetup = Literal["rebound", "confirmed"]
+type FadeSeverity = Literal["mild", "confirmed", "severe"]
 type RotationTrend = Literal["bullish", "bearish", "neutral"]
 
 
 class RotationFactors(BaseModel):
     return5: float
+    previous_return5: float
     return20: float
     return60: float
     pool_median_return5: float
@@ -26,6 +30,8 @@ class RotationFactors(BaseModel):
     relative_momentum60: float
     trend_quality: float
     acceleration: float
+    ema20_slope5: float
+    entry_distance_atr: float
     turnover_ratio: float
     turnover_confirmation: float
     mfi_confirmation: float
@@ -34,12 +40,18 @@ class RotationFactors(BaseModel):
 
 class RotationIndicators(BaseModel):
     close: float
+    ema5: float
     ema9: float
+    ema10: float
     ema20: float
     ema26: float
     ema60: float
     rsi14: float
+    adx14: float
     mfi14: float
+    macd: float
+    macd_signal: float
+    macd_hist: float
     atr10: float
     atr_pct: float
     supertrend: float
@@ -51,6 +63,10 @@ class RotationSignal(BaseModel):
     supertrend_bearish_event: bool = False
     ema_golden_cross: bool = False
     ema_death_cross: bool = False
+    supertrend_bullish_age: int | None = None
+    supertrend_bearish_age: int | None = None
+    ema_golden_cross_age: int | None = None
+    ema_death_cross_age: int | None = None
     entry_eligible: bool = False
 
 
@@ -60,12 +76,13 @@ class RotationItem(BaseModel):
     name: str = ""
     as_of: str
     stage: RotationStage
-    previous_stage: RotationStage | None = None
+    previous_state: RotationState
     stage_changed: bool
     action: RotationAction
     trend: RotationTrend
-    strength: float
-    momentum: float
+    rank_score: float
+    setup: RotationSetup | None = None
+    fade_severity: FadeSeverity | None = None
     factors: RotationFactors
     indicators: RotationIndicators
     signal: RotationSignal
@@ -79,9 +96,9 @@ class RotationPoolSummary(BaseModel):
     analyzed: int
     failed: int
     emerging: int = 0
-    leading: int = 0
-    weakening: int = 0
-    lagging: int = 0
+    strong: int = 0
+    fading: int = 0
+    inactive: int = 0
 
 
 class RotationSummary(BaseModel):
@@ -89,9 +106,9 @@ class RotationSummary(BaseModel):
     analyzed: int
     failed: int
     emerging: int
-    leading: int
-    weakening: int
-    lagging: int
+    strong: int
+    fading: int
+    inactive: int
 
 
 class RotationFailure(BaseModel):
@@ -102,13 +119,12 @@ class RotationFailure(BaseModel):
 
 
 class RotationResult(BaseModel):
-    model: Literal["rotation_v1"] = "rotation_v1"
+    model: Literal["rotation_v2"] = "rotation_v2"
     sources: list[RotationPoolSummary]
     summary: RotationSummary
     emerging: list[RotationItem] = Field(default_factory=list)
-    leading: list[RotationItem] = Field(default_factory=list)
-    weakening: list[RotationItem] = Field(default_factory=list)
-    lagging: list[RotationItem] = Field(default_factory=list)
+    strong: list[RotationItem] = Field(default_factory=list)
+    fading: list[RotationItem] = Field(default_factory=list)
     failures: list[RotationFailure] = Field(default_factory=list)
 
 

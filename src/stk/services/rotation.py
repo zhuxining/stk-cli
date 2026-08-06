@@ -1,10 +1,10 @@
-"""ETF cross-sectional rotation analysis and Longport snapshot routing."""
+"""Absolute-state ETF rotation analysis and Longport snapshot routing."""
 
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import math
-from typing import cast
+from typing import Final, cast
 
 from longport.openapi import SecuritiesUpdateMode
 import numpy as np
@@ -14,6 +14,7 @@ import talib
 
 from stk.errors import IndicatorError, SourceError, StkError, error_code
 from stk.models.rotation import (
+    FadeSeverity,
     RotationAction,
     RotationFactors,
     RotationFailure,
@@ -23,8 +24,10 @@ from stk.models.rotation import (
     RotationResult,
     RotationRouteResult,
     RotationRouteTarget,
+    RotationSetup,
     RotationSignal,
     RotationStage,
+    RotationState,
     RotationSummary,
     RotationTrend,
 )
@@ -33,10 +36,15 @@ from stk.services.watchlist import add_symbols, get_watchlist
 from stk.utils.symbol import to_longport_symbol
 from stk.utils.trading_session import is_unclosed_daily_bar
 
-_MIN_BARS = 70
-_HISTORY_BARS = 90
-_MIN_POOL_SIZE = 5
-set_dft_window("supertrend", 10)
+_MIN_BARS: Final = 70
+_HISTORY_BARS: Final = 90
+_MIN_POOL_SIZE: Final = 5
+_EMERGING_WINDOW: Final = 2
+_FADING_WINDOW: Final = 3
+_ACTIVE_LOOKBACK: Final = 10
+_SUPERTREND_PERIOD: Final = 10
+_SUPERTREND_MULTIPLIER: Final = 3
+set_dft_window("supertrend", _SUPERTREND_PERIOD)
 
 
 @dataclass(slots=True)
@@ -51,7 +59,17 @@ class _Point:
     series: _Series
     index: int
     metrics: dict[str, float]
+    close: np.ndarray
+    ema9: np.ndarray
+    ema26: np.ndarray
     supertrend_direction: np.ndarray
+
+
+@dataclass(slots=True, frozen=True)
+class _Classification:
+    state: RotationState
+    setup: RotationSetup | None = None
+    severity: FadeSeverity | None = None
 
 
 def _finite(value: float, label: str) -> float:
@@ -70,8 +88,8 @@ def _load_series(symbol: str, name: str) -> _Series:
     return _Series(symbol=to_longport_symbol(symbol), name=name, frame=frame)
 
 
-def _indicator_point(series: _Series, index: int) -> _Point:
-    frame = series.frame.iloc[: index + 1]
+def _indicator_points(series: _Series, indices: range) -> dict[int, _Point]:
+    frame = series.frame
     close = frame["close"].to_numpy(dtype=float)
     high = frame["high"].to_numpy(dtype=float)
     low = frame["low"].to_numpy(dtype=float)
@@ -83,16 +101,17 @@ def _indicator_point(series: _Series, index: int) -> _Point:
     time_index = np.arange(len(close), dtype=float)
 
     stock = cast(StockDataFrame, wrap(frame.copy()))
-    stock.SUPERTREND_MUL = 3
+    stock.SUPERTREND_MUL = _SUPERTREND_MULTIPLIER
     supertrend = stock["supertrend"].to_numpy(dtype=float)
     upper = stock["supertrend_ub"].to_numpy(dtype=float)
     lower = stock["supertrend_lb"].to_numpy(dtype=float)
-    atr10 = stock["atr_10"].to_numpy(dtype=float)
+    atr10 = stock[f"atr_{_SUPERTREND_PERIOD}"].to_numpy(dtype=float)
     separated = ~np.isclose(upper, lower)
     direction = np.zeros(len(supertrend), dtype=int)
     direction[np.isclose(supertrend, lower) & separated] = 1
     direction[np.isclose(supertrend, upper) & separated] = -1
 
+    macd, macd_signal, macd_hist = talib.MACD(close, fastperiod=12, slowperiod=26, signalperiod=9)
     arrays = {
         "return5": talib.ROCP(close, timeperiod=5),
         "return20": talib.ROCP(close, timeperiod=20),
@@ -101,28 +120,49 @@ def _indicator_point(series: _Series, index: int) -> _Point:
         "vol60": talib.STDDEV(log_return, timeperiod=60) * math.sqrt(60),
         "slope20": talib.LINEARREG_SLOPE(log_close, timeperiod=20),
         "correlation20": talib.CORREL(log_close, time_index, timeperiod=20),
+        "ema5": talib.EMA(close, timeperiod=5),
         "ema9": talib.EMA(close, timeperiod=9),
+        "ema10": talib.EMA(close, timeperiod=10),
         "ema20": talib.EMA(close, timeperiod=20),
         "ema26": talib.EMA(close, timeperiod=26),
         "ema60": talib.EMA(close, timeperiod=60),
         "rsi14": talib.RSI(close, timeperiod=14),
+        "adx14": talib.ADX(high, low, close, timeperiod=14),
         "mfi14": talib.MFI(high, low, close, volume, timeperiod=14),
+        "macd": macd,
+        "macd_signal": macd_signal,
+        "macd_hist": macd_hist,
     }
-    values = {key: _finite(values[-1], key) for key, values in arrays.items()}
-    values["previous_return5"] = _finite(arrays["return5"][-6], "previous_return5")
-    values["close"] = float(close[-1])
-    values["atr10"] = _finite(atr10[-1], "atr10")
-    values["supertrend"] = _finite(supertrend[-1], "supertrend")
     turnover = frame["turnover"].to_numpy(dtype=float)
-    previous_turnover = float(np.mean(turnover[-25:-5]))
-    values["turnover_ratio"] = (
-        float(np.mean(turnover[-5:])) / previous_turnover if previous_turnover > 0 else 1.0
-    )
-    return _Point(series=series, index=index, metrics=values, supertrend_direction=direction)
+    points: dict[int, _Point] = {}
+    for index in indices:
+        values = {key: _finite(array[index], key) for key, array in arrays.items()}
+        values["previous_return5"] = _finite(arrays["return5"][index - 5], "previous_return5")
+        values["close"] = float(close[index])
+        values["atr10"] = _finite(atr10[index], "atr10")
+        values["supertrend"] = _finite(supertrend[index], "supertrend")
+        values["ema20_slope5"] = values["ema20"] / arrays["ema20"][index - 5] - 1
+        values["entry_distance_atr"] = (values["close"] - values["ema20"]) / values["atr10"]
+        previous_turnover = float(np.mean(turnover[index - 24 : index - 4]))
+        values["turnover_ratio"] = (
+            float(np.mean(turnover[index - 4 : index + 1])) / previous_turnover
+            if previous_turnover > 0
+            else 1.0
+        )
+        points[index] = _Point(
+            series=series,
+            index=index,
+            metrics=values,
+            close=close,
+            ema9=arrays["ema9"],
+            ema26=arrays["ema26"],
+            supertrend_direction=direction,
+        )
+    return points
 
 
 def percentile(values: pd.Series) -> pd.Series:
-    """Return pool percentiles with ties sharing their average rank."""
+    """Return percentiles with ties sharing their average rank."""
     valid = values.dropna()
     if len(valid) <= 1:
         return pd.Series(50.0, index=values.index)
@@ -130,86 +170,195 @@ def percentile(values: pd.Series) -> pd.Series:
     return result.fillna(50.0)
 
 
-def classify_stage(strength: float, momentum: float) -> RotationStage:
-    """Map strength and momentum to one mutually exclusive buffered stage."""
-    if strength <= 50:
-        return "emerging" if momentum >= 55 else "lagging"
-    return "leading" if momentum >= 45 else "weakening"
+def _cross_age(left: np.ndarray, right: np.ndarray, index: int, *, bullish: bool) -> int | None:
+    for age in range(_FADING_WINDOW):
+        current = index - age
+        previous = current - 1
+        if np.isnan([left[previous], right[previous], left[current], right[current]]).any():
+            continue
+        crossed = (
+            left[previous] <= right[previous] and left[current] > right[current]
+            if bullish
+            else left[previous] >= right[previous] and left[current] < right[current]
+        )
+        if crossed:
+            return age
+    return None
+
+
+def _direction_age(direction: np.ndarray, index: int, *, bullish: bool) -> int | None:
+    target = 1 if bullish else -1
+    for age in range(_FADING_WINDOW):
+        current = index - age
+        if direction[current - 1] == -target and direction[current] == target:
+            return age
+    return None
 
 
 def _events(point: _Point) -> RotationSignal:
     values = point.metrics
-    frame = point.series.frame.iloc[: point.index + 1]
-    close = frame["close"].to_numpy(dtype=float)
-    ema9 = talib.EMA(close, timeperiod=9)
-    ema26 = talib.EMA(close, timeperiod=26)
+    index = point.index
     direction = point.supertrend_direction
-    start = max(1, len(close) - 3)
-    st_bull = any(direction[i - 1] < 0 and direction[i] > 0 for i in range(start, len(close)))
-    st_bear = any(direction[i - 1] > 0 and direction[i] < 0 for i in range(start, len(close)))
-    golden = any(
-        ema9[i - 1] <= ema26[i - 1] and ema9[i] > ema26[i] for i in range(start, len(close))
-    )
-    death = any(
-        ema9[i - 1] >= ema26[i - 1] and ema9[i] < ema26[i] for i in range(start, len(close))
-    )
-    entry = (
-        values["close"] > values["ema20"]
-        and (direction[-1] > 0 or values["ema9"] > values["ema26"])
-        and values["rsi14"] < 75
-        and values["close"] <= values["ema20"] + 2 * values["atr10"]
-    )
+    st_bull_age = _direction_age(direction, index, bullish=True)
+    st_bear_age = _direction_age(direction, index, bullish=False)
+    golden_age = _cross_age(point.ema9, point.ema26, index, bullish=True)
+    death_age = _cross_age(point.ema9, point.ema26, index, bullish=False)
+    entry = values["rsi14"] < 75 and values["close"] <= values["ema20"] + 2 * values["atr10"]
     return RotationSignal(
-        supertrend_bullish_event=st_bull,
-        supertrend_bearish_event=st_bear,
-        ema_golden_cross=golden,
-        ema_death_cross=death,
+        supertrend_bullish_event=(st_bull_age is not None and st_bull_age < _EMERGING_WINDOW),
+        supertrend_bearish_event=st_bear_age is not None,
+        ema_golden_cross=golden_age is not None and golden_age < _EMERGING_WINDOW,
+        ema_death_cross=death_age is not None,
+        supertrend_bullish_age=st_bull_age,
+        supertrend_bearish_age=st_bear_age,
+        ema_golden_cross_age=golden_age,
+        ema_death_cross_age=death_age,
         entry_eligible=entry,
     )
 
 
+def _confirmed_emerging(point: _Point, signal: RotationSignal) -> bool:
+    values = point.metrics
+    return (
+        signal.supertrend_bullish_event
+        and point.supertrend_direction[point.index] > 0
+        and values["close"] > values["ema20"]
+        and values["return5"] > 0
+    )
+
+
+def _rebound_emerging(point: _Point) -> bool:
+    values = point.metrics
+    return (
+        values["return5"] > 0
+        and values["return5"] > values["previous_return5"]
+        and values["close"] > values["ema9"]
+        and values["close"] >= values["ema20"] - 0.5 * values["atr10"]
+    )
+
+
+def _strong(point: _Point) -> bool:
+    values = point.metrics
+    return (
+        point.supertrend_direction[point.index] > 0
+        and values["close"] > values["ema20"]
+        and values["ema20_slope5"] > 0
+        and values["return20"] > 0
+    )
+
+
+def _was_confirmed_active(history: list[_Point]) -> bool:
+    for point in history[-_ACTIVE_LOOKBACK:]:
+        signal = _events(point)
+        if _confirmed_emerging(point, signal) or _strong(point):
+            return True
+    return False
+
+
+def _fade_severity(point: _Point, history: list[_Point]) -> FadeSeverity | None:
+    if not _was_confirmed_active(history):
+        return None
+    values = point.metrics
+    signal = _events(point)
+    current_st_bearish = point.supertrend_direction[point.index] < 0
+    severe = (
+        current_st_bearish
+        and values["close"] < values["ema20"]
+        and values["macd_hist"] < 0
+        and values["adx14"] > history[-2].metrics["adx14"]
+    )
+    if severe:
+        return "severe"
+    two_closes_below = (
+        len(history) >= 1
+        and history[-1].metrics["close"] < history[-1].metrics["ema20"]
+        and values["close"] < values["ema20"]
+    )
+    confirmed = (signal.supertrend_bearish_event and current_st_bearish) or (
+        two_closes_below and values["ema20_slope5"] <= 0
+    )
+    if confirmed:
+        return "confirmed"
+    mild = (
+        values["return5"] < 0
+        and values["ema5"] < values["ema10"]
+        and values["macd_hist"] < 0
+        and values["close"] <= values["ema20"] + 0.5 * values["atr10"]
+    )
+    return "mild" if mild else None
+
+
+def classify_state(point: _Point, history: list[_Point]) -> _Classification:
+    """Classify one point using absolute structure and causal history."""
+    if severity := _fade_severity(point, history):
+        return _Classification(state="fading", severity=severity)
+    signal = _events(point)
+    if _confirmed_emerging(point, signal):
+        return _Classification(state="emerging", setup="confirmed")
+    if _strong(point):
+        return _Classification(state="strong")
+    if _rebound_emerging(point):
+        return _Classification(state="emerging", setup="rebound")
+    return _Classification(state="inactive")
+
+
 def determine_action(
     stage: RotationStage,
-    momentum: float,
-    trend: RotationTrend,
-    signal: RotationSignal,
     *,
-    supertrend_bullish: bool,
-    ema_bullish: bool,
+    setup: RotationSetup | None,
+    severity: FadeSeverity | None,
+    entry_eligible: bool,
 ) -> RotationAction:
-    """Apply the six-action priority matrix."""
-    bearish_event = (signal.supertrend_bearish_event and not supertrend_bullish) or (
-        signal.ema_death_cross and not ema_bullish
-    )
-    bullish_event = (signal.supertrend_bullish_event and supertrend_bullish) or (
-        signal.ema_golden_cross and ema_bullish
-    )
-    if stage in ("weakening", "lagging") and bearish_event:
-        return "exit"
-    if (
-        stage in ("emerging", "leading")
-        and momentum >= 55
-        and bullish_event
-        and signal.entry_eligible
-    ):
-        return "rotate_in"
-    if stage == "leading" and trend == "bullish" and not bearish_event:
+    """Map a v2 stage and its qualifier to one action."""
+    if stage == "fading":
+        return "reduce" if severity == "mild" else "exit"
+    if stage == "strong":
         return "hold"
-    if stage == "weakening":
-        return "reduce"
-    if stage in ("emerging", "leading"):
-        return "watch"
-    return "avoid"
+    return "rotate_in" if setup == "confirmed" and entry_eligible else "watch"
+
+
+def _rank_scores(
+    table: pd.DataFrame,
+    classifications: dict[str, _Classification],
+) -> pd.Series:
+    scores = pd.Series(0.0, index=table.index)
+    for stage in ("emerging", "strong", "fading"):
+        symbols = [symbol for symbol, item in classifications.items() if item.state == stage]
+        if not symbols:
+            continue
+        subset = table.loc[symbols]
+        if stage == "emerging":
+            scores.loc[symbols] = (
+                percentile(subset["acceleration_abs"]) * 0.40
+                + percentile(subset["quality"]) * 0.20
+                + percentile(subset["turnover_confirmation"]) * 0.20
+                + percentile(-subset["entry_distance_atr"].abs()) * 0.20
+            )
+        elif stage == "strong":
+            scores.loc[symbols] = (
+                percentile(subset["absolute_rm20"]) * 0.30
+                + percentile(subset["quality"]) * 0.25
+                + percentile(subset["adx14"]) * 0.20
+                + percentile(subset["macd_health"]) * 0.15
+                + percentile(subset["volume_confirmation"]) * 0.10
+            )
+        else:
+            scores.loc[symbols] = (
+                percentile(subset["downside_return5"]) * 0.35
+                + percentile(subset["ema20_break_atr"]) * 0.30
+                + percentile(subset["bearish_macd"]) * 0.20
+                + percentile(subset["downside_turnover"]) * 0.15
+            )
+    return scores
 
 
 def _cross_section(
     pool: str,
-    points: list[_Point],
-    *,
-    previous_stages: dict[str, RotationStage] | None = None,
-) -> list[RotationItem]:
+    current: list[_Point],
+    histories: dict[str, list[_Point]],
+) -> tuple[list[RotationItem], int]:
     table = pd.DataFrame(
-        [point.metrics for point in points], index=[p.series.symbol for p in points]
+        [point.metrics for point in current], index=[point.series.symbol for point in current]
     )
     vol20_floor = float(table["vol20"].quantile(0.1))
     vol60_floor = float(table["vol60"].quantile(0.1))
@@ -219,50 +368,64 @@ def _cross_section(
     previous_excess5 = table["previous_return5"] - table["previous_return5"].median()
     table["rm20"] = (table["return20"] - table["return20"].median()) / adjusted20
     table["rm60"] = (table["return60"] - table["return60"].median()) / adjusted60
+    table["absolute_rm20"] = table["return20"] / adjusted20
     table["quality"] = table["slope20"] * table["correlation20"].pow(2) / adjusted20
     table["acceleration"] = (excess5 - previous_excess5) / adjusted20
+    table["acceleration_abs"] = (table["return5"] - table["previous_return5"]) / adjusted20
     table["turnover_confirmation"] = np.sign(excess5) * np.log(
         table["turnover_ratio"].clip(lower=np.finfo(float).eps)
     )
     table["mfi_confirmation"] = (table["mfi14"] - 50) / 50
-    table["strength"] = (
-        percentile(table["rm20"]) * 0.50
-        + percentile(table["rm60"]) * 0.35
-        + percentile(table["quality"]) * 0.15
-    )
     table["volume_confirmation"] = (
         percentile(table["turnover_confirmation"]) * 0.70
         + percentile(table["mfi_confirmation"]) * 0.30
     )
-    table["momentum"] = (
-        percentile(table["acceleration"]) * 0.80 + table["volume_confirmation"] * 0.20
-    )
+    atr_fraction = table["atr10"] / table["close"]
+    table["macd_health"] = table["macd_hist"] / table["atr10"]
+    table["downside_return5"] = -table["return5"] / atr_fraction
+    table["ema20_break_atr"] = (table["ema20"] - table["close"]) / table["atr10"]
+    table["bearish_macd"] = -table["macd_hist"] / table["atr10"]
+    table["downside_turnover"] = np.log(table["turnover_ratio"].clip(lower=np.finfo(float).eps))
+
+    classifications = {
+        point.series.symbol: classify_state(point, histories[point.series.symbol])
+        for point in current
+    }
+    scores = _rank_scores(table, classifications)
     mean_turnovers = pd.Series({
         point.series.symbol: float(
             point.series.frame.iloc[: point.index + 1]["turnover"].tail(20).mean()
         )
-        for point in points
+        for point in current
     })
     liquidity_cutoff = float(mean_turnovers.quantile(0.2))
 
     items: list[RotationItem] = []
-    for point in points:
+    for point in current:
         symbol = point.series.symbol
-        row = table.loc[symbol]
-        strength = float(row["strength"])
-        momentum = float(row["momentum"])
-        stage = classify_stage(strength, momentum)
+        classification = classifications[symbol]
+        if classification.state == "inactive":
+            continue
+        stage = classification.state
         values = point.metrics
-        current_st = point.supertrend_direction[-1] > 0
-        ema_bullish = values["ema9"] > values["ema26"]
-        if values["close"] > values["ema20"] > values["ema60"] and current_st:
+        history = histories[symbol]
+        previous = history[-1]
+        previous_state = classify_state(previous, history[:-1]).state
+        signal = _events(point)
+        current_st = point.supertrend_direction[point.index] > 0
+        if current_st and values["close"] > values["ema20"] and values["ema20_slope5"] > 0:
             trend: RotationTrend = "bullish"
-        elif values["close"] < values["ema20"] < values["ema60"] and not current_st:
+        elif not current_st and values["close"] < values["ema20"] and values["ema20_slope5"] < 0:
             trend = "bearish"
         else:
             trend = "neutral"
-        signal = _events(point)
-        previous_stage = previous_stages.get(symbol) if previous_stages else None
+        warnings: list[str] = []
+        if mean_turnovers[symbol] <= liquidity_cutoff:
+            warnings.append("low_liquidity")
+        if values["rsi14"] >= 75:
+            warnings.append("overheated")
+        if values["close"] > values["ema20"] + 2 * values["atr10"]:
+            warnings.append("overextended")
         items.append(
             RotationItem(
                 pool=pool,
@@ -270,21 +433,21 @@ def _cross_section(
                 name=point.series.name,
                 as_of=str(point.series.frame.iloc[point.index]["date"]),
                 stage=stage,
-                previous_stage=previous_stage,
-                stage_changed=previous_stage is not None and previous_stage != stage,
+                previous_state=previous_state,
+                stage_changed=previous_state != stage,
                 action=determine_action(
                     stage,
-                    momentum,
-                    trend,
-                    signal,
-                    supertrend_bullish=current_st,
-                    ema_bullish=ema_bullish,
+                    setup=classification.setup,
+                    severity=classification.severity,
+                    entry_eligible=signal.entry_eligible,
                 ),
                 trend=trend,
-                strength=round(strength, 4),
-                momentum=round(momentum, 4),
+                rank_score=round(float(scores[symbol]), 4),
+                setup=classification.setup,
+                fade_severity=classification.severity,
                 factors=RotationFactors(
                     return5=values["return5"],
+                    previous_return5=values["previous_return5"],
                     return20=values["return20"],
                     return60=values["return60"],
                     pool_median_return5=float(table["return5"].median()),
@@ -296,33 +459,42 @@ def _cross_section(
                     adjusted_vol60=float(adjusted60[symbol]),
                     current_excess5=float(excess5[symbol]),
                     previous_excess5=float(previous_excess5[symbol]),
-                    relative_momentum20=float(row["rm20"]),
-                    relative_momentum60=float(row["rm60"]),
-                    trend_quality=float(row["quality"]),
-                    acceleration=float(row["acceleration"]),
+                    relative_momentum20=float(table.loc[symbol, "rm20"]),
+                    relative_momentum60=float(table.loc[symbol, "rm60"]),
+                    trend_quality=float(table.loc[symbol, "quality"]),
+                    acceleration=float(table.loc[symbol, "acceleration"]),
+                    ema20_slope5=values["ema20_slope5"],
+                    entry_distance_atr=values["entry_distance_atr"],
                     turnover_ratio=values["turnover_ratio"],
-                    turnover_confirmation=float(row["turnover_confirmation"]),
-                    mfi_confirmation=float(row["mfi_confirmation"]),
-                    volume_confirmation=float(row["volume_confirmation"]),
+                    turnover_confirmation=float(table.loc[symbol, "turnover_confirmation"]),
+                    mfi_confirmation=float(table.loc[symbol, "mfi_confirmation"]),
+                    volume_confirmation=float(table.loc[symbol, "volume_confirmation"]),
                 ),
                 indicators=RotationIndicators(
                     close=values["close"],
+                    ema5=values["ema5"],
                     ema9=values["ema9"],
+                    ema10=values["ema10"],
                     ema20=values["ema20"],
                     ema26=values["ema26"],
                     ema60=values["ema60"],
                     rsi14=values["rsi14"],
+                    adx14=values["adx14"],
                     mfi14=values["mfi14"],
+                    macd=values["macd"],
+                    macd_signal=values["macd_signal"],
+                    macd_hist=values["macd_hist"],
                     atr10=values["atr10"],
                     atr_pct=values["atr10"] / values["close"] * 100,
                     supertrend=values["supertrend"],
                     supertrend_bullish=current_st,
                 ),
                 signal=signal,
-                warnings=(["low_liquidity"] if mean_turnovers[symbol] <= liquidity_cutoff else []),
+                warnings=warnings,
             )
         )
-    return items
+    inactive = sum(item.state == "inactive" for item in classifications.values())
+    return items, inactive
 
 
 def _analyze_pool(
@@ -369,14 +541,16 @@ def _analyze_pool(
         raise SourceError(
             f"Rotation pool '{pool}' requires at least {_MIN_POOL_SIZE} successful symbols"
         )
+
     current: list[_Point] = []
-    previous: list[_Point] = []
+    histories: dict[str, list[_Point]] = {}
     for item in aligned:
         try:
-            current_point = _indicator_point(item, len(item.frame) - 1)
-            previous_point = _indicator_point(item, len(item.frame) - 2)
-            current.append(current_point)
-            previous.append(previous_point)
+            end = len(item.frame) - 1
+            start = end - _ACTIVE_LOOKBACK - _FADING_WINDOW
+            point_map = _indicator_points(item, range(start, end + 1))
+            current.append(point_map[end])
+            histories[item.symbol] = [point_map[index] for index in range(start, end)]
         except Exception as err:
             failures.append(
                 RotationFailure(
@@ -390,9 +564,7 @@ def _analyze_pool(
         raise SourceError(
             f"Rotation pool '{pool}' requires at least {_MIN_POOL_SIZE} successful symbols"
         )
-    previous_items = _cross_section(pool, previous)
-    previous_stages = {item.symbol: item.stage for item in previous_items}
-    items = _cross_section(pool, current, previous_stages=previous_stages)
+    items, inactive = _cross_section(pool, current, histories)
     counts = Counter(item.stage for item in items)
     return (
         items,
@@ -400,19 +572,19 @@ def _analyze_pool(
             pool=pool,
             as_of=as_of,
             total=len(symbols),
-            analyzed=len(items),
+            analyzed=len(current),
             failed=len(failures),
             emerging=counts["emerging"],
-            leading=counts["leading"],
-            weakening=counts["weakening"],
-            lagging=counts["lagging"],
+            strong=counts["strong"],
+            fading=counts["fading"],
+            inactive=inactive,
         ),
         failures,
     )
 
 
 def rotate_pools(source_groups: list[str]) -> RotationResult:
-    """Analyze multiple Longport groups, ranking each independently."""
+    """Analyze multiple Longport groups with absolute stages and pool-local ranking."""
     if len(source_groups) < 1 or len(set(source_groups)) != len(source_groups):
         raise StkError("Rotation source groups must be unique")
     pools: list[tuple[str, list[tuple[str, str]]]] = []
@@ -438,31 +610,43 @@ def rotate_pools(source_groups: list[str]) -> RotationResult:
         summaries.append(summary)
         failures.extend(pool_failures)
     by_stage = {
-        stage: [i for i in all_items if i.stage == stage]
-        for stage in ("emerging", "leading", "weakening", "lagging")
+        stage: [item for item in all_items if item.stage == stage]
+        for stage in ("emerging", "strong", "fading")
     }
-    by_stage["emerging"].sort(key=lambda item: (-item.momentum, -item.strength))
-    by_stage["leading"].sort(key=lambda item: (-item.strength, -item.momentum))
-    by_stage["weakening"].sort(key=lambda item: (item.momentum, -item.strength))
-    by_stage["lagging"].sort(key=lambda item: (item.strength, item.momentum))
-    sorted_failures: list[RotationFailure] = sorted(
-        failures, key=lambda item: (item.pool, item.symbol or "")
+    setup_rank: dict[RotationSetup | None, int] = {"confirmed": 0, "rebound": 1, None: 2}
+    severity_rank: dict[FadeSeverity | None, int] = {
+        "severe": 0,
+        "confirmed": 1,
+        "mild": 2,
+        None: 3,
+    }
+    by_stage["emerging"].sort(
+        key=lambda item: (
+            setup_rank[item.setup],
+            item.signal.supertrend_bullish_age or 0,
+            -item.rank_score,
+            item.symbol,
+        )
     )
+    by_stage["strong"].sort(key=lambda item: (-item.rank_score, item.symbol))
+    by_stage["fading"].sort(
+        key=lambda item: (severity_rank[item.fade_severity], -item.rank_score, item.symbol)
+    )
+    sorted_failures = sorted(failures, key=lambda item: (item.pool, item.symbol or ""))
     return RotationResult(
         sources=summaries,
         summary=RotationSummary(
             total=sum(item.total for item in summaries),
-            analyzed=len(all_items),
+            analyzed=sum(item.analyzed for item in summaries),
             failed=len(failures),
             emerging=len(by_stage["emerging"]),
-            leading=len(by_stage["leading"]),
-            weakening=len(by_stage["weakening"]),
-            lagging=len(by_stage["lagging"]),
+            strong=len(by_stage["strong"]),
+            fading=len(by_stage["fading"]),
+            inactive=sum(item.inactive for item in summaries),
         ),
         emerging=by_stage["emerging"],
-        leading=by_stage["leading"],
-        weakening=by_stage["weakening"],
-        lagging=by_stage["lagging"],
+        strong=by_stage["strong"],
+        fading=by_stage["fading"],
         failures=sorted_failures,
     )
 
@@ -471,17 +655,16 @@ def route_rotation(
     sources: list[str],
     *,
     emerging: str,
-    leading: str,
-    weakening: str,
-    lagging: str,
+    strong: str,
+    fading: str,
 ) -> RotationRouteResult:
-    """Calculate fully, then replace all four shared destination snapshots."""
-    targets = [emerging, leading, weakening, lagging]
+    """Calculate fully, then replace all three destination snapshots."""
+    targets = [emerging, strong, fading]
     if len({*sources, *targets}) != len(sources) + len(targets):
         raise StkError("Rotation source and target groups must all be different")
     result = rotate_pools(sources)
-    stage_items = [result.emerging, result.leading, result.weakening, result.lagging]
-    stage_names: list[RotationStage] = ["emerging", "leading", "weakening", "lagging"]
+    stage_items = [result.emerging, result.strong, result.fading]
+    stage_names: list[RotationStage] = ["emerging", "strong", "fading"]
     route_targets: list[RotationRouteTarget] = []
     for stage, group, items in zip(stage_names, targets, stage_items, strict=True):
         symbols = [item.symbol for item in items]

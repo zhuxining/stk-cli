@@ -259,19 +259,17 @@ def route(
 def rotate_groups(
     sources: list[str] = typer.Option(..., "--source", help="Longport ETF source group"),
     emerging: str = typer.Option("ETF启动", "--emerging", help="Emerging snapshot group"),
-    leading: str = typer.Option("ETF领涨", "--leading", help="Leading snapshot group"),
-    weakening: str = typer.Option("ETF退潮", "--weakening", help="Weakening snapshot group"),
-    lagging: str = typer.Option("ETF落后", "--lagging", help="Lagging snapshot group"),
+    strong: str = typer.Option("ETF强势", "--strong", help="Strong snapshot group"),
+    fading: str = typer.Option("ETF退潮", "--fading", help="Fading snapshot group"),
 ) -> None:
-    """Replace four ETF rotation snapshot groups."""
+    """Replace three ETF rotation snapshot groups."""
     from stk.services.rotation import route_rotation
 
     output.render(
         route_rotation(
             sources,
             emerging=emerging,
-            leading=leading,
-            weakening=weakening,
-            lagging=lagging,
+            strong=strong,
+            fading=fading,
         )
     )

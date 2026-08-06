@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 
 from stk.cli import app
 from stk.models.indicator import KlineSeries
+from stk.models.rotation import RotationRouteResult, RotationSummary
 from stk.models.scan import ScanResult, ScanSummary
 from stk.models.watchlist import RouteResult, RouteSource, RouteTarget, RouteTargets
 
@@ -64,6 +65,58 @@ def test_group_route_delegates_with_replace_default(monkeypatch):
 
     assert result.exit_code == 0
     assert calls == [("source", "buy", "sell", True)]
+
+
+def test_group_rotate_uses_three_v2_targets(monkeypatch):
+    calls: list[tuple[list[str], str, str, str]] = []
+
+    def fake_rotate(
+        sources: list[str], *, emerging: str, strong: str, fading: str
+    ) -> RotationRouteResult:
+        calls.append((sources, emerging, strong, fading))
+        return RotationRouteResult(
+            sources=[],
+            summary=RotationSummary(
+                total=0,
+                analyzed=0,
+                failed=0,
+                emerging=0,
+                strong=0,
+                fading=0,
+                inactive=0,
+            ),
+            targets=[],
+        )
+
+    monkeypatch.setattr("stk.services.rotation.route_rotation", fake_rotate)
+
+    result = runner.invoke(
+        app,
+        [
+            "group",
+            "rotate",
+            "--source",
+            "theme",
+            "--emerging",
+            "start",
+            "--strong",
+            "strong",
+            "--fading",
+            "fade",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert calls == [(["theme"], "start", "strong", "fade")]
+
+
+def test_group_rotate_rejects_v1_target_options():
+    result = runner.invoke(
+        app,
+        ["group", "rotate", "--source", "theme", "--leading", "leading"],
+    )
+
+    assert result.exit_code != 0
 
 
 def test_scan_uses_new_detail_options(monkeypatch):

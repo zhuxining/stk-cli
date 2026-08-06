@@ -77,7 +77,7 @@ Longport group <-> sync service <-> THS group / Xueqiu default watchlist
 雪球认证仅从环境变量读取浏览器 Cookie `u`、`xq_a_token`、`xq_id_token`，不负责账号
 密码登录、token 刷新或持久化。雪球 replace 先新增后删除，新增失败时跳过全部删除。
 
-### ETF 双池轮动
+### ETF 三阶段轮动
 
 ```text
 Longport source groups
@@ -85,20 +85,20 @@ Longport source groups
   -> fetch 90 confirmed daily bars concurrently
   -> align each pool to its modal as_of
   -> TA-Lib / stockstats per-symbol indicators
-  -> independent pool medians and percentiles
-  -> strength / momentum / stage
-  -> absolute trend and action
-  -> merge and sort four stages
+  -> absolute state from price structure and recent history
+  -> independent stage-local pool percentiles
+  -> rank_score and action
+  -> merge and sort three routed stages
   -> RotationResult
 ```
 
 `rotation.py` 同时承担单标的指标、池级横截面、跨池聚合和路由编排，但公开副作用只在
 路由最后发生。`rotate` 只读；`group rotate` 在所有来源池成功完成后，使用 replace
-刷新四个目标快照。来源池整体不可用时不修改目标组，个别标的失败则记录到
+刷新三个目标快照。来源池整体不可用时不修改目标组，个别标的失败则记录到
 `failures[]` 并继续。
 
-ETF 阶段是池内相对排名，action 才结合绝对趋势和三日技术事件。详细公式和字段契约见
-[ETF 双池轮动](etf-rotation.md)。
+ETF 阶段由绝对趋势结构和历史事件决定，池内排名只决定同阶段展示顺序；inactive 只
+计入汇总。详细公式和字段契约见[ETF 三阶段轮动](etf-rotation.md)。
 
 ### 信号快照
 

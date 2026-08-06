@@ -53,41 +53,41 @@ description: >
 stk rotate 主题ETF 资产ETF
 ```
 
-分析完成后完整替换四个共享阶段快照：
+分析完成后完整替换三个共享阶段快照：
 
 ```bash
 stk group rotate --source 主题ETF --source 资产ETF \
-  --emerging ETF启动 --leading ETF领涨 --weakening ETF退潮 --lagging ETF落后
+  --emerging ETF启动 --strong ETF强势 --fading ETF退潮
 ```
 
-输出使用 `rotation_v1`，包含
-`sources/summary/emerging/leading/weakening/lagging/failures`。来源池和目标组必须
+输出使用 `rotation_v2`，包含
+`sources/summary/emerging/strong/fading/failures`。来源池和目标组必须
 全部不同，来源池间不得重复代码；目标组只支持 replace。
 
-每个来源池独立计算中位数、波动率下限和 0–100 百分位，不要跨池比较 strength 或
-momentum 的绝对名次。每个成功标的唯一属于一个阶段：
+阶段由绝对价格结构决定，池内百分位只用于同阶段排序，不要跨池比较 `rank_score`。
+每个成功标的属于一个公开阶段或内部 inactive：
 
-- `emerging`：strength 不高于 50，momentum 不低于 55。
-- `leading`：strength 高于 50，momentum 不低于 45。
-- `weakening`：strength 高于 50，momentum 低于 45。
-- `lagging`：strength 不高于 50，momentum 低于 55。
+- `emerging`：反弹改善或最近两根确认日线内 Supertrend 翻多。
+- `strong`：Supertrend 多头、站上上行 EMA20 且 20 日收益为正。
+- `fading`：最近十日曾确认启动或强势，当前出现结构或动量退潮。
+- `inactive`：只计入 summary，不展开明细，也不写入目标组。
 
-每项包含 `previous_stage`、`stage_changed`、`action` 和 `trend`。action 的使用方式：
+每项包含 `previous_state`、`stage_changed`、`rank_score`、`action` 和 `trend`；启动项
+另有 `setup=rebound|confirmed`，退潮项另有 `fade_severity`。action 的使用方式：
 
-- `rotate_in`：最近三根确认日线出现有效多头事件且通过趋势、RSI 和 ATR 过滤。
-- `hold`：当前处于 leading 和绝对多头趋势。
-- `exit`：weakening/lagging 最近出现仍然有效的空头事件。
-- `reduce`：weakening 但尚未形成新的 exit。
-- `watch`：相对动量改善，但技术确认或介入过滤未通过。
-- `avoid`：lagging 且没有新的退出事件。
+- `rotate_in`：confirmed 启动且通过 RSI 与 ATR 介入过滤。
+- `watch`：反弹启动，或 confirmed 启动因过热、偏离过大而不宜介入。
+- `hold`：当前处于 strong。
+- `reduce`：轻度 fading。
+- `exit`：确认或严重 fading。
 
-阶段是相对排名，不代表交易动作。优先使用 `action` 判断当前技术状态，再查看
-`strength`、`momentum`、`factors`、`indicators` 和 `warnings` 解释原因。
+阶段不代表交易订单。优先使用 `action` 判断当前技术状态，再查看 `setup`、
+`fade_severity`、`rank_score`、`factors`、`indicators` 和 `warnings` 解释原因。
 `low_liquidity` 表示 20 日平均成交额处于对应池后 20%，只作提示，不会剔除标的或
 改变 action。
 
 每只 ETF 请求 90 根日线，至少需要 70 根确认日线；每个来源池至少需要 5 只成功标的。
-任一池整体失败时四个目标组均不刷新。个别失败时其余标的继续，响应为 `partial`。
+任一池整体失败时三个目标组均不刷新。个别失败时其余标的继续，响应为 `partial`。
 完整算法见 `docs/design/etf-rotation.md`。
 
 ## K 线与指标

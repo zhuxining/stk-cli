@@ -102,20 +102,19 @@ ETF 双池轮动：
 # 只计算，不修改分组
 stk rotate 主题ETF 资产ETF
 
-# 计算成功后完整替换四个共享阶段组
+# 计算成功后完整替换三个共享阶段组
 stk group rotate \
   --source 主题ETF \
   --source 资产ETF \
   --emerging ETF启动 \
-  --leading ETF领涨 \
-  --weakening ETF退潮 \
-  --lagging ETF落后
+  --strong ETF强势 \
+  --fading ETF退潮
 ```
 
-每个来源池独立计算风险调整后的 20/60 日相对动量、5 日加速度和成交确认，再结合
-Supertrend、EMA、RSI 与 ATR 产生唯一阶段和 action。目标组只有 replace 语义；
-来源组之间不得有重复 Symbol，来源与目标组必须互不相同。六种 action 只出现在 JSON
-中，不创建额外分组。完整规则见 [ETF 双池轮动](docs/design/etf-rotation.md)。
+`rotation_v2` 使用绝对价格结构判定启动、强势、退潮或内部 inactive；来源池内百分位
+只负责各阶段排序。启动区分 rebound/confirmed，再结合 RSI 与 ATR 产生 action。
+目标组只有 replace 语义；来源组之间不得有重复 Symbol，来源与目标组必须互不相同。
+完整规则见 [ETF 三阶段轮动](docs/design/etf-rotation.md)。
 
 ## Symbol
 
