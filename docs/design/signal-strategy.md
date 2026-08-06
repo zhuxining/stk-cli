@@ -48,12 +48,12 @@ buy 固定只有 Supertrend 翻多事件；sell 可以包含一个或两个当�
 AND 当前 Supertrend 仍为 bullish
 AND close >= EMA26
 AND RSI14 < 75
-AND close <= EMA9 + 1.5 * ATR10
 ```
 
-若 Supertrend 翻多后价格已经过热、跌破 EMA26 或高于追价上限，归入 watch。
-EMA9/EMA26 金叉不再是买入硬条件，仅作为质量上下文。成交额量比只解释量能，不作为
-买入硬门槛。
+若 Supertrend 翻多后 RSI 已经过热或价格跌破 EMA26，归入 watch。涨幅以及相对
+`EMA9 + 1.5 * ATR10` 的价格偏离不限制 buy 或 route 入组；`max_entry_price` 仅作为
+参考信息输出。EMA9/EMA26 金叉不再是买入硬条件，仅作为质量上下文。成交额量比只解释
+量能，不作为买入硬门槛。
 
 ## 卖出信号
 

@@ -636,8 +636,6 @@ def calc_score(
         buy_rejections.append(f"RSI14={rsi:.2f} 已过热")
     if current_close < ema26:
         buy_rejections.append("收盘价低于 EMA26")
-    if current_close > max_entry_price:
-        buy_rejections.append("价格高于 EMA9 + 1.5xATR10")
 
     reasons: list[str] = []
     confirmation: SignalConfirmation | None = None

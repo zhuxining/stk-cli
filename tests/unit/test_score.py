@@ -364,6 +364,38 @@ def test_overheated_trend_stays_watch(
 @patch("stk.services.score._calc_supertrend_arrays")
 @patch("stk.services.score.talib.RSI")
 @patch("stk.services.score.get_history")
+def test_bullish_reversal_is_not_rejected_for_price_extension(
+    mock_history,
+    mock_rsi,
+    mock_supertrend,
+    make_candles,
+    monkeypatch,
+):
+    candles = make_candles(60)
+    close = np.array([float(item.close) for item in candles])
+    direction = -np.ones(60, dtype=int)
+    direction[-1] = 1
+    ema26 = np.full(60, close[-1] - 3)
+    ema9 = np.full(60, close[-1] - 2)
+    _mock_ema(monkeypatch, ema9, ema26)
+    mock_history.return_value = candles
+    mock_rsi.return_value = np.full(60, 55.0)
+    mock_supertrend.return_value = (
+        close - 3,
+        direction,
+        np.full(60, 0.5),
+    )
+
+    result = calc_score("600519")
+
+    assert result.indicators.max_entry_price is not None
+    assert result.indicators.close > result.indicators.max_entry_price
+    assert result.state == "buy"
+
+
+@patch("stk.services.score._calc_supertrend_arrays")
+@patch("stk.services.score.talib.RSI")
+@patch("stk.services.score.get_history")
 def test_established_bullish_trend_is_not_a_buy_signal(
     mock_history,
     mock_rsi,
