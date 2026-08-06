@@ -46,7 +46,8 @@ _MACD_SIGNAL = 9
 _BOLL_PERIOD = 20
 _BOLL_NBDEV = 2
 _DIVERGENCE_LOOKBACK = 20
-_ROUTING_TRIGGER_WINDOW = 3
+_BUY_TRIGGER_WINDOW = 2
+_SELL_TRIGGER_WINDOW = 2
 _ENTRY_RSI_OVERHEATED = 75
 _ENTRY_ATR_EXTENSION = 1.5
 
@@ -428,8 +429,9 @@ def _recent_trigger(
     *,
     code: SignalTriggerCode,
     age: int | None,
+    window: int,
 ) -> SignalTrigger | None:
-    if age is None or age >= _ROUTING_TRIGGER_WINDOW:
+    if age is None or age >= window:
         return None
     return SignalTrigger(
         code=code,
@@ -445,6 +447,7 @@ def _reversal_triggers(
     ema26: np.ndarray,
     direction: np.ndarray,
     bullish: bool,
+    window: int,
 ) -> list[SignalTrigger]:
     target = 1 if bullish else -1
     direction_code: SignalTriggerCode = (
@@ -460,63 +463,16 @@ def _reversal_triggers(
             df,
             code=direction_code,
             age=direction_age,
+            window=window,
         ),
         _recent_trigger(
             df,
             code=ema_code,
             age=ema_age,
+            window=window,
         ),
     )
     return [trigger for trigger in candidates if trigger is not None]
-
-
-def _confirmed_reversal(
-    df: pd.DataFrame,
-    *,
-    ema9: np.ndarray,
-    ema26: np.ndarray,
-    direction: np.ndarray,
-    bullish: bool,
-) -> tuple[SignalConfirmation, list[SignalTrigger]] | None:
-    target = 1 if bullish else -1
-    supertrend_indices = _supertrend_flip_indices(direction, target=target)
-    ema_indices = _ema_cross_indices(ema9, ema26, bullish=bullish)
-    pairs = [
-        (max(supertrend_index, ema_index), supertrend_index, ema_index)
-        for supertrend_index in supertrend_indices
-        for ema_index in ema_indices
-        if abs(supertrend_index - ema_index) < _ROUTING_TRIGGER_WINDOW
-    ]
-    if not pairs:
-        return None
-    confirmation_index, supertrend_index, ema_index = max(pairs)
-    confirmation_age = len(df) - 1 - confirmation_index
-    if confirmation_age >= _ROUTING_TRIGGER_WINDOW:
-        return None
-
-    direction_code: SignalTriggerCode = (
-        "supertrend_bullish_reversal" if bullish else "supertrend_bearish_reversal"
-    )
-    ema_code: SignalTriggerCode = "ema_bullish_crossover" if bullish else "ema_bearish_crossover"
-    triggers = [
-        SignalTrigger(
-            code=direction_code,
-            occurred_at=str(df.iloc[supertrend_index]["date"]),
-            age_bars=len(df) - 1 - supertrend_index,
-        ),
-        SignalTrigger(
-            code=ema_code,
-            occurred_at=str(df.iloc[ema_index]["date"]),
-            age_bars=len(df) - 1 - ema_index,
-        ),
-    ]
-    return (
-        SignalConfirmation(
-            confirmed_at=str(df.iloc[confirmation_index]["date"]),
-            age_bars=confirmation_age,
-        ),
-        triggers,
-    )
 
 
 def _trigger_reason(trigger: SignalTrigger) -> str:
@@ -534,13 +490,14 @@ def _active_bearish_triggers(
     triggers: list[SignalTrigger],
     *,
     ema_bearish: bool,
+    price_below_ema26: bool,
     supertrend_bearish: bool,
 ) -> list[SignalTrigger]:
     return [
         trigger
         for trigger in triggers
         if (trigger.code == "supertrend_bearish_reversal" and supertrend_bearish)
-        or (trigger.code == "ema_bearish_crossover" and ema_bearish)
+        or (trigger.code == "ema_bearish_crossover" and ema_bearish and price_below_ema26)
     ]
 
 
@@ -655,24 +612,23 @@ def calc_score(
         ema26=ema26_array,
         direction=direction_array,
         bullish=True,
+        window=_BUY_TRIGGER_WINDOW,
     )
+    bullish_triggers = [
+        trigger for trigger in bullish_setup if trigger.code == "supertrend_bullish_reversal"
+    ]
     bearish_setup = _reversal_triggers(
         df,
         ema9=ema9_array,
         ema26=ema26_array,
         direction=direction_array,
         bullish=False,
-    )
-    bullish_confirmation = _confirmed_reversal(
-        df,
-        ema9=ema9_array,
-        ema26=ema26_array,
-        direction=direction_array,
-        bullish=True,
+        window=_SELL_TRIGGER_WINDOW,
     )
     sell_triggers = _active_bearish_triggers(
         bearish_setup,
         ema_bearish=ema9 < ema26,
+        price_below_ema26=current_close < ema26,
         supertrend_bearish=direction_array[-1] < 0,
     )
     buy_rejections: list[str] = []
@@ -694,11 +650,12 @@ def calc_score(
             f"信号 age_bars={confirmation.age_bars}）"
         )
         reasons.extend(_trigger_reason(trigger) for trigger in triggers)
-    elif bullish_structure and bullish_confirmation is not None and not buy_rejections:
+    elif bullish_triggers and direction_array[-1] > 0 and not buy_rejections:
         state = "buy"
-        confirmation, triggers = bullish_confirmation
+        triggers = bullish_triggers
+        confirmation = _single_event_confirmation(triggers)
         reasons.append(
-            f"多头反转完成双指标确认（{confirmation.confirmed_at}，"
+            f"Supertrend 完成多头反转（{confirmation.confirmed_at}，"
             f"信号 age_bars={confirmation.age_bars}）"
         )
         reasons.extend(_trigger_reason(trigger) for trigger in triggers)
@@ -706,21 +663,22 @@ def calc_score(
         state = "watch"
         triggers = bullish_setup or bearish_setup
         reasons.append("EMA9/EMA26 与 Supertrend 方向尚未形成一致反转")
-    elif bullish_structure and bullish_confirmation is not None:
+    elif bullish_triggers and direction_array[-1] > 0:
         state = "watch"
-        confirmation, triggers = bullish_confirmation
+        triggers = bullish_triggers
+        confirmation = _single_event_confirmation(triggers)
         reasons.append(f"多头反转已确认但当前不宜追入（{confirmation.confirmed_at}）")
         reasons.extend(_trigger_reason(trigger) for trigger in triggers)
         reasons.extend(buy_rejections)
-    elif bullish_setup or bearish_setup:
+    elif bullish_triggers or bearish_setup:
         state = "watch"
-        triggers = bullish_setup or bearish_setup
+        triggers = bullish_triggers or bearish_setup
         reasons.extend(_trigger_reason(trigger) for trigger in triggers)
-        reasons.append("首个反转事件已出现，等待另一指标在三根日线内确认")
+        reasons.append("近期反转事件已出现，但当前趋势结构尚未满足信号条件")
     else:
         state = "ignored"
         triggers = []
-        reasons.append("当前趋势未在最近三根已确认日线内发生反转")
+        reasons.append("当前趋势未在有效确认日线窗口内发生反转")
 
     if turnover_ratio is not None and turnover_ratio < 0.8:
         reasons.append(f"5 日成交额量比 {turnover_ratio:.2f}，量能偏弱")

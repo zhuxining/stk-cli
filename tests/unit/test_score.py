@@ -12,7 +12,6 @@ import pytest
 from stk.errors import IndicatorError
 from stk.services.score import (
     _closed_daily_df,
-    _confirmed_reversal,
     _reversal_triggers,
     calc_score,
 )
@@ -65,6 +64,7 @@ def test_ema_crosses_are_structured_reversal_events(
         ema26=slow,
         direction=direction,
         bullish=bullish,
+        window=3,
     )
 
     if age == 3:
@@ -77,52 +77,13 @@ def test_ema_crosses_are_structured_reversal_events(
 
 
 @pytest.mark.parametrize(
-    ("confirmation_age", "expected"),
-    [(0, True), (1, True), (2, True), (3, False)],
-)
-def test_paired_reversal_is_valid_for_three_bars_after_second_event(
-    confirmation_age,
-    expected,
-):
-    length = 10
-    confirmation_index = length - 1 - confirmation_age
-    supertrend_index = confirmation_index - 2
-    slow = np.full(length, 10.0)
-    fast = np.full(length, 9.0)
-    fast[confirmation_index:] = 11.0
-    direction = -np.ones(length, dtype=int)
-    direction[supertrend_index:] = 1
-    df = pd.DataFrame({"date": [f"d{index}" for index in range(length)]})
-
-    result = _confirmed_reversal(
-        df,
-        ema9=fast,
-        ema26=slow,
-        direction=direction,
-        bullish=True,
-    )
-
-    if not expected:
-        assert result is None
-        return
-    assert result is not None
-    confirmation, triggers = result
-    assert confirmation.confirmed_at == f"d{confirmation_index}"
-    assert confirmation.age_bars == confirmation_age
-    assert [trigger.code for trigger in triggers] == [
-        "supertrend_bullish_reversal",
-        "ema_bullish_crossover",
-    ]
-
-
-@pytest.mark.parametrize(
     ("age", "expected_state"),
-    [(0, "buy"), (1, "buy"), (2, "buy"), (3, "ignored")],
+    [(0, "buy"), (1, "buy"), (2, "ignored"), (3, "ignored")],
 )
 @patch("stk.services.score._calc_supertrend_arrays")
 @patch("stk.services.score.talib.RSI")
 @patch("stk.services.score.get_history")
-def test_bullish_reversal_is_valid_for_three_confirmed_bars(
+def test_bullish_reversal_is_valid_for_two_confirmed_bars(
     mock_history,
     mock_rsi,
     mock_supertrend,
@@ -160,6 +121,41 @@ def test_bullish_reversal_is_valid_for_three_confirmed_bars(
     else:
         assert result.triggers == []
         assert result.risk is None
+
+
+@patch("stk.services.score._calc_supertrend_arrays")
+@patch("stk.services.score.talib.RSI")
+@patch("stk.services.score.get_history")
+def test_supertrend_reversal_does_not_require_recent_ema_crossover(
+    mock_history,
+    mock_rsi,
+    mock_supertrend,
+    make_candles,
+    monkeypatch,
+):
+    candles = make_candles(60)
+    close = np.array([float(item.close) for item in candles])
+    direction = -np.ones(60, dtype=int)
+    direction[-1] = 1
+    ema26 = np.full(60, 127.0)
+    ema9 = np.full(60, 128.0)
+    _mock_ema(monkeypatch, ema9, ema26)
+    mock_history.return_value = candles
+    mock_rsi.return_value = np.full(60, 55.0)
+    mock_supertrend.return_value = (
+        close - 3,
+        direction,
+        np.full(60, 2.0),
+    )
+
+    result = calc_score("600519")
+
+    assert result.state == "buy"
+    assert result.confirmation is not None
+    assert result.confirmation.age_bars == 0
+    assert [trigger.code for trigger in result.triggers] == [
+        "supertrend_bullish_reversal"
+    ]
 
 
 @patch("stk.services.score._calc_supertrend_arrays")
@@ -228,13 +224,15 @@ def test_single_bearish_reversal_event_is_enough_for_sell(
     candles = make_candles(60)
     close = np.array([float(item.close) for item in candles])
     direction = np.ones(60, dtype=int)
-    ema26 = np.full(60, 127.0)
-    ema9 = np.full(60, 128.0)
+    ema26 = np.full(60, close[-1] - 1)
+    ema9 = np.full(60, close[-1])
     if trigger_source == "supertrend":
         direction[-1] = -1
         expected_code = "supertrend_bearish_reversal"
     else:
-        ema9[-1] = 126.0
+        ema26[:] = close[-1] + 1
+        ema9[:] = close[-1] + 2
+        ema9[-1] = close[-1]
         expected_code = "ema_bearish_crossover"
     _mock_ema(monkeypatch, ema9, ema26)
     mock_history.return_value = candles
@@ -251,6 +249,83 @@ def test_single_bearish_reversal_event_is_enough_for_sell(
     assert result.confirmation is not None
     assert result.confirmation.age_bars == 0
     assert [trigger.code for trigger in result.triggers] == [expected_code]
+
+
+@patch("stk.services.score._calc_supertrend_arrays")
+@patch("stk.services.score.talib.RSI")
+@patch("stk.services.score.get_history")
+def test_ema_bearish_crossover_requires_close_below_ema26(
+    mock_history,
+    mock_rsi,
+    mock_supertrend,
+    make_candles,
+    monkeypatch,
+):
+    candles = make_candles(60)
+    close = np.array([float(item.close) for item in candles])
+    direction = np.ones(60, dtype=int)
+    ema26 = np.full(60, close[-1] - 1)
+    ema9 = np.full(60, close[-1])
+    ema9[-1] = close[-1] - 2
+    _mock_ema(monkeypatch, ema9, ema26)
+    mock_history.return_value = candles
+    mock_rsi.return_value = np.full(60, 55.0)
+    mock_supertrend.return_value = (
+        close - 3,
+        direction,
+        np.full(60, 2.0),
+    )
+
+    result = calc_score("600519")
+
+    assert result.state == "watch"
+    assert result.confirmation is None
+
+
+@pytest.mark.parametrize(
+    ("age", "expected_state"),
+    [(0, "sell"), (1, "sell"), (2, "watch")],
+)
+@patch("stk.services.score._calc_supertrend_arrays")
+@patch("stk.services.score.talib.RSI")
+@patch("stk.services.score.get_history")
+def test_bearish_reversal_is_valid_for_two_confirmed_bars(
+    mock_history,
+    mock_rsi,
+    mock_supertrend,
+    make_candles,
+    monkeypatch,
+    age,
+    expected_state,
+):
+    candles = make_candles(60)
+    close = np.array([float(item.close) for item in candles])
+    direction = -np.ones(60, dtype=int)
+    flip_index = len(direction) - 1 - age
+    direction[:flip_index] = 1
+    ema26 = np.full(60, 127.0)
+    ema9 = np.full(60, 128.0)
+    _mock_ema(monkeypatch, ema9, ema26)
+    mock_history.return_value = candles
+    mock_rsi.return_value = np.full(60, 55.0)
+    mock_supertrend.return_value = (
+        close + 3,
+        direction,
+        np.full(60, 2.0),
+    )
+
+    result = calc_score("600519")
+
+    assert result.state == expected_state
+    if expected_state == "sell":
+        assert result.confirmation is not None
+        assert result.confirmation.age_bars == age
+        assert [trigger.code for trigger in result.triggers] == [
+            "supertrend_bearish_reversal"
+        ]
+    else:
+        assert result.confirmation is None
+        assert result.triggers == []
 
 
 @patch("stk.services.score._calc_supertrend_arrays")

@@ -102,8 +102,9 @@ ETF 阶段是池内相对排名，action 才结合绝对趋势和三日技术事
 
 ### 信号快照
 
-`group route` 扫描一个 Longport 源分组，并生成三日有效的反转快照：多头反转要求
-Supertrend 与 EMA 双指标确认，空头反转由任一指标转空即可预警。默认使用 replace
+`group route` 扫描一个 Longport 源分组，并生成反转快照：买入由最近两根确认日线内
+Supertrend 翻多触发；空头反转由最近两根确认日线内的 Supertrend 翻空触发，或由
+EMA 死叉配合收盘价跌破 EMA26 触发。默认使用 replace
 语义，不依赖昨日成员。个别标的扫描失败时跳过该标的，其余结果继续写入目标组；
 成功响应通过 `source.failed` 和 `failures[]` 暴露完整失败信息。
 
