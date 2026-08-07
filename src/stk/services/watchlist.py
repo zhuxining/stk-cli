@@ -191,7 +191,7 @@ def _preserve_failed_members(
 
 
 def route_signals(
-    src: str,
+    group: str,
     buy_dst: str,
     sell_dst: str,
     hold_dst: str,
@@ -206,7 +206,7 @@ def route_signals(
     from stk.services.scan import scan_watchlist
 
     scan_result = scan_watchlist(
-        src,
+        group,
         recent_bars=0,
         include_factors=False,
     )
@@ -233,7 +233,7 @@ def route_signals(
     return RouteResult(
         mode="replace" if replace else "append",
         source=RouteSource(
-            group=src,
+            group=group,
             total=scan_result.summary.total,
             analyzed=scan_result.summary.analyzed,
             failed=scan_result.summary.failed,

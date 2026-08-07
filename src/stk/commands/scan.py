@@ -20,7 +20,7 @@ def scan(
         help="Include detailed auxiliary quality factors",
     ),
 ) -> None:
-    """Scan current buy and sell signals for a Longport group."""
+    """Scan current buy, hold, and sell signals for a Longport group."""
     from stk.services.scan import scan_watchlist
 
     output.render(

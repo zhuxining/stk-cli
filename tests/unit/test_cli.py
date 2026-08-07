@@ -49,17 +49,17 @@ def test_group_route_delegates_three_positional_targets(monkeypatch):
     calls: list[tuple[str, str, str, str, bool]] = []
 
     def fake_route(
-        src: str,
+        group: str,
         buy: str,
         sell: str,
         hold: str,
         *,
         replace: bool = True,
     ) -> RouteResult:
-        calls.append((src, buy, sell, hold, replace))
+        calls.append((group, buy, sell, hold, replace))
         return RouteResult(
             mode="replace",
-            source=RouteSource(group=src, total=0, analyzed=0, failed=0),
+            source=RouteSource(group=group, total=0, analyzed=0, failed=0),
             targets=RouteTargets(
                 buy=RouteTarget(group=buy),
                 hold=RouteTarget(group=hold),

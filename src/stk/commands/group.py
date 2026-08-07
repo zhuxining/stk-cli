@@ -191,9 +191,7 @@ def _remote_group(platform: Literal["ths", "xueqiu"], group: str | None) -> str:
     if platform == "xueqiu":
         return group or "我的自选"
     if group is None:
-        raise StkError(
-            "THS group defaults to the Longport group and must be resolved by the command"
-        )
+        raise StkError("同花顺远端分组不能为空：sync 到同花顺时需指定远端分组名（无默认）")
     return group
 
 
@@ -203,6 +201,7 @@ def diff(
     to_group: str | None = typer.Argument(None, help="Remote target group"),
     platform: Literal["ths", "xueqiu"] = typer.Option("ths", "--platform", help="Remote platform"),
 ) -> None:
+    """Preview symbol differences between a Longport group and a remote group."""
     from stk.services.sync import compute_diff
 
     target = _remote_group(platform, to_group or (from_group if platform == "ths" else None))
@@ -216,6 +215,7 @@ def push(
     replace: bool = typer.Option(False, "--replace", "-r", help="Replace target contents"),
     platform: Literal["ths", "xueqiu"] = typer.Option("ths", "--platform", help="Remote platform"),
 ) -> None:
+    """Push Longport group symbols into a remote group."""
     from stk.services.sync import push_to_remote
 
     target = _remote_group(platform, to_group or (from_group if platform == "ths" else None))
@@ -224,11 +224,18 @@ def push(
 
 @sync_app.command()
 def pull(
-    from_group: str | None = typer.Argument(None, help="Remote source group"),
-    to_group: str | None = typer.Argument(None, help="Longport target group"),
+    from_group: str | None = typer.Argument(
+        None,
+        help="Remote source group (ths 下必填；xueqiu 默认 我的自选)",
+    ),
+    to_group: str | None = typer.Argument(
+        None,
+        help="Longport target group (默认与远端同名；xueqiu 默认 雪球自选)",
+    ),
     replace: bool = typer.Option(False, "--replace", "-r", help="Replace target contents"),
     platform: Literal["ths", "xueqiu"] = typer.Option("ths", "--platform", help="Remote platform"),
 ) -> None:
+    """Pull remote group symbols into a Longport group."""
     from stk.services.sync import pull_from_remote
 
     source = _remote_group(platform, from_group)
@@ -238,7 +245,7 @@ def pull(
 
 @app.command()
 def route(
-    src: str = typer.Argument(help="Longport source group"),
+    group: str = typer.Argument(help="Longport source group"),
     buy_dst: str = typer.Argument(help="Current buy-signal snapshot group"),
     sell_dst: str = typer.Argument(help="Current sell-signal snapshot group"),
     hold_dst: str = typer.Argument(help="Current hold-snapshot group"),
@@ -248,12 +255,13 @@ def route(
         help="Refresh destination snapshots (default) or append only",
     ),
 ) -> None:
-    if len({src, buy_dst, sell_dst, hold_dst}) != 4:
+    """Refresh buy, hold, and sell signal snapshot groups from one source group."""
+    if len({group, buy_dst, sell_dst, hold_dst}) != 4:
         raise StkError("Source and target groups must all be different")
 
     from stk.services.watchlist import route_signals
 
-    output.render(route_signals(src, buy_dst, sell_dst, hold_dst, replace=replace))
+    output.render(route_signals(group, buy_dst, sell_dst, hold_dst, replace=replace))
 
 
 @app.command("rotate")
