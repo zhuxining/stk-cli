@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+import time
 from typing import TYPE_CHECKING
 
 # Patch: override the library's default CACHE_FILE to live under ~/.stk/
@@ -18,6 +19,53 @@ _ths_config.CACHE_FILE = str(settings.data_dir / "ths_favorite_cache.json")
 
 if TYPE_CHECKING:
     from stk.models.sync import ThsGroup
+
+
+def _harden_dynamic_plate() -> None:
+    """Harden upstream dynamic-plate queries against empty/204 responses.
+
+    ths-favorite's ``dynamicplate.query_dynamic_plate`` calls ``response.json()``
+    outside its try/except, so an intermittent ``204 No Content`` from
+    apigate.10jqka.com.cn raises ``requests.JSONDecodeError`` which escapes
+    ``PortfolioManager.get_all_groups`` and aborts the whole group fetch
+    ("Expecting value: line 1 column 1").
+
+    We patch ``FavoriteAPI.query_dynamic_plate`` to retry briefly and finally
+    raise ``THSNetworkError`` — upstream ``get_all_groups`` already handles that
+    by degrading the dynamic group to an empty list, keeping normal groups
+    (e.g. 资产ETF) intact.
+    """
+    try:
+        from api import FavoriteAPI  # type: ignore[import-untyped]
+        from exceptions import THSNetworkError  # type: ignore[import-untyped]
+        from requests.exceptions import RequestException
+    except ImportError:
+        return
+
+    original = FavoriteAPI.query_dynamic_plate
+
+    def _query_with_retry(self, group_name: str) -> list:  # type: ignore[type-arg]
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                return original(self, group_name)
+            except RequestException as err:
+                last_error = err
+                logger.warning(
+                    "动态板块「{}」接口响应异常（第 {} 次）：{}",
+                    group_name,
+                    attempt + 1,
+                    err,
+                )
+                if attempt < 2:
+                    time.sleep(0.5 * (attempt + 1))
+        assert last_error is not None
+        raise THSNetworkError(f"查询动态板块「{group_name}」", str(last_error)) from last_error
+
+    FavoriteAPI.query_dynamic_plate = _query_with_retry
+
+
+_harden_dynamic_plate()
 
 
 def _check_ths_auth() -> None:
@@ -38,6 +86,7 @@ def get_ths_portfolio() -> Generator:  # type: ignore[type-arg]
     Raises SourceError on THS API failures.
     """
     from exceptions import THSError  # type: ignore[import-untyped]
+    from requests.exceptions import RequestException
     from service import PortfolioManager  # type: ignore[import-untyped]
 
     _check_ths_auth()
@@ -48,7 +97,14 @@ def get_ths_portfolio() -> Generator:  # type: ignore[type-arg]
             password=settings.ths_password,
             cookie_cache_path=str(settings.data_dir / "ths_cookie_cache.json"),
         ) as pm:
-            yield pm
+            try:
+                yield pm
+            except THSError as e:
+                raise SourceError(f"同花顺 API 错误: {e}") from e
+            except RequestException as e:
+                raise SourceError(
+                    f"同花顺接口响应异常（可能为动态板块偶发空响应），请稍后重试：{e}"
+                ) from e
     except THSError as e:
         raise SourceError(f"同花顺 API 错误: {e}") from e
 
