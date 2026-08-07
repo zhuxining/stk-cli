@@ -219,12 +219,10 @@ failures[]
 ## 生成每日信号分组
 
 ```bash
-stk group route <src> <buy-dst> <sell-dst> [--hold <hold-dst>] [--replace|--append]
+stk group route <src> <buy-dst> <sell-dst> <hold-dst> [--replace|--append]
 ```
 
-- 目标分组是 Longport 分组，并且名称必须互不相同，也不能与源分组相同。
-- `--hold <hold-dst>` 可选：提供时把当前持有观察标的写为第三组快照；不提供则
-  只维护 buy 与 sell 两组。
+- 三个目标分组都是 Longport 分组，并且名称必须互不相同，也不能与源分组相同。
 - 默认 `--replace`：分别将当前仍满足条件的 buy、hold 和 sell 标的写为完整快照。
 - 目标组都由源分组的当前已确认日线重新计算，不依赖昨日目标组成员；扫描失败的
   标的会保留其在目标组中的原成员，避免被 replace 静默删除。

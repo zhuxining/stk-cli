@@ -58,15 +58,18 @@ def test_route_replaces_snapshots_without_refetching_targets(monkeypatch):
         lambda name: pytest.fail("route must not refetch destination groups"),
     )
 
-    result = watchlist_service.route_signals("source", "buy", "sell")
+    result = watchlist_service.route_signals("source", "buy", "sell", "hold")
 
     assert calls == [
         ("buy", ["600519.SH"], SecuritiesUpdateMode.Replace),
+        ("hold", [], SecuritiesUpdateMode.Replace),
         ("sell", ["000001.SZ"], SecuritiesUpdateMode.Replace),
     ]
     assert result.mode == "replace"
     assert result.source.failed == 0
     assert result.targets.buy.symbols == ["600519.SH"]
+    assert result.targets.hold.group == "hold"
+    assert result.targets.hold.symbols == []
     assert result.targets.sell.symbols == ["000001.SZ"]
     assert result.failures == []
 
@@ -96,20 +99,22 @@ def test_route_updates_snapshots_and_reports_scan_failures(monkeypatch):
         lambda name: SimpleNamespace(
             securities=[
                 SimpleNamespace(symbol=symbol)
-                for symbol in {"buy": ["600519.SH"], "sell": []}[name]
+                for symbol in {"buy": ["600519.SH"], "hold": [], "sell": []}[name]
             ]
         ),
     )
 
-    result = watchlist_service.route_signals("source", "buy", "sell")
+    result = watchlist_service.route_signals("source", "buy", "sell", "hold")
 
     # 600519.SH failed to scan but was already in the buy snapshot, so it is
     # preserved instead of being silently dropped by Replace.
     assert calls == [
         ("buy", ["000001.SZ", "600519.SH"], SecuritiesUpdateMode.Replace),
+        ("hold", [], SecuritiesUpdateMode.Replace),
         ("sell", [], SecuritiesUpdateMode.Replace),
     ]
     assert result.targets.buy.symbols == ["000001.SZ", "600519.SH"]
+    assert result.targets.hold.symbols == []
     assert result.targets.sell.symbols == []
     assert result.source.total == 2
     assert result.source.analyzed == 1
@@ -136,18 +141,20 @@ def test_route_preserves_failed_members_in_both_destination_groups(monkeypatch):
         lambda name: SimpleNamespace(
             securities=[
                 SimpleNamespace(symbol=symbol)
-                for symbol in {"buy": ["000858.SZ"], "sell": ["000858.SZ"]}[name]
+                for symbol in {"buy": ["000858.SZ"], "hold": [], "sell": ["000858.SZ"]}[name]
             ]
         ),
     )
 
-    result = watchlist_service.route_signals("source", "buy", "sell")
+    result = watchlist_service.route_signals("source", "buy", "sell", "hold")
 
     assert calls == [
         ("buy", ["000858.SZ"], SecuritiesUpdateMode.Replace),
+        ("hold", [], SecuritiesUpdateMode.Replace),
         ("sell", ["000858.SZ"], SecuritiesUpdateMode.Replace),
     ]
     assert result.targets.buy.symbols == ["000858.SZ"]
+    assert result.targets.hold.symbols == []
     assert result.targets.sell.symbols == ["000858.SZ"]
 
 
@@ -174,17 +181,17 @@ def test_route_append_mode_never_refetches_destination_groups(monkeypatch):
         lambda name: pytest.fail("append mode must not read destination groups"),
     )
 
-    result = watchlist_service.route_signals("source", "buy", "sell", replace=False)
+    result = watchlist_service.route_signals("source", "buy", "sell", "hold", replace=False)
 
     assert calls == [
         ("buy", ["600519.SH"], SecuritiesUpdateMode.Add),
         ("sell", ["000001.SZ"], SecuritiesUpdateMode.Add),
     ]
     assert result.mode == "append"
-    assert result.targets.hold is None
+    assert result.targets.hold == watchlist_service.RouteTarget(group="hold")
 
 
-def test_route_writes_hold_snapshot_when_hold_group_provided(monkeypatch):
+def test_route_writes_hold_snapshot(monkeypatch):
     calls: list[tuple[str, list[str], object]] = []
     monkeypatch.setattr(
         "stk.services.scan.scan_watchlist",
@@ -205,14 +212,13 @@ def test_route_writes_hold_snapshot_when_hold_group_provided(monkeypatch):
         lambda name: SimpleNamespace(securities=[]),
     )
 
-    result = watchlist_service.route_signals("source", "buy", "sell", hold_dst="hold")
+    result = watchlist_service.route_signals("source", "buy", "sell", "hold")
 
     assert calls == [
         ("buy", ["600519.SH"], SecuritiesUpdateMode.Replace),
         ("hold", ["510300.SH"], SecuritiesUpdateMode.Replace),
         ("sell", ["000001.SZ"], SecuritiesUpdateMode.Replace),
     ]
-    assert result.targets.hold is not None
     assert result.targets.hold.group == "hold"
     assert result.targets.hold.symbols == ["510300.SH"]
 
@@ -241,7 +247,7 @@ def test_route_preserves_failed_hold_members(monkeypatch):
         ),
     )
 
-    result = watchlist_service.route_signals("source", "buy", "sell", hold_dst="hold")
+    result = watchlist_service.route_signals("source", "buy", "sell", "hold")
 
     assert calls == [
         ("buy", [], SecuritiesUpdateMode.Replace),

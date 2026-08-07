@@ -85,14 +85,13 @@ stk group sync pull --platform xueqiu --replace
 ```bash
 stk scan 核心池
 stk scan 核心池 --recent-bars 10 --include-factors
-stk group route 核心池 买入信号 卖出信号
-stk group route 核心池 买入信号 卖出信号 --hold 持有观察
+stk group route 核心池 买入信号 卖出信号 持有观察
 ```
 
 `scan` 只使用已确认日线。buy 由最近两根确认日线内的 Supertrend 翻多触发，并经过
 趋势结构与 RSI 过滤，不限制涨幅；持有观察（hold）为多头结构保持且无新反转事件的标的；
 sell 在任一指标最近两根确认日线内转空时即可预警。`route` 默认完整刷新
-buy/sell（可选 hold）Longport 快照组；个别标的扫描失败不会阻断刷新，失败详情随成功结果返回。
+buy/hold/sell 三个 Longport 快照组；个别标的扫描失败不会阻断刷新，失败详情随成功结果返回。
 
 所有输出都包含顶层 `status`：`success` 表示完整成功，`partial` 表示整体已执行但
 `data.failures[]` 中存在单项失败，`failed` 表示请求无法执行。`partial` 仍保持

@@ -194,8 +194,8 @@ def route_signals(
     src: str,
     buy_dst: str,
     sell_dst: str,
+    hold_dst: str,
     *,
-    hold_dst: str | None = None,
     replace: bool = True,
 ) -> RouteResult:
     """Refresh current buy, hold, and sell signal snapshots from one source group.
@@ -220,13 +220,12 @@ def route_signals(
     if replace:
         failed = {failure.symbol for failure in scan_result.failures if failure.symbol is not None}
         buy_symbols = _preserve_failed_members(buy_dst, buy_symbols, failed)
-        if hold_dst:
-            hold_symbols = _preserve_failed_members(hold_dst, hold_symbols, failed)
+        hold_symbols = _preserve_failed_members(hold_dst, hold_symbols, failed)
         sell_symbols = _preserve_failed_members(sell_dst, sell_symbols, failed)
 
     if buy_symbols or mode == SecuritiesUpdateMode.Replace:
         add_symbols(buy_dst, buy_symbols, mode=mode)
-    if hold_dst and (hold_symbols or mode == SecuritiesUpdateMode.Replace):
+    if hold_symbols or mode == SecuritiesUpdateMode.Replace:
         add_symbols(hold_dst, hold_symbols, mode=mode)
     if sell_symbols or mode == SecuritiesUpdateMode.Replace:
         add_symbols(sell_dst, sell_symbols, mode=mode)
@@ -241,7 +240,7 @@ def route_signals(
         ),
         targets=RouteTargets(
             buy=RouteTarget(group=buy_dst, symbols=buy_symbols),
-            hold=(RouteTarget(group=hold_dst, symbols=hold_symbols) if hold_dst else None),
+            hold=RouteTarget(group=hold_dst, symbols=hold_symbols),
             sell=RouteTarget(group=sell_dst, symbols=sell_symbols),
         ),
         failures=scan_result.failures,

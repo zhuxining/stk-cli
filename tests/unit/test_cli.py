@@ -45,54 +45,24 @@ def test_data_kline_returns_partial_success(monkeypatch):
     assert payload["data"]["failures"][0]["code"] == "runtime_error"
 
 
-def test_group_route_delegates_with_replace_default(monkeypatch):
-    calls: list[tuple[str, str, str, str | None, bool]] = []
+def test_group_route_delegates_three_positional_targets(monkeypatch):
+    calls: list[tuple[str, str, str, str, bool]] = []
 
     def fake_route(
         src: str,
         buy: str,
         sell: str,
+        hold: str,
         *,
-        hold_dst: str | None = None,
         replace: bool = True,
     ) -> RouteResult:
-        calls.append((src, buy, sell, hold_dst, replace))
+        calls.append((src, buy, sell, hold, replace))
         return RouteResult(
             mode="replace",
             source=RouteSource(group=src, total=0, analyzed=0, failed=0),
             targets=RouteTargets(
                 buy=RouteTarget(group=buy),
-                hold=RouteTarget(group=hold_dst) if hold_dst else None,
-                sell=RouteTarget(group=sell),
-            ),
-        )
-
-    monkeypatch.setattr("stk.services.watchlist.route_signals", fake_route)
-
-    result = runner.invoke(app, ["group", "route", "source", "buy", "sell"])
-
-    assert result.exit_code == 0
-    assert calls == [("source", "buy", "sell", None, True)]
-
-
-def test_group_route_forwards_hold_group(monkeypatch):
-    calls: list[tuple[str, str, str, str | None, bool]] = []
-
-    def fake_route(
-        src: str,
-        buy: str,
-        sell: str,
-        *,
-        hold_dst: str | None = None,
-        replace: bool = True,
-    ) -> RouteResult:
-        calls.append((src, buy, sell, hold_dst, replace))
-        return RouteResult(
-            mode="replace",
-            source=RouteSource(group=src, total=0, analyzed=0, failed=0),
-            targets=RouteTargets(
-                buy=RouteTarget(group=buy),
-                hold=RouteTarget(group=hold_dst) if hold_dst else None,
+                hold=RouteTarget(group=hold),
                 sell=RouteTarget(group=sell),
             ),
         )
@@ -101,7 +71,7 @@ def test_group_route_forwards_hold_group(monkeypatch):
 
     result = runner.invoke(
         app,
-        ["group", "route", "source", "buy", "sell", "--hold", "hold"],
+        ["group", "route", "source", "buy", "sell", "hold"],
     )
 
     assert result.exit_code == 0

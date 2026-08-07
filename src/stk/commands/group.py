@@ -241,24 +241,19 @@ def route(
     src: str = typer.Argument(help="Longport source group"),
     buy_dst: str = typer.Argument(help="Current buy-signal snapshot group"),
     sell_dst: str = typer.Argument(help="Current sell-signal snapshot group"),
-    hold_dst: str | None = typer.Option(
-        None,
-        "--hold",
-        help="Current hold-snapshot group (optional)",
-    ),
+    hold_dst: str = typer.Argument(help="Current hold-snapshot group"),
     replace: bool = typer.Option(
         True,
         "--replace/--append",
         help="Refresh destination snapshots (default) or append only",
     ),
 ) -> None:
-    targets = [group for group in (buy_dst, sell_dst, hold_dst) if group is not None]
-    if len({src, *targets}) != 1 + len(targets):
+    if len({src, buy_dst, sell_dst, hold_dst}) != 4:
         raise StkError("Source and target groups must all be different")
 
     from stk.services.watchlist import route_signals
 
-    output.render(route_signals(src, buy_dst, sell_dst, hold_dst=hold_dst, replace=replace))
+    output.render(route_signals(src, buy_dst, sell_dst, hold_dst, replace=replace))
 
 
 @app.command("rotate")
