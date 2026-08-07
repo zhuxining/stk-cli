@@ -50,6 +50,8 @@ _SUPERTREND_MULTIPLIER: Final = 3
 set_dft_window("supertrend", _SUPERTREND_PERIOD)
 _TURNOVER_RATIO_LONG: Final = 20
 _TURNOVER_RATIO_SHORT: Final = 5
+_REBOUND_EMA20_GAP_ATR: Final = 0.25
+_REBOUND_SLOPE_FLOOR: Final = -0.01
 
 
 @dataclass(slots=True)
@@ -91,6 +93,17 @@ def _load_series(symbol: str, name: str) -> _Series:
     if len(frame) < _MIN_BARS:
         raise SourceError(f"At least {_MIN_BARS} confirmed daily bars required")
     return _Series(symbol=to_longport_symbol(symbol), name=name, frame=frame)
+
+
+def _consecutive_count(close: np.ndarray, index: int, *, up: bool) -> int:
+    """Count consecutive confirmed bars closing higher/lower than the prior bar."""
+    count = 0
+    for i in range(index, 0, -1):
+        if (close[i] > close[i - 1]) == up:
+            count += 1
+        else:
+            break
+    return count
 
 
 def _indicator_points(series: _Series, indices: range) -> dict[int, _Point]:
@@ -160,6 +173,8 @@ def _indicator_points(series: _Series, indices: range) -> dict[int, _Point]:
             if previous_turnover > 0
             else 1.0
         )
+        values["consecutive_up"] = _consecutive_count(close, index, up=True)
+        values["consecutive_down"] = _consecutive_count(close, index, up=False)
         points[index] = _Point(
             series=series,
             index=index,
@@ -244,7 +259,8 @@ def _rebound_emerging(point: _Point) -> bool:
         values["return5"] > 0
         and values["return5"] > values["previous_return5"]
         and values["close"] > values["ema9"]
-        and values["close"] >= values["ema20"] - 0.5 * values["atr10"]
+        and values["close"] >= values["ema20"] - _REBOUND_EMA20_GAP_ATR * values["atr10"]
+        and values["ema20_slope5"] > _REBOUND_SLOPE_FLOOR
     )
 
 
@@ -255,6 +271,7 @@ def _strong(point: _Point) -> bool:
         and values["close"] > values["ema20"]
         and values["ema20_slope5"] > 0
         and values["return20"] > 0
+        and values["consecutive_down"] < 3
     )
 
 
@@ -285,8 +302,10 @@ def _fade_severity(point: _Point, history: list[_Point]) -> FadeSeverity | None:
         and history[-1].metrics["close"] < history[-1].metrics["ema20"]
         and values["close"] < values["ema20"]
     )
-    confirmed = (signal.supertrend_bearish_event and current_st_bearish) or (
-        two_closes_below and values["ema20_slope5"] <= 0
+    confirmed = (
+        (signal.supertrend_bearish_event and current_st_bearish)
+        or (values["consecutive_down"] >= 3 and values["close"] < values["ema20"])
+        or (two_closes_below and values["ema20_slope5"] <= 0)
     )
     if confirmed:
         return "confirmed"
@@ -499,6 +518,8 @@ def _cross_section(
                     atr_pct=values["atr10"] / values["close"] * 100,
                     supertrend=values["supertrend"],
                     supertrend_bullish=current_st,
+                    consecutive_up=values["consecutive_up"],
+                    consecutive_down=values["consecutive_down"],
                 ),
                 signal=signal,
                 warnings=warnings,

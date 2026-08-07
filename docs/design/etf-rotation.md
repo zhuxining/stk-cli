@@ -68,11 +68,13 @@ rebound:
     return5 > 0
     AND return5 > previous_return5
     AND close > EMA9
-    AND close >= EMA20 - 0.5 * ATR10
+    AND close >= EMA20 - 0.25 * ATR10
+    AND EMA20 五日斜率 > -1%（均线不再加速下跌）
 ```
 
 只有 confirmed 且 `RSI14 < 75`、`close <= EMA20 + 2*ATR10` 时 action 为
 `rotate_in`，其余为 `watch`。过热或偏离过大不改变阶段，只生成 warning 并阻止介入。
+单纯连续上涨不构成启动确认：反弹必须伴随均线企稳（斜率接近转正）且贴近 EMA20。
 
 排序先放 confirmed，再按 Supertrend 事件新鲜度和 `rank_score`：
 
@@ -88,11 +90,13 @@ rank_score = 5日风险调整改善 40% + 趋势质量 20%
 AND close > EMA20
 AND EMA20 > 5根确认日线前的 EMA20
 AND return20 > 0
+AND 未连续 3 日及以上下跌（consecutive_down < 3）
 AND 当前不存在有效退潮条件
 ```
 
 强势 action 固定为 `hold`。RSI/KDJ/WR 过热、单日跌破短均线或 MACD histogram 单日
-缩短都不会单独移出强势阶段。
+缩短都不会单独移出强势阶段；但连续 3 个及以上交易日收阴会直接移出强势
+（价格结构仍多头但短期动量已转弱，不再视为强势持有）。
 
 ```text
 rank_score = 20日风险调整收益 30% + 20日趋势质量 25% + ADX14 20%
@@ -114,6 +118,7 @@ severe:
 confirmed:
     最近三根确认日线内 Supertrend 由多翻空且当前仍 bearish
     OR 连续两日 close < EMA20 且 EMA20 五日斜率 <= 0
+    OR 连续 3 日及以上收阴且 close < EMA20（3 连阴破位）
 
 mild:
     return5 < 0

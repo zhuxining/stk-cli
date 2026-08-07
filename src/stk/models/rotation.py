@@ -56,6 +56,8 @@ class RotationIndicators(BaseModel):
     atr_pct: float
     supertrend: float
     supertrend_bullish: bool
+    consecutive_up: int
+    consecutive_down: int
 
 
 class RotationSignal(BaseModel):

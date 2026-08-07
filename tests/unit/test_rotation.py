@@ -54,6 +54,8 @@ def _point(
         "supertrend": 98.0,
         "entry_distance_atr": 5 / 3,
         "turnover_ratio": 1.2,
+        "consecutive_up": 0,
+        "consecutive_down": 0,
     }
     metrics.update(updates)
     close = np.full(length, metrics["close"])
@@ -120,11 +122,87 @@ def test_rebound_emerging_accepts_early_recovery_without_supertrend_confirmation
     assert result.setup == "rebound"
 
 
+def test_deep_downtrend_rebound_with_negative_slope_is_not_emerging():
+    """A rebound inside an accelerating downtrend is not a launch candidate."""
+    point = _point(
+        direction=-1,
+        return5=0.05,
+        previous_return5=-0.03,
+        close=100.0,
+        ema9=99.0,
+        ema20=101.0,
+        ema20_slope5=-0.02,
+        atr10=4.0,
+    )
+
+    result = rotation.classify_state(point, [])
+
+    assert result.state == "inactive"
+
+
+def test_rebound_requires_close_near_ema20():
+    """Close more than 0.25 ATR below EMA20 is not a rebound."""
+    point = _point(
+        direction=-1,
+        return5=0.05,
+        previous_return5=-0.03,
+        close=100.0,
+        ema9=99.5,
+        ema20=102.0,
+        ema20_slope5=0.0,
+        atr10=4.0,
+    )
+
+    result = rotation.classify_state(point, [])
+
+    assert result.state == "inactive"
+
+
+def test_three_consecutive_downs_with_break_below_ema20_is_confirmed_fading():
+    """A three-day red streak plus a close below EMA20 confirms the fade."""
+    point = _point(
+        direction=-1,
+        close=99.0,
+        ema20=100.0,
+        consecutive_down=3,
+    )
+
+    result = rotation.classify_state(point, _strong_history())
+
+    assert result.state == "fading"
+    assert result.severity == "confirmed"
+
+
 def test_established_absolute_uptrend_is_strong():
     result = rotation.classify_state(_point(), [])
 
     assert result.state == "strong"
     assert result.setup is None
+
+
+def test_three_consecutive_downs_excludes_strong():
+    point = _point(consecutive_down=3)
+
+    assert not rotation._strong(point)
+
+
+def test_two_day_pullback_stays_strong():
+    point = _point(consecutive_down=2)
+
+    assert rotation.classify_state(point, []).state == "strong"
+
+
+def test_consecutive_down_streak_with_positive_structure_is_inactive():
+    """A long red streak still above EMA20 (e.g. 159263) is not strong."""
+    point = _point(
+        consecutive_down=5,
+        return5=-0.03,
+        previous_return5=0.01,
+    )
+
+    result = rotation.classify_state(point, [])
+
+    assert result.state == "inactive"
 
 
 def test_long_term_weakness_is_not_fading_without_recent_active_history():
