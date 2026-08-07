@@ -272,6 +272,11 @@ def test_route_calculates_before_replacing_three_targets(monkeypatch):
         "add_symbols",
         lambda group, symbols, mode: calls.append((group, symbols, mode)),
     )
+    monkeypatch.setattr(
+        rotation,
+        "get_watchlist",
+        lambda group: SimpleNamespace(securities=[]),
+    )
 
     routed = rotation.route_rotation(
         ["theme", "asset"],
@@ -283,6 +288,80 @@ def test_route_calculates_before_replacing_three_targets(monkeypatch):
     assert [call[0] for call in calls] == ["emerging", "strong", "fading"]
     assert all(call[2] == SecuritiesUpdateMode.Replace for call in calls)
     assert [target.stage for target in routed.targets] == ["emerging", "strong", "fading"]
+
+
+def test_route_rolls_back_previous_writes_on_midway_failure(monkeypatch):
+    calls: list[tuple[str, list[str], object]] = []
+    previous = {
+        "emerging": ["510300.SH"],
+        "strong": ["159915.SZ"],
+        "fading": ["588080.SH"],
+    }
+
+    def add_symbols(group, symbols, mode):
+        calls.append((group, symbols, mode))
+        if group == "strong":
+            raise RuntimeError("write failed")
+
+    monkeypatch.setattr(rotation, "rotate_pools", lambda sources: _empty_result())
+    monkeypatch.setattr(rotation, "add_symbols", add_symbols)
+    monkeypatch.setattr(
+        rotation,
+        "get_watchlist",
+        lambda group: SimpleNamespace(
+            securities=[SimpleNamespace(symbol=s) for s in previous[group]]
+        ),
+    )
+
+    with pytest.raises(StkError, match="轮动路由写入失败.*已回滚"):
+        rotation.route_rotation(
+            ["theme", "asset"],
+            emerging="emerging",
+            strong="strong",
+            fading="fading",
+        )
+
+    # emerging was written, strong failed, and emerging was rolled back to its
+    # previous contents; fading was never reached.
+    assert calls == [
+        ("emerging", [], SecuritiesUpdateMode.Replace),
+        ("strong", [], SecuritiesUpdateMode.Replace),
+        ("emerging", ["510300.SH"], SecuritiesUpdateMode.Replace),
+    ]
+
+
+def test_route_reports_rollback_failure_when_restore_also_fails(monkeypatch):
+    calls: list[tuple[str, list[str], object]] = []
+
+    def add_symbols(group, symbols, mode):
+        calls.append((group, symbols, mode))
+        # call 1 (strong write) and call 2 (emerging rollback) both fail.
+        if len(calls) in (2, 3):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(rotation, "rotate_pools", lambda sources: _empty_result())
+    monkeypatch.setattr(rotation, "add_symbols", add_symbols)
+    monkeypatch.setattr(
+        rotation,
+        "get_watchlist",
+        lambda group: SimpleNamespace(securities=[]),
+    )
+
+    with pytest.raises(StkError, match="回滚失败"):
+        rotation.route_rotation(
+            ["theme"],
+            emerging="emerging",
+            strong="strong",
+            fading="fading",
+        )
+
+    # emerging was written, the strong write failed, and the rollback write for
+    # emerging also failed, so the error reports inconsistent target groups.
+    assert calls == [
+        ("emerging", [], SecuritiesUpdateMode.Replace),
+        ("strong", [], SecuritiesUpdateMode.Replace),
+        ("emerging", [], SecuritiesUpdateMode.Replace),
+    ]
 
 
 def test_duplicate_source_symbols_fail_before_analysis(monkeypatch):

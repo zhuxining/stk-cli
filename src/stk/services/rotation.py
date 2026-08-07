@@ -42,9 +42,14 @@ _MIN_POOL_SIZE: Final = 5
 _EMERGING_WINDOW: Final = 2
 _FADING_WINDOW: Final = 3
 _ACTIVE_LOOKBACK: Final = 10
+# ETF 轮动模型参数：Supertrend(10, 3)。注意股票信号模型（services/indicator.py）
+# 有意使用 Supertrend(10, 2.5)，两者是不同模型；共享实现时须显式传参，
+# 不要统一这里的常量。
 _SUPERTREND_PERIOD: Final = 10
 _SUPERTREND_MULTIPLIER: Final = 3
 set_dft_window("supertrend", _SUPERTREND_PERIOD)
+_TURNOVER_RATIO_LONG: Final = 20
+_TURNOVER_RATIO_SHORT: Final = 5
 
 
 @dataclass(slots=True)
@@ -143,9 +148,15 @@ def _indicator_points(series: _Series, indices: range) -> dict[int, _Point]:
         values["supertrend"] = _finite(supertrend[index], "supertrend")
         values["ema20_slope5"] = values["ema20"] / arrays["ema20"][index - 5] - 1
         values["entry_distance_atr"] = (values["close"] - values["ema20"]) / values["atr10"]
-        previous_turnover = float(np.mean(turnover[index - 24 : index - 4]))
+        previous_turnover_window = turnover[
+            index - _TURNOVER_RATIO_LONG - _TURNOVER_RATIO_SHORT + 1 : index
+            - _TURNOVER_RATIO_SHORT
+            + 1
+        ]
+        current_turnover_window = turnover[index - _TURNOVER_RATIO_SHORT + 1 : index + 1]
+        previous_turnover = float(np.mean(previous_turnover_window))
         values["turnover_ratio"] = (
-            float(np.mean(turnover[index - 4 : index + 1])) / previous_turnover
+            float(np.mean(current_turnover_window)) / previous_turnover
             if previous_turnover > 0
             else 1.0
         )
@@ -394,7 +405,7 @@ def _cross_section(
     scores = _rank_scores(table, classifications)
     mean_turnovers = pd.Series({
         point.series.symbol: float(
-            point.series.frame.iloc[: point.index + 1]["turnover"].tail(20).mean()
+            point.series.frame.iloc[: point.index + 1]["turnover"].tail(_TURNOVER_RATIO_LONG).mean()
         )
         for point in current
     })
@@ -651,6 +662,20 @@ def rotate_pools(source_groups: list[str]) -> RotationResult:
     )
 
 
+def _rollback_rotation_targets(
+    written: list[tuple[str, list[str]]],
+    previous: dict[str, list[str]],
+) -> list[str]:
+    """Restore groups written before a routing failure; return rollback errors."""
+    rollback_failures: list[str] = []
+    for group, _ in written:
+        try:
+            add_symbols(group, previous[group], mode=SecuritiesUpdateMode.Replace)
+        except Exception as err:
+            rollback_failures.append(f"{group}: {err}")
+    return rollback_failures
+
+
 def route_rotation(
     sources: list[str],
     *,
@@ -658,16 +683,42 @@ def route_rotation(
     strong: str,
     fading: str,
 ) -> RotationRouteResult:
-    """Calculate fully, then replace all three destination snapshots."""
+    """Calculate fully, then replace all three destination snapshots.
+
+    The three Replace writes are not atomic on their own: if a later write
+    fails, groups written earlier are rolled back to their pre-route contents
+    so the snapshot set stays consistent.
+    """
     targets = [emerging, strong, fading]
     if len({*sources, *targets}) != len(sources) + len(targets):
         raise StkError("Rotation source and target groups must all be different")
     result = rotate_pools(sources)
     stage_items = [result.emerging, result.strong, result.fading]
     stage_names: list[RotationStage] = ["emerging", "strong", "fading"]
+
+    # Snapshot current contents up front so a mid-write failure can roll back
+    # groups that were already replaced.
+    previous: dict[str, list[str]] = {}
+    for group in targets:
+        try:
+            previous[group] = sorted(item.symbol for item in get_watchlist(group).securities)
+        except SourceError:
+            previous[group] = []
+
     route_targets: list[RotationRouteTarget] = []
-    for stage, group, items in zip(stage_names, targets, stage_items, strict=True):
-        symbols = [item.symbol for item in items]
-        add_symbols(group, symbols, mode=SecuritiesUpdateMode.Replace)
-        route_targets.append(RotationRouteTarget(stage=stage, group=group, symbols=symbols))
+    written: list[tuple[str, list[str]]] = []
+    try:
+        for stage, group, items in zip(stage_names, targets, stage_items, strict=True):
+            symbols = [item.symbol for item in items]
+            add_symbols(group, symbols, mode=SecuritiesUpdateMode.Replace)
+            written.append((group, symbols))
+            route_targets.append(RotationRouteTarget(stage=stage, group=group, symbols=symbols))
+    except Exception as err:
+        rollback_failures = _rollback_rotation_targets(written, previous)
+        detail = (
+            f"；已回滚 {len(written)} 个已写入目标组"
+            if not rollback_failures
+            else f"；回滚失败（目标组可能不一致）：{'；'.join(rollback_failures)}"
+        )
+        raise StkError(f"轮动路由写入失败：{err}{detail}") from err
     return RotationRouteResult(**result.model_dump(), targets=route_targets)

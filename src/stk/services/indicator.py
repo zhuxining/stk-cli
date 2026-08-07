@@ -16,6 +16,9 @@ from stk.utils.symbol import to_longport_symbol
 _EMA_PERIODS = (5, 9, 10, 20, 26, 60)
 _KDJ_PERIOD = 9
 _WR_PERIOD = 14
+# 股票信号模型参数：Supertrend(10, 2.5)。注意 ETF 轮动模型
+# （services/rotation.py）有意使用 Supertrend(10, 3)，两者是不同模型；
+# 共享实现时须显式传参，不要统一这里的常量。
 _SUPERTREND_PERIOD = 10
 _SUPERTREND_MULTIPLIER = 2.5
 _stockstats_config_lock = Lock()
