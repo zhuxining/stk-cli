@@ -24,9 +24,9 @@ class QuoteSnapshot(BaseModel):
 
 
 class SignalDetail(BaseModel):
-    """Current actionable trigger and explanation."""
+    """Current trigger and explanation; confirmation is None for non-event states."""
 
-    confirmation: SignalConfirmation
+    confirmation: SignalConfirmation | None = None
     triggers: list[SignalTrigger] = Field(default_factory=list)
     reasons: list[str] = Field(default_factory=list)
 
@@ -54,14 +54,16 @@ class ScanSummary(BaseModel):
     buy: int
     sell: int
     watch: int
+    hold: int = 0
     ignored: int
 
 
 class ScanResult(BaseModel):
-    """Current buy and sell signals for a Longport group."""
+    """Current buy, hold, and sell signals for a Longport group."""
 
     group: str
     summary: ScanSummary
     buy: list[SignalItem] = Field(default_factory=list)
+    hold: list[SignalItem] = Field(default_factory=list)
     sell: list[SignalItem] = Field(default_factory=list)
     failures: list[BatchFailure] = Field(default_factory=list)

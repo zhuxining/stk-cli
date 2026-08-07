@@ -46,15 +46,23 @@ def test_data_kline_returns_partial_success(monkeypatch):
 
 
 def test_group_route_delegates_with_replace_default(monkeypatch):
-    calls: list[tuple[str, str, str, bool]] = []
+    calls: list[tuple[str, str, str, str | None, bool]] = []
 
-    def fake_route(src: str, buy: str, sell: str, *, replace: bool) -> RouteResult:
-        calls.append((src, buy, sell, replace))
+    def fake_route(
+        src: str,
+        buy: str,
+        sell: str,
+        *,
+        hold_dst: str | None = None,
+        replace: bool = True,
+    ) -> RouteResult:
+        calls.append((src, buy, sell, hold_dst, replace))
         return RouteResult(
             mode="replace",
             source=RouteSource(group=src, total=0, analyzed=0, failed=0),
             targets=RouteTargets(
                 buy=RouteTarget(group=buy),
+                hold=RouteTarget(group=hold_dst) if hold_dst else None,
                 sell=RouteTarget(group=sell),
             ),
         )
@@ -64,7 +72,40 @@ def test_group_route_delegates_with_replace_default(monkeypatch):
     result = runner.invoke(app, ["group", "route", "source", "buy", "sell"])
 
     assert result.exit_code == 0
-    assert calls == [("source", "buy", "sell", True)]
+    assert calls == [("source", "buy", "sell", None, True)]
+
+
+def test_group_route_forwards_hold_group(monkeypatch):
+    calls: list[tuple[str, str, str, str | None, bool]] = []
+
+    def fake_route(
+        src: str,
+        buy: str,
+        sell: str,
+        *,
+        hold_dst: str | None = None,
+        replace: bool = True,
+    ) -> RouteResult:
+        calls.append((src, buy, sell, hold_dst, replace))
+        return RouteResult(
+            mode="replace",
+            source=RouteSource(group=src, total=0, analyzed=0, failed=0),
+            targets=RouteTargets(
+                buy=RouteTarget(group=buy),
+                hold=RouteTarget(group=hold_dst) if hold_dst else None,
+                sell=RouteTarget(group=sell),
+            ),
+        )
+
+    monkeypatch.setattr("stk.services.watchlist.route_signals", fake_route)
+
+    result = runner.invoke(
+        app,
+        ["group", "route", "source", "buy", "sell", "--hold", "hold"],
+    )
+
+    assert result.exit_code == 0
+    assert calls == [("source", "buy", "sell", "hold", True)]
 
 
 def test_group_rotate_uses_three_v2_targets(monkeypatch):

@@ -81,7 +81,7 @@ def _signal_item(
     names: dict[str, str],
     quotes: dict[str, Quote],
 ) -> SignalItem:
-    if assessment.confirmation is None:
+    if assessment.state in ("buy", "sell") and assessment.confirmation is None:
         raise ValueError(f"Actionable signal for {assessment.symbol} has no confirmation")
     quote = quotes.get(assessment.symbol)
     return SignalItem(
@@ -139,12 +139,18 @@ def _monitor_symbols(
         for item in assessments
         if item.state == "buy"
     ]
+    hold = [
+        _signal_item(item, names=names, quotes=quotes)
+        for item in assessments
+        if item.state == "hold"
+    ]
     sell = [
         _signal_item(item, names=names, quotes=quotes)
         for item in assessments
         if item.state == "sell"
     ]
     buy.sort(key=_sort_key)
+    hold.sort(key=_sort_key)
     sell.sort(key=_sort_key)
     watch_count = sum(item.state == "watch" for item in assessments)
     ignored_count = sum(item.state == "ignored" for item in assessments)
@@ -157,9 +163,11 @@ def _monitor_symbols(
             buy=len(buy),
             sell=len(sell),
             watch=watch_count,
+            hold=len(hold),
             ignored=ignored_count,
         ),
         buy=buy,
+        hold=hold,
         sell=sell,
         failures=sorted(failures, key=_failure_key),
     )

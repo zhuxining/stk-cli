@@ -68,6 +68,7 @@ def _assessment(
 def test_monitor_returns_mutually_exclusive_counts(monkeypatch):
     assessments = {
         "buy": _assessment("600519.SH", "buy"),
+        "hold": _assessment("510300.SH", "hold"),
         "sell": _assessment("000001.SZ", "sell"),
         "watch": _assessment("700.HK", "watch"),
         "ignored": _assessment("AAPL.US", "ignored"),
@@ -95,12 +96,13 @@ def test_monitor_returns_mutually_exclusive_counts(monkeypatch):
     )
 
     assert result.summary.model_dump() == {
-        "total": 4,
-        "analyzed": 4,
+        "total": 5,
+        "analyzed": 5,
         "failed": 0,
         "buy": 1,
         "sell": 1,
         "watch": 1,
+        "hold": 1,
         "ignored": 1,
     }
     assert result.buy[0].quote is not None
@@ -108,6 +110,9 @@ def test_monitor_returns_mutually_exclusive_counts(monkeypatch):
     assert result.buy[0].signal.triggers[0].code == "supertrend_bullish_reversal"
     assert result.buy[0].signal.triggers[0].age_bars == 0
     assert result.sell[0].risk is None
+    assert result.hold[0].symbol == "510300.SH"
+    assert result.hold[0].signal.confirmation is None
+    assert result.hold[0].signal.triggers == []
 
 
 def test_monitor_returns_partial_failures(monkeypatch):

@@ -14,12 +14,15 @@
 每只成功分析的标的恰好属于一种状态：
 
 - `buy`：最近两根确认日线内 Supertrend 由空翻多，当前仍为多头且通过买入过滤。
+- `hold`：多头趋势结构（EMA9 > EMA26 且 Supertrend 多头）保持，且最近两根确认
+  日线内无任何反转事件，视为持有观察。
 - `sell`：最近两根确认日线内至少一个趋势指标转空，且该指标当前仍为空头。
 - `watch`：趋势结构尚未同向，或近期多头反转未通过买入过滤。
-- `ignored`：趋势已经持续超过信号窗口，或未形成需要关注的反转。
+- `ignored`：趋势已经持续超过信号窗口，或未形成需要关注的反转（主要是空头趋势
+  持续且无事件的标的）。
 
-scan 只展开 buy 和 sell；watch 与 ignored 只进入汇总计数。route 直接使用这两个数组
-刷新目标分组。
+scan 只展开 buy、hold 和 sell；watch 与 ignored 只进入汇总计数。route 直接使用
+这三个数组刷新目标分组。
 
 ## 反转事件与有效期
 
@@ -92,10 +95,11 @@ EMA 死叉路径额外要求收盘价跌破 EMA26，避免均线上方的短暂�
 
 ## 风控
 
-只有 buy 项输出风险边界：
+只有 buy 与 hold 项输出风险边界：
 
 - `stop_loss` 优先使用位于价格下方的多头 Supertrend，否则使用 `close - 2*ATR10`。
-- `trailing_stop` 在存在有效多头 Supertrend 时输出。
+- `trailing_stop` 在存在有效多头 Supertrend 时输出；buy 表示入场止损，hold 表示
+  持有跟踪线。
 - 不输出固定止盈目标、风险收益比或风险等级。
 - sell 是退出信号，不生成做空目标或空头风控。
 
@@ -103,7 +107,8 @@ EMA 死叉路径额外要求收盘价跌破 EMA26，避免均线上方的短暂�
 
 - `calc_score()` 默认请求 60 根 K 线；剔除未收盘日线后至少需要 30 根。
 - scan 中单标的失败进入 `failures`，其他标的继续处理。
-- `summary.buy + sell + watch + ignored = analyzed`。
+- `summary.buy + sell + watch + hold + ignored = analyzed`。
 - `summary.total = analyzed + failed`。
-- route 跳过扫描失败的标的，继续写入其余结果，并在成功响应中返回 `failures`。
+- route 跳过扫描失败的标的，保留失败标的在目标组中的原成员，继续写入其余结果，
+  并在成功响应中返回 `failures`。
 - `--recent-bars N` 使用评分时已获取的数据附加最近 1–30 根紧凑日线，不二次请求。

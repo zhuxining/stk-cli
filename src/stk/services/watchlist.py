@@ -170,14 +170,39 @@ def delete_group(name: str) -> None:
     save_json(_CACHE_FILE, mapping)
 
 
+def _preserve_failed_members(
+    dst: str,
+    symbols: list[str],
+    failed_symbols: set[str],
+) -> list[str]:
+    """Merge symbols that failed to scan today into a Replace payload.
+
+    Replace semantics would otherwise drop failed symbols from the snapshot,
+    silently losing yesterday's members. The destination group is only read
+    when there are failures to preserve; a missing group contributes nothing.
+    """
+    if not failed_symbols:
+        return symbols
+    try:
+        current = {item.symbol for item in get_watchlist(dst).securities} & failed_symbols
+    except SourceError:
+        current = set()
+    return sorted({*symbols, *current})
+
+
 def route_signals(
     src: str,
     buy_dst: str,
     sell_dst: str,
     *,
+    hold_dst: str | None = None,
     replace: bool = True,
 ) -> RouteResult:
-    """Refresh current buy and sell signal snapshots from one source group."""
+    """Refresh current buy, hold, and sell signal snapshots from one source group.
+
+    In replace mode, symbols that failed to scan today are preserved from the
+    destination groups instead of being silently dropped by Replace.
+    """
     from stk.services.scan import scan_watchlist
 
     scan_result = scan_watchlist(
@@ -187,12 +212,22 @@ def route_signals(
     )
 
     buy_symbols = sorted(item.symbol for item in scan_result.buy)
+    hold_symbols = sorted(item.symbol for item in scan_result.hold)
     sell_symbols = sorted(item.symbol for item in scan_result.sell)
 
     mode = SecuritiesUpdateMode.Replace if replace else SecuritiesUpdateMode.Add
 
+    if replace:
+        failed = {failure.symbol for failure in scan_result.failures if failure.symbol is not None}
+        buy_symbols = _preserve_failed_members(buy_dst, buy_symbols, failed)
+        if hold_dst:
+            hold_symbols = _preserve_failed_members(hold_dst, hold_symbols, failed)
+        sell_symbols = _preserve_failed_members(sell_dst, sell_symbols, failed)
+
     if buy_symbols or mode == SecuritiesUpdateMode.Replace:
         add_symbols(buy_dst, buy_symbols, mode=mode)
+    if hold_dst and (hold_symbols or mode == SecuritiesUpdateMode.Replace):
+        add_symbols(hold_dst, hold_symbols, mode=mode)
     if sell_symbols or mode == SecuritiesUpdateMode.Replace:
         add_symbols(sell_dst, sell_symbols, mode=mode)
 
@@ -206,6 +241,7 @@ def route_signals(
         ),
         targets=RouteTargets(
             buy=RouteTarget(group=buy_dst, symbols=buy_symbols),
+            hold=(RouteTarget(group=hold_dst, symbols=hold_symbols) if hold_dst else None),
             sell=RouteTarget(group=sell_dst, symbols=sell_symbols),
         ),
         failures=scan_result.failures,

@@ -673,6 +673,10 @@ def calc_score(
         triggers = bullish_triggers or bearish_setup
         reasons.extend(_trigger_reason(trigger) for trigger in triggers)
         reasons.append("近期反转事件已出现，但当前趋势结构尚未满足信号条件")
+    elif bullish_structure:
+        state = "hold"
+        triggers = []
+        reasons.append("多头趋势结构保持且无新反转事件，处于持有观察")
     else:
         state = "ignored"
         triggers = []
@@ -682,7 +686,7 @@ def calc_score(
         reasons.append(f"5 日成交额量比 {turnover_ratio:.2f}，量能偏弱")
 
     quality_direction: TrendDirection
-    if state == "buy":
+    if state in ("buy", "hold"):
         quality_direction = "bullish"
     elif state == "sell":
         quality_direction = "bearish"
@@ -690,7 +694,7 @@ def calc_score(
         quality_direction = "neutral"
 
     risk = None
-    if state == "buy":
+    if state in ("buy", "hold"):
         fallback_stop = current_close - atr * 2
         trailing_stop = (
             supertrend if trend_direction == "bullish" and supertrend < current_close else None

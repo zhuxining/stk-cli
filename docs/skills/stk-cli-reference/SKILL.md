@@ -185,19 +185,20 @@ stk scan <longport-group> [--recent-bars N] [--include-factors]
 
 ```text
 group
-summary: total / analyzed / failed / buy / sell / watch / ignored
+summary: total / analyzed / failed / buy / sell / watch / hold / ignored
 buy[]
+hold[]
 sell[]
 failures[]
 ```
 
-`buy[]` 和 `sell[]` 中的项目包含：
+`buy[]`、`hold[]` 和 `sell[]` 中的项目包含：
 
 - `symbol`、`name` 和最新确认日线日期 `as_of`。
 - 可选实时展示数据 `quote`。
 - `signal.confirmation`：当前信号窗口的 `confirmed_at` 和 `age_bars`。buy 使用两根
   确认日线窗口，从 Supertrend 翻多事件开始；sell 同样使用两根确认日线窗口，从最近一次
-  有效空头事件开始。
+  有效空头事件开始；hold 无反转事件，`confirmation` 为 `null`。
 - `signal.triggers[]`：实际触发信号的结构化事件。buy 固定包含一个 Supertrend 翻多
   事件；sell 包含一个或两个当前有效的空头事件。每项包含稳定英文 `code`、
   `occurred_at` 和距今确认日线数 `age_bars`。
@@ -206,10 +207,10 @@ failures[]
 - `signal.reasons`：包含数值语义的中文说明。
 - `indicators`：本次判断使用的核心指标快照。
 - `quality`：辅助态度、警告和可选 factors。
-- buy 项可有 `risk`，用于表达止损和跟踪线；sell 项不生成做空目标。
+- buy 与 hold 项可有 `risk`，用于表达止损和跟踪线；sell 项不生成做空目标。
 - 使用 `--recent-bars` 时出现的 `recent_bars`。
 
-先用 `buy[]` / `sell[]` 判断方向，再用 `signal.confirmation.age_bars` 检查相应的
+先用 `buy[]` / `hold[]` / `sell[]` 判断方向，再用 `signal.confirmation.age_bars` 检查相应的
 两根确认日线有效期，用 `triggers[].code` 和 `occurred_at` 解读触发事件。
 `reasons` 用于解释原因。
 `watch` 和 `ignored` 只计入 summary，不展开明细。扫描规则的具体阈值属于策略实现，
@@ -218,17 +219,20 @@ failures[]
 ## 生成每日信号分组
 
 ```bash
-stk group route <src> <buy-dst> <sell-dst> [--replace|--append]
+stk group route <src> <buy-dst> <sell-dst> [--hold <hold-dst>] [--replace|--append]
 ```
 
-- 三个参数都是 Longport 分组，并且名称必须互不相同。
-- 默认 `--replace`：分别将当前仍满足条件的 buy 和 sell 标的写为两个完整快照。
-- 两个目标组都由源分组的当前已确认日线重新计算，不依赖昨日目标组成员。
+- 目标分组是 Longport 分组，并且名称必须互不相同，也不能与源分组相同。
+- `--hold <hold-dst>` 可选：提供时把当前持有观察标的写为第三组快照；不提供则
+  只维护 buy 与 sell 两组。
+- 默认 `--replace`：分别将当前仍满足条件的 buy、hold 和 sell 标的写为完整快照。
+- 目标组都由源分组的当前已确认日线重新计算，不依赖昨日目标组成员；扫描失败的
+  标的会保留其在目标组中的原成员，避免被 replace 静默删除。
 - 个别标的扫描失败时跳过该标的，其余结果继续写入，并在成功响应中返回失败详情。
 - `--append` 只追加本次结果，不移除历史成员；每日快照通常使用默认 replace。
 
 返回的 `data` 包含 `operation`、`mode`、`source` 和 `targets`。`targets` 直接表示
-本次写入 buy、sell 分组的 Symbol，不代表交易订单。`source.failed` 给出失败数量，
+本次写入 buy、hold、sell 分组的 Symbol，不代表交易订单。`source.failed` 给出失败数量，
 `failures[]` 给出每个失败标的的 `symbol`、`code` 和 `message`。
 
 ## 常用工作流

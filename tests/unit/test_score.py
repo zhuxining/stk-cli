@@ -78,7 +78,7 @@ def test_ema_crosses_are_structured_reversal_events(
 
 @pytest.mark.parametrize(
     ("age", "expected_state"),
-    [(0, "buy"), (1, "buy"), (2, "ignored"), (3, "ignored")],
+    [(0, "buy"), (1, "buy"), (2, "hold"), (3, "hold")],
 )
 @patch("stk.services.score._calc_supertrend_arrays")
 @patch("stk.services.score.talib.RSI")
@@ -116,6 +116,10 @@ def test_bullish_reversal_is_valid_for_two_confirmed_bars(
     if expected_state == "buy":
         assert result.triggers[0].code == "supertrend_bullish_reversal"
         assert result.triggers[0].age_bars == age
+        assert result.risk is not None
+        assert result.risk.stop_loss < result.indicators.close
+    elif expected_state == "hold":
+        assert result.triggers == []
         assert result.risk is not None
         assert result.risk.stop_loss < result.indicators.close
     else:
@@ -414,8 +418,42 @@ def test_established_bullish_trend_is_not_a_buy_signal(
 
     result = calc_score("600519")
 
-    assert result.state == "ignored"
+    assert result.state == "hold"
     assert result.triggers == []
+    assert result.risk is not None
+    assert result.risk.stop_loss < result.indicators.close
+
+
+@patch("stk.services.score._calc_supertrend_arrays")
+@patch("stk.services.score.talib.RSI")
+@patch("stk.services.score.get_history")
+def test_established_trend_stays_hold_when_overheated(
+    mock_history,
+    mock_rsi,
+    mock_supertrend,
+    make_candles,
+    monkeypatch,
+):
+    candles = make_candles(60)
+    close = np.array([float(item.close) for item in candles])
+    ema26 = np.full(60, 127.0)
+    ema9 = np.full(60, 128.0)
+    _mock_ema(monkeypatch, ema9, ema26)
+    mock_history.return_value = candles
+    mock_rsi.return_value = np.full(60, 85.0)
+    mock_supertrend.return_value = (
+        close - 3,
+        np.ones(60, dtype=int),
+        np.full(60, 2.0),
+    )
+
+    result = calc_score("600519")
+
+    # overheat only blocks new buy entries, not the ongoing hold
+    assert result.state == "hold"
+    assert result.triggers == []
+    assert result.risk is not None
+    assert result.risk.stop_loss < result.indicators.close
 
 
 @patch("stk.services.score._calc_supertrend_arrays")

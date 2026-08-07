@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-type AssessmentState = Literal["buy", "sell", "watch", "ignored"]
+type AssessmentState = Literal["buy", "sell", "watch", "hold", "ignored"]
 type TrendDirection = Literal["bullish", "bearish", "neutral"]
 type SignalTriggerCode = Literal[
     "supertrend_bullish_reversal",

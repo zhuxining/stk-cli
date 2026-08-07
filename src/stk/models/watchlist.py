@@ -52,6 +52,7 @@ class RouteTarget(BaseModel):
 
 class RouteTargets(BaseModel):
     buy: RouteTarget
+    hold: RouteTarget | None = None
     sell: RouteTarget
 
 
