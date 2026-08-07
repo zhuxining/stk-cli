@@ -673,10 +673,14 @@ def calc_score(
         triggers = bullish_triggers or bearish_setup
         reasons.extend(_trigger_reason(trigger) for trigger in triggers)
         reasons.append("近期反转事件已出现，但当前趋势结构尚未满足信号条件")
-    elif bullish_structure:
+    elif bullish_structure and current_close > ema26:
         state = "hold"
         triggers = []
         reasons.append("多头趋势结构保持且无新反转事件，处于持有观察")
+    elif bullish_structure:
+        state = "watch"
+        triggers = []
+        reasons.append("多头结构保持但收盘价跌破 EMA26，趋势转弱观察")
     else:
         state = "ignored"
         triggers = []

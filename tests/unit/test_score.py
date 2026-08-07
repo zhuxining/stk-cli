@@ -459,6 +459,39 @@ def test_established_trend_stays_hold_when_overheated(
 @patch("stk.services.score._calc_supertrend_arrays")
 @patch("stk.services.score.talib.RSI")
 @patch("stk.services.score.get_history")
+def test_bullish_structure_below_ema26_is_watch_not_hold(
+    mock_history,
+    mock_rsi,
+    mock_supertrend,
+    make_candles,
+    monkeypatch,
+):
+    """A bullish EMA/Supertrend structure with close below EMA26 is watch."""
+    candles = make_candles(60)
+    close = np.array([float(item.close) for item in candles])
+    # close[-1] = 129.5, force EMA above the close (like 600030 on 2026-08-06)
+    ema26 = np.full(60, 130.0)
+    ema9 = np.full(60, 131.0)
+    _mock_ema(monkeypatch, ema9, ema26)
+    mock_history.return_value = candles
+    mock_rsi.return_value = np.full(60, 47.9)
+    mock_supertrend.return_value = (
+        close - 3,
+        np.ones(60, dtype=int),
+        np.full(60, 2.0),
+    )
+
+    result = calc_score("600030")
+
+    assert result.state == "watch"
+    assert result.triggers == []
+    assert result.risk is None
+    assert any("跌破 EMA26" in reason for reason in result.reasons)
+
+
+@patch("stk.services.score._calc_supertrend_arrays")
+@patch("stk.services.score.talib.RSI")
+@patch("stk.services.score.get_history")
 def test_bearish_event_replaces_a_recent_bullish_confirmation(
     mock_history,
     mock_rsi,
